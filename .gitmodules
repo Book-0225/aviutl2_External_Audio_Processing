@@ -1,0 +1,6 @@
+[submodule "vst3sdk"]
+	path = vst3sdk
+	url = https://github.com/steinbergmedia/vst3sdk.git
+[submodule "clap"]
+	path = clap
+	url = https://github.com/free-audio/clap.git

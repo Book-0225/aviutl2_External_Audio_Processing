@@ -1,0 +1,7 @@
+.vs/
+.vscode/
+vst3sdk_build/
+x64/
+aviutl2_sdk/
+External*/
+*.user
