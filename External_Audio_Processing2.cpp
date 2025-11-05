@@ -63,7 +63,7 @@ static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.1"
+#define PLUGIN_VERSION L"v2-0.0.2"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
