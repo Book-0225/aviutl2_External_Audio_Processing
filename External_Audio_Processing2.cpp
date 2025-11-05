@@ -63,7 +63,7 @@ static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.2"
+#define PLUGIN_VERSION L"v2-0.0.3"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -207,63 +207,81 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
         if (needs_reinitialization) {
             double sampleRate = audio->scene->sample_rate;
 
-            std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+            bool isFirstLoad = (it == g_hosts.end());
+            if (!isFirstLoad && plugin_path_w.empty()) {
+                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
 
-            g_main_thread_tasks.push_back([instance_id] {
-                if (instance_id.empty()) return;
+                g_main_thread_tasks.push_back([instance_id] {
+                    if (instance_id.empty()) return;
 
-                static std::string target_instance_id_for_callback;
-                target_instance_id_for_callback = instance_id;
+                    static std::string target_instance_id_for_callback;
+                    target_instance_id_for_callback = instance_id;
 
-                auto find_and_update_object = [](EDIT_SECTION* edit) {
-                    if (target_instance_id_for_callback.empty()) return;
+                    auto find_and_update_object_proc = [](EDIT_SECTION* edit) {
+                        if (target_instance_id_for_callback.empty()) return;
 
-                    OBJECT_HANDLE target_object = nullptr;
-                    int max_layer = edit->info->layer_max;
+                        OBJECT_HANDLE target_object = nullptr;
+                        int max_layer = edit->info->layer_max;
 
-                    for (int layer = 0; layer <= max_layer && !target_object; ++layer) {
-                        OBJECT_HANDLE obj = edit->find_object(layer, 0);
-                        while (obj != nullptr) {
-                            LPCSTR stored_id_str = edit->get_object_item_value(obj, filter_name, instance_id_param.name);
-                            if (stored_id_str && target_instance_id_for_callback == stored_id_str) {
-                                target_object = obj;
-                                break;
-                            }
-                            int current_end_frame = edit->get_object_layer_frame(obj).end;
-                            obj = edit->find_object(layer, current_end_frame + 1);
-                        }
-                    }
-
-                    if (target_object) {
-                        edit->set_object_item_value(target_object, filter_name, toggle_gui_check.name, "0");
-                    }
-                    };
-
-                g_edit_handle->call_edit_section(find_and_update_object);
-                });
-
-            g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path_w, sampleRate]() {
-                std::lock_guard<std::mutex> host_lock(g_states_mutex);
-
-                g_hosts.erase(effect_id);
-
-                if (!plugin_path_w.empty()) {
-                    auto plugin_type = GetPluginTypeFromPath(plugin_path_w);
-                    if (plugin_type != PluginType::Unknown) {
-                        auto new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
-                        if (new_host) {
-                            if (sampleRate > 0) {
-                                if (new_host->LoadPlugin(WideToUtf8(plugin_path_w.c_str()), sampleRate, MAX_BLOCK_SIZE)) {
-                                    if (g_plugin_state_database.count(instance_id)) {
-                                        new_host->SetState(g_plugin_state_database[instance_id]);
+                        for (int layer = 0; layer <= max_layer && !target_object; ++layer) {
+                            OBJECT_HANDLE obj = edit->find_object(layer, 0);
+                            while (obj != nullptr) {
+                                for (int i = 0; i < 100; ++i) {
+                                    std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+                                    LPCSTR stored_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name);
+                                    if (!stored_id_str) break;
+                                    if (stored_id_str[0] != '\0' && target_instance_id_for_callback == stored_id_str) {
+                                        target_object = obj;
+                                        break;
                                     }
-                                    g_hosts[effect_id] = std::move(new_host);
+                                }
+                                if (target_object) break;
+                                int current_end_frame = edit->get_object_layer_frame(obj).end;
+                                obj = edit->find_object(layer, current_end_frame + 1);
+                            }
+                        }
+
+                        if (target_object) {
+                            for (int i = 0; i < 100; ++i) {
+                                std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+                                LPCSTR stored_id_str = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
+                                if (!stored_id_str) break;
+                                if (target_instance_id_for_callback == stored_id_str) {
+                                    edit->set_object_item_value(target_object, indexed_filter_name.c_str(), toggle_gui_check.name, "0");
+                                    break;
+                                }
+                            }
+                        }
+                        };
+
+                    g_edit_handle->call_edit_section(find_and_update_object_proc);
+                    });
+            }
+            {
+                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+                g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path_w, sampleRate]() {
+                    std::lock_guard<std::mutex> host_lock(g_states_mutex);
+
+                    g_hosts.erase(effect_id);
+
+                    if (!plugin_path_w.empty()) {
+                        auto plugin_type = GetPluginTypeFromPath(plugin_path_w);
+                        if (plugin_type != PluginType::Unknown) {
+                            auto new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
+                            if (new_host) {
+                                if (sampleRate > 0) {
+                                    if (new_host->LoadPlugin(WideToUtf8(plugin_path_w.c_str()), sampleRate, MAX_BLOCK_SIZE)) {
+                                        if (g_plugin_state_database.count(instance_id)) {
+                                            new_host->SetState(g_plugin_state_database[instance_id]);
+                                        }
+                                        g_hosts[effect_id] = std::move(new_host);
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                });
+                    });
+            }
             return true;
         }
     }
