@@ -47,7 +47,6 @@ const int MAX_BLOCK_SIZE = 2048;
 EDIT_HANDLE* g_edit_handle = nullptr;
 UINT_PTR g_timer_id = 87655;
 HINSTANCE g_hinstance = NULL;
-std::string g_temp_instance_id;
 
 HWND g_hMessageWindow = NULL;
 const UINT WM_APP_EXECUTE_TASKS = WM_APP + 100;
@@ -60,6 +59,8 @@ std::map<int64_t, std::shared_ptr<IAudioPluginHost>> g_hosts;
 std::map<std::string, std::string> g_plugin_state_database;
 
 static std::vector<std::string> g_temp_active_ids;
+static int64_t g_target_object_id_for_update = -1;
+static std::string g_new_instance_id_for_update;
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
 #define PLUGIN_VERSION L"v2-0.0.1"
@@ -81,8 +82,8 @@ constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, PLUGIN_VERSION, P
 constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBUTION);
 
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter);
-FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
+FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 
 void* filter_items[] = {
     &plugin_path_param,
@@ -138,21 +139,53 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
     }
 }
 
+void update_instance_id_proc(EDIT_SECTION* edit) {
+    if (g_target_object_id_for_update == -1 || g_new_instance_id_for_update.empty()) {
+        return;
+    }
+
+    OBJECT_HANDLE target_object = nullptr;
+    int max_layer = edit->info->layer_max;
+    for (int layer = 0; layer <= max_layer && !target_object; ++layer) {
+        OBJECT_HANDLE obj = edit->find_object(layer, 0);
+        while (obj != nullptr) {
+            target_object = edit->get_focus_object();
+            if (target_object) break;
+
+            int current_end_frame = edit->get_object_layer_frame(obj).end;
+            obj = edit->find_object(layer, current_end_frame + 1);
+        }
+    }
+    target_object = edit->get_focus_object();
+
+    if (!target_object) return;
+    for (int i = 0; i < 100; ++i) {
+        std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+
+        LPCSTR stored_id_str = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
+
+        if (!stored_id_str || stored_id_str[0] == '\0') {
+            edit->set_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name, g_new_instance_id_for_update.c_str());
+            break;
+        }
+    }
+    g_target_object_id_for_update = -1;
+    g_new_instance_id_for_update.clear();
+}
+
 bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     std::wstring plugin_path_w = plugin_path_param.value;
     std::string instance_id = WideToUtf8(instance_id_param.value);
     int64_t effect_id = audio->object->effect_id;
 
     if (instance_id.empty()) {
-        g_temp_instance_id = GenerateUUID();
+        std::string new_instance_id = GenerateUUID();
         std::lock_guard<std::mutex> lock(g_task_queue_mutex);
+        g_target_object_id_for_update = audio->object->id;
+        g_new_instance_id_for_update = new_instance_id;
+
         g_main_thread_tasks.push_back([] {
-            g_edit_handle->call_edit_section([](EDIT_SECTION* edit) {
-                OBJECT_HANDLE target_object = edit->get_focus_object();
-                if (target_object) {
-                    edit->set_object_item_value(target_object, filter_name, instance_id_param.name, g_temp_instance_id.c_str());
-                }
-                });
+            g_edit_handle->call_edit_section(update_instance_id_proc);
             });
         return true;
     }
@@ -285,13 +318,16 @@ void CollectActiveInstances(EDIT_SECTION* edit) {
     g_temp_active_ids.clear();
 
     int max_layer = edit->info->layer_max;
-    int max_frame = edit->info->frame_max;
 
     for (int layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE object = edit->find_object(layer, 0);
         while (object != nullptr) {
-            LPCSTR instance_id_str = edit->get_object_item_value(object, filter_name, instance_id_param.name);
-            if (instance_id_str && instance_id_str[0] != '\0') {
+            for (int i = 0; i < 100; ++i) {
+                std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+                LPCSTR instance_id_str = edit->get_object_item_value(object, indexed_filter_name.c_str(), instance_id_param.name);
+                if (!instance_id_str || instance_id_str[0] == '\0') {
+                    break;
+                }
                 g_temp_active_ids.push_back(std::string(instance_id_str));
             }
             int current_end_frame = edit->get_object_layer_frame(object).end;
