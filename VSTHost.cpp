@@ -19,9 +19,6 @@
 #include <objbase.h>
 #include <mutex>
 
-#pragma comment(lib, "Crypt32.lib")
-#pragma comment(lib, "ole32.lib")
-
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;

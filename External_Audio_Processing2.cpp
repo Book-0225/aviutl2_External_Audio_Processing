@@ -61,9 +61,10 @@ std::map<std::string, std::string> g_plugin_state_database;
 static std::vector<std::string> g_temp_active_ids;
 static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
+static std::string g_plugin_path_for_update;
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.3"
+#define PLUGIN_VERSION L"v2-0.0.4-dev"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -144,33 +145,45 @@ void update_instance_id_proc(EDIT_SECTION* edit) {
         return;
     }
 
-    OBJECT_HANDLE target_object = nullptr;
-    int max_layer = edit->info->layer_max;
-    for (int layer = 0; layer <= max_layer && !target_object; ++layer) {
-        OBJECT_HANDLE obj = edit->find_object(layer, 0);
-        while (obj != nullptr) {
-            target_object = edit->get_focus_object();
-            if (target_object) break;
+    OBJECT_HANDLE target_object = edit->get_focus_object();
 
-            int current_end_frame = edit->get_object_layer_frame(obj).end;
-            obj = edit->find_object(layer, current_end_frame + 1);
-        }
-    }
-    target_object = edit->get_focus_object();
+    if (target_object) {
+        bool isInitialSetup = g_plugin_path_for_update.empty();
 
-    if (!target_object) return;
-    for (int i = 0; i < 100; ++i) {
-        std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+        for (int i = 0; i < 100; ++i) {
+            std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
 
-        LPCSTR stored_id_str = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
+            LPCSTR path_str_c = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), plugin_path_param.name);
+            LPCSTR stored_id_str = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
 
-        if (!stored_id_str || stored_id_str[0] == '\0') {
-            edit->set_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name, g_new_instance_id_for_update.c_str());
-            break;
+            if (!path_str_c || !stored_id_str) {
+                break;
+            }
+
+            std::string current_path = path_str_c;
+            bool id_is_empty = (stored_id_str[0] == '\0');
+
+            bool should_write = false;
+            if (isInitialSetup) {
+                if (current_path.empty() && id_is_empty) {
+                    should_write = true;
+                }
+            }
+            else {
+                if (current_path == g_plugin_path_for_update && id_is_empty) {
+                    should_write = true;
+                }
+            }
+
+            if (should_write) {
+                edit->set_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name, g_new_instance_id_for_update.c_str());
+                break;
+            }
         }
     }
     g_target_object_id_for_update = -1;
     g_new_instance_id_for_update.clear();
+    g_plugin_path_for_update.clear();
 }
 
 bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
@@ -183,6 +196,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_task_queue_mutex);
         g_target_object_id_for_update = audio->object->id;
         g_new_instance_id_for_update = new_instance_id;
+        g_plugin_path_for_update = WideToUtf8(plugin_path_w.c_str());
 
         g_main_thread_tasks.push_back([] {
             g_edit_handle->call_edit_section(update_instance_id_proc);
