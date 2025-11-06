@@ -108,7 +108,6 @@ struct VstHost::Impl {
     std::mutex paramMutex;
     std::mutex processorUpdateMutex;
     std::vector<std::pair<ParamID, ParamValue>> pendingParamChanges;
-    std::vector<std::pair<ParamID, ParamValue>> processorParamUpdates;
 };
 
 bool VstHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
