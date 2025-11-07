@@ -1,6 +1,6 @@
 ﻿#include "AudioPluginFactory.h"
-#include "VstHost.h" 
-#include "ClapHost.h" 
+#include "VstHost.h"
+#include "ClapHost.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include <atomic>

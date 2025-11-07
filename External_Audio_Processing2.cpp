@@ -64,7 +64,7 @@ static std::string g_new_instance_id_for_update;
 static std::string g_plugin_path_for_update;
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.4-dev"
+#define PLUGIN_VERSION L"v2-0.0.4"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -208,13 +208,18 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_states_mutex);
         auto it = g_hosts.find(effect_id);
         bool needs_reinitialization = false;
+        bool path_changed = false;
 
         if (plugin_path_w.empty()) {
             if (it != g_hosts.end()) needs_reinitialization = true;
         }
         else {
-            if (it == g_hosts.end() || (it->second->GetPluginPath() != WideToUtf8(plugin_path_w.c_str()))) {
+            if (it == g_hosts.end()) {
                 needs_reinitialization = true;
+            }
+            else if (it->second->GetPluginPath() != WideToUtf8(plugin_path_w.c_str())) {
+                needs_reinitialization = true;
+                path_changed = true;
             }
         }
 
@@ -273,7 +278,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
             }
             {
                 std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-                g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path_w, sampleRate]() {
+                g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path_w, sampleRate, path_changed]() {
                     std::lock_guard<std::mutex> host_lock(g_states_mutex);
 
                     g_hosts.erase(effect_id);
@@ -285,7 +290,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
                             if (new_host) {
                                 if (sampleRate > 0) {
                                     if (new_host->LoadPlugin(WideToUtf8(plugin_path_w.c_str()), sampleRate, MAX_BLOCK_SIZE)) {
-                                        if (g_plugin_state_database.count(instance_id)) {
+                                        if (!path_changed && g_plugin_state_database.count(instance_id)) {
                                             new_host->SetState(g_plugin_state_database[instance_id]);
                                         }
                                         g_hosts[effect_id] = std::move(new_host);
