@@ -70,13 +70,15 @@ std::set<std::string> g_active_instance_ids;
 static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
 static std::string g_plugin_path_for_update;
+std::mutex g_instance_ownership_mutex;
+std::map<std::string, int64_t> g_instance_id_to_effect_id_map;
 
 struct InstanceData {
     char uuid[40] = { 0 };
 };
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.5"
+#define PLUGIN_VERSION L"v2-0.0.6-dev"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -208,6 +210,43 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
 
     if (instance_id.empty()) {
         return true;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_instance_ownership_mutex);
+
+        auto it = g_instance_id_to_effect_id_map.find(instance_id);
+        if (it == g_instance_id_to_effect_id_map.end()) {
+            g_instance_id_to_effect_id_map[instance_id] = effect_id;
+        }
+        else {
+            if (it->second != effect_id) {
+                DbgPrint("Copy detected! old_id: %s, new effect_id: %lld", instance_id.c_str(), effect_id);
+
+                std::string new_instance_id = GenerateUUID();
+
+                {
+                    std::lock_guard<std::mutex> state_lock(g_states_mutex);
+                    if (g_plugin_state_database.count(instance_id)) {
+                        g_plugin_state_database[new_instance_id] = g_plugin_state_database[instance_id];
+                    }
+                }
+
+                strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), new_instance_id.c_str());
+
+                g_instance_id_to_effect_id_map[new_instance_id] = effect_id;
+
+                g_target_object_id_for_update = audio->object->id;
+                g_new_instance_id_for_update = new_instance_id;
+                g_plugin_path_for_update = WideToUtf8(plugin_path_w.c_str());
+
+                g_main_thread_tasks.push_back([] {
+                    g_edit_handle->call_edit_section(update_instance_id_proc);
+                    });
+
+                return true;
+            }
+        }
     }
 
     {
@@ -418,6 +457,12 @@ void func_project_load(PROJECT_FILE* pf) {
         std::lock_guard<std::mutex> lock(g_active_instances_mutex);
         g_active_instance_ids.clear();
     }
+
+    {
+        std::lock_guard<std::mutex> lock(g_instance_ownership_mutex);
+        g_instance_id_to_effect_id_map.clear();
+    }
+
     std::lock_guard<std::mutex> lock(g_states_mutex);
     g_plugin_state_database.clear();
     LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
