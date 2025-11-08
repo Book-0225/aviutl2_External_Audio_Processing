@@ -77,6 +77,28 @@ private:
     std::atomic<uint32> m_refCount{ 1 };
 };
 
+class HostComponentHandler : public IComponentHandler
+{
+public:
+    tresult PLUGIN_API beginEdit(ParamID tag) override { return kResultOk; }
+    tresult PLUGIN_API performEdit(ParamID tag, ParamValue valueNormalized) override { return kResultOk; }
+    tresult PLUGIN_API endEdit(ParamID tag) override { return kResultOk; }
+    tresult PLUGIN_API restartComponent(int32 flags) override { return kResultOk; }
+    tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override {
+        QUERY_INTERFACE(iid, obj, IComponentHandler::iid, IComponentHandler)
+            QUERY_INTERFACE(iid, obj, FUnknown::iid, FUnknown)
+            * obj = nullptr;
+        return kNoInterface;
+    }
+    uint32 PLUGIN_API addRef() override { return ++refCount; }
+    uint32 PLUGIN_API release() override {
+        if (--refCount == 0) { delete this; return 0; }
+        return refCount;
+    }
+private:
+    std::atomic<uint32> refCount{ 1 };
+};
+
 struct VstHost::Impl {
     Impl(HINSTANCE hInst) : hInstance(hInst), isReady(false) {}
     ~Impl() { ReleasePlugin(); }
@@ -98,6 +120,7 @@ struct VstHost::Impl {
     IComponent* component = nullptr;
     IEditController* controller = nullptr;
     IAudioProcessor* processor = nullptr;
+    FUnknownPtr<HostComponentHandler> componentHandler;
     bool isReady = false;
     HWND guiWindow = nullptr;
     FUnknownPtr<IPlugView> plugView;
@@ -113,6 +136,7 @@ struct VstHost::Impl {
 
 bool VstHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
     ReleasePlugin();
+    componentHandler = owned(new HostComponentHandler());
     currentPluginPath = path;
     std::string error;
     module = Module::create(path, error);
@@ -137,6 +161,9 @@ bool VstHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32
     controller = provider->getController();
     if (!component || !controller) { ReleasePlugin(); return false; }
 
+    if (controller) {
+        controller->setComponentHandler(componentHandler);
+    }
     if (component->queryInterface(IAudioProcessor::iid, (void**)&processor) != kResultOk) {
         ReleasePlugin(); return false;
     }
@@ -176,6 +203,7 @@ void VstHost::Impl::ReleasePlugin() {
     }
 
     if (controller) {
+        controller->setComponentHandler(nullptr);
         controller->release();
         controller = nullptr;
     }
@@ -187,6 +215,7 @@ void VstHost::Impl::ReleasePlugin() {
 
     module.reset();
     currentPluginPath.clear();
+    componentHandler.reset();
 }
 
 void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) {
@@ -300,7 +329,7 @@ void VstHost::Impl::ShowGui() {
         else {
             self = (VstHost::Impl*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
         }
-        
+
         if (msg == WM_CLOSE) return 0;
 
         if (msg == WM_DESTROY) {
