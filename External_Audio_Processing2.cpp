@@ -70,12 +70,16 @@ static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
 static std::string g_plugin_path_for_update;
 
+struct InstanceData {
+    char uuid[40] = { 0 };
+};
+
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
 #define PLUGIN_VERSION L"v2-0.0.5-dev"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
-#define MIN_VER 2001802
+#define MIN_VER 2001900
 #define FILTER_INFO_FMT(name, ver, author) (name L" filter " ver L" by " author)
 #define PLUGIN_INFO_FMT(name, attr) (name L" Info: " attr)
 
@@ -92,11 +96,13 @@ constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBU
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
+FILTER_ITEM_DATA<InstanceData> instance_data_param(L"INSTANCE_ID");
 
 void* filter_items[] = {
     &plugin_path_param,
     &toggle_gui_check,
     &instance_id_param,
+    &instance_data_param,
     nullptr
 };
 
@@ -148,44 +154,23 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
 }
 
 void update_instance_id_proc(EDIT_SECTION* edit) {
-    if (g_target_object_id_for_update == -1 || g_new_instance_id_for_update.empty()) {
-        return;
-    }
+    if (g_target_object_id_for_update == -1) return;
 
     OBJECT_HANDLE target_object = edit->get_focus_object();
 
     if (target_object) {
-        bool isInitialSetup = g_plugin_path_for_update.empty();
-
         for (int i = 0; i < 100; ++i) {
             std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
 
             LPCSTR path_str_c = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), plugin_path_param.name);
-            LPCSTR stored_id_str = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
+            if (!path_str_c) break;
+            if (g_plugin_path_for_update != std::string(path_str_c)) continue;
 
-            if (!path_str_c || !stored_id_str) {
-                break;
+            LPCSTR old_id = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
+            if (old_id && old_id[0] != '\0') {
+                edit->set_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name, "");
             }
-
-            std::string current_path = path_str_c;
-            bool id_is_empty = (stored_id_str[0] == '\0');
-
-            bool should_write = false;
-            if (isInitialSetup) {
-                if (current_path.empty() && id_is_empty) {
-                    should_write = true;
-                }
-            }
-            else {
-                if (current_path == g_plugin_path_for_update && id_is_empty) {
-                    should_write = true;
-                }
-            }
-
-            if (should_write) {
-                edit->set_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name, g_new_instance_id_for_update.c_str());
-                break;
-            }
+            break;
         }
     }
     g_target_object_id_for_update = -1;
@@ -195,14 +180,38 @@ void update_instance_id_proc(EDIT_SECTION* edit) {
 
 bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     std::wstring plugin_path_w = plugin_path_param.value;
-    std::string instance_id = WideToUtf8(instance_id_param.value);
     int64_t effect_id = audio->object->effect_id;
 
+    std::string instance_id;
+    bool is_migrated = false;
+    if (instance_data_param.value != &instance_data_param.default_value &&
+        instance_data_param.value->uuid[0] != '\0')
+    {
+        instance_id = instance_data_param.value->uuid;
+    }
+    else
+    {
+        LPCWSTR legacy_id_w = instance_id_param.value;
+        if (legacy_id_w && legacy_id_w[0] != L'\0') {
+            instance_id = WideToUtf8(legacy_id_w);
+
+            strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
+
+            is_migrated = true;
+        }
+        else {
+            instance_id = GenerateUUID();
+            strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
+        }
+    }
+
     if (instance_id.empty()) {
-        std::string new_instance_id = GenerateUUID();
-        std::lock_guard<std::mutex> lock(g_task_queue_mutex);
+        return true;
+    }
+
+    if (is_migrated || (instance_data_param.value == &instance_data_param.default_value)) {
         g_target_object_id_for_update = audio->object->id;
-        g_new_instance_id_for_update = new_instance_id;
+        g_new_instance_id_for_update = instance_id;
         g_plugin_path_for_update = WideToUtf8(plugin_path_w.c_str());
 
         g_main_thread_tasks.push_back([] {
