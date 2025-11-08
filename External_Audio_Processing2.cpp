@@ -14,6 +14,7 @@
 #include <objbase.h>
 #include <rpcdce.h>
 #include <iterator>
+#include <set>
 
 #include "filter2.h"
 #include "plugin2.h"
@@ -64,8 +65,8 @@ struct LastAudioState {
 };
 std::mutex g_last_audio_state_mutex;
 std::map<int64_t, LastAudioState> g_last_audio_states;
-
-static std::vector<std::string> g_temp_active_ids;
+std::mutex g_active_instances_mutex;
+std::set<std::string> g_active_instance_ids;
 static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
 static std::string g_plugin_path_for_update;
@@ -207,6 +208,11 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
 
     if (instance_id.empty()) {
         return true;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_active_instances_mutex);
+        g_active_instance_ids.insert(instance_id);
     }
 
     if (is_migrated || (instance_data_param.value == &instance_data_param.default_value)) {
@@ -388,35 +394,12 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
-void CollectActiveInstances(EDIT_SECTION* edit) {
-    g_temp_active_ids.clear();
-
-    int max_layer = edit->info->layer_max;
-
-    for (int layer = 0; layer <= max_layer; ++layer) {
-        OBJECT_HANDLE object = edit->find_object(layer, 0);
-        while (object != nullptr) {
-            for (int i = 0; i < 100; ++i) {
-                std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
-                LPCSTR instance_id_str = edit->get_object_item_value(object, indexed_filter_name.c_str(), instance_id_param.name);
-                if (!instance_id_str || instance_id_str[0] == '\0') {
-                    break;
-                }
-                g_temp_active_ids.push_back(std::string(instance_id_str));
-            }
-            int current_end_frame = edit->get_object_layer_frame(object).end;
-            object = edit->find_object(layer, current_end_frame + 1);
-        }
-    }
-}
-
 void func_project_save(PROJECT_FILE* pf) {
     std::string all_data_str;
+    std::lock_guard<std::mutex> state_lock(g_states_mutex);
+    std::lock_guard<std::mutex> active_lock(g_active_instances_mutex);
 
-    g_edit_handle->call_edit_section(CollectActiveInstances);
-
-    std::lock_guard<std::mutex> lock(g_states_mutex);
-    for (const auto& active_id : g_temp_active_ids) {
+    for (const auto& active_id : g_active_instance_ids) {
         if (g_plugin_state_database.count(active_id)) {
             all_data_str += active_id + ":" + g_plugin_state_database[active_id] + ";";
         }
@@ -428,11 +411,13 @@ void func_project_save(PROJECT_FILE* pf) {
     else {
         pf->set_param_string("AudioHostStateDB", nullptr);
     }
-
-    g_temp_active_ids.clear();
 }
 
 void func_project_load(PROJECT_FILE* pf) {
+    {
+        std::lock_guard<std::mutex> lock(g_active_instances_mutex);
+        g_active_instance_ids.clear();
+    }
     std::lock_guard<std::mutex> lock(g_states_mutex);
     g_plugin_state_database.clear();
     LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
