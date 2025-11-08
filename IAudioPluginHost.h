@@ -13,6 +13,7 @@ public:
         int32_t numSamples,
         int32_t numChannels
     ) = 0;
+    virtual void Reset() = 0;
 
     virtual void ShowGui() = 0;
     virtual void HideGui() = 0;

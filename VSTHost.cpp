@@ -83,6 +83,7 @@ struct VstHost::Impl {
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels);
+    void Reset();
     void ShowGui();
     void HideGui();
     std::string GetState();
@@ -268,6 +269,14 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     }
 }
 
+void VstHost::Impl::Reset() {
+    if (!isReady || !component) {
+        return;
+    }
+    component->setActive(false);
+    component->setActive(true);
+}
+
 void VstHost::Impl::ShowGui() {
     if (guiWindow && IsWindow(guiWindow)) {
         ShowWindow(guiWindow, SW_SHOW); SetForegroundWindow(guiWindow); return;
@@ -378,6 +387,7 @@ void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, floa
     m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels);
 }
 
+void VstHost::Reset() { m_impl->Reset(); }
 void VstHost::ShowGui() { m_impl->ShowGui(); }
 void VstHost::HideGui() { m_impl->HideGui(); }
 std::string VstHost::GetState() { return m_impl->GetState(); }

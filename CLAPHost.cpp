@@ -31,6 +31,7 @@ struct ClapHost::Impl {
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels);
+    void Reset();
     void ShowGui();
     void HideGui();
     std::string GetState();
@@ -218,6 +219,12 @@ void ClapHost::Impl::ProcessAudio(const float* inL, const float* inR, float* out
     plugin->process(plugin, &process);
 }
 
+void ClapHost::Impl::Reset() {
+    if (isReady && plugin && plugin->reset) {
+        plugin->reset(plugin);
+    }
+}
+
 LRESULT CALLBACK ClapHostGuiProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
     auto self = (ClapHost::Impl*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
     if (msg == WM_CREATE) {
@@ -335,6 +342,7 @@ ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstanc
 ClapHost::~ClapHost() = default;
 bool ClapHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
 void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels); }
+void ClapHost::Reset() { m_impl->Reset(); }
 void ClapHost::ShowGui() { m_impl->ShowGui(); }
 void ClapHost::HideGui() { m_impl->HideGui(); }
 std::string ClapHost::GetState() { return m_impl->GetState(); }

@@ -10,6 +10,7 @@ public:
     ~ClapHost() override;
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) override;
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) override;
+    void Reset() override;
     void ShowGui() override;
     void HideGui() override;
     std::string GetState() override;

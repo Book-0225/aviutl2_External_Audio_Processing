@@ -58,13 +58,20 @@ std::mutex g_states_mutex;
 std::map<int64_t, std::shared_ptr<IAudioPluginHost>> g_hosts;
 std::map<std::string, std::string> g_plugin_state_database;
 
+struct LastAudioState {
+    int64_t sample_index;
+    int sample_num;
+};
+std::mutex g_last_audio_state_mutex;
+std::map<int64_t, LastAudioState> g_last_audio_states;
+
 static std::vector<std::string> g_temp_active_ids;
 static int64_t g_target_object_id_for_update = -1;
 static std::string g_new_instance_id_for_update;
 static std::string g_plugin_path_for_update;
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.4"
+#define PLUGIN_VERSION L"v2-0.0.5-dev"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -315,6 +322,27 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     }
 
     if (!host_for_audio) return true;
+
+    {
+        std::lock_guard<std::mutex> lock(g_last_audio_state_mutex);
+        auto it = g_last_audio_states.find(effect_id);
+        bool needs_reset = false;
+        if (it != g_last_audio_states.end()) {
+            const auto& last_state = it->second;
+            if (audio->object->sample_index != last_state.sample_index + last_state.sample_num) {
+                needs_reset = true;
+                DbgPrint("Seek detected for effect_id %lld. Resetting plugin.", effect_id);
+            }
+        }
+        else {
+            needs_reset = true;
+            DbgPrint("First process for effect_id %lld. Resetting plugin.", effect_id);
+        }
+        if (needs_reset) {
+            host_for_audio->Reset();
+        }
+        g_last_audio_states[effect_id] = { audio->object->sample_index, audio->object->sample_num };
+    }
 
     bool gui_should_show = toggle_gui_check.value;
     if (host_for_audio->IsGuiVisible() != gui_should_show) {
