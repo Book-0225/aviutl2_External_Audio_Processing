@@ -69,7 +69,7 @@
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta18b以降
+- AviUtl ExEdit2 version 2.00 beta19以降
   - https://spring-fragrance.mints.ne.jp/aviutl
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
@@ -95,9 +95,18 @@
 
 - `__INSTANCE_ID__`:
   プラグインの状態をプロジェクト内で一意に管理するためのIDです。  
-  この値は自動的に割り当てられるため、ユーザーが編集する必要はありません。
+  この値は自動的に割り当てられるため、ユーザーが編集する必要はありません。  
+  v0.0.5にてAviUtl ExEdit2 Plugin SDKの更新に伴い廃止しましたが互換性のため残してあります。  
+  v0.0.5以降のバージョンではこの項目の中身は空になります。
 
 ## 改版履歴
+
+- **v0.0.5**
+  - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta19以降に変更
+  - AviUtl ExEdit2 Plugin SDKの更新に伴いインスタンスIDの管理を移行  
+    (しばらくの間はv0.0.4以前からのデータ移行ができるようにしておきます)
+  - VST3プラグインのパラメータが保存されないことがあった問題の修正
+  - シーク後の音声にシーク前の音声が影響していたことがあった問題の修正
 
 - **v0.0.4**
   - インスタンスIDの割り当て処理を改善
