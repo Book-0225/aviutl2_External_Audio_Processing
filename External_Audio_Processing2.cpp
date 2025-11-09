@@ -44,6 +44,16 @@ std::string GenerateUUID() {
     return r;
 }
 
+std::string HexToString(const std::string& hex) {
+    std::string res;
+    for (size_t i = 0; i < hex.length(); i += 2) {
+        std::string byteString = hex.substr(i, 2);
+        char byte = static_cast<char>(strtol(byteString.c_str(), nullptr, 16));
+        res.push_back(byte);
+    }
+    return res;
+}
+
 const int MAX_BLOCK_SIZE = 2048;
 EDIT_HANDLE* g_edit_handle = nullptr;
 UINT_PTR g_timer_id = 87655;
@@ -73,13 +83,14 @@ static std::string g_plugin_path_for_clear;
 static std::mutex g_clear_task_mutex;
 std::mutex g_instance_ownership_mutex;
 std::map<std::string, int64_t> g_instance_id_to_effect_id_map;
+static std::set<std::string>* g_active_ids_collector = nullptr;
 
 struct InstanceData {
     char uuid[40] = { 0 };
 };
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.6"
+#define PLUGIN_VERSION L"v2-0.0.7-dev"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -174,7 +185,6 @@ void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
                     LPCSTR legacy_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name);
                     if (legacy_id_str && g_legacy_id_to_clear == legacy_id_str) {
                         edit->set_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name, "");
-                        DbgPrint("Legacy ID '%s' cleared for object on layer %d.", legacy_id.c_str(), layer);
                         target_object = obj;
                         break;
                     }
@@ -421,15 +431,87 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
-void func_project_save(PROJECT_FILE* pf) {
-    std::string all_data_str;
-    std::lock_guard<std::mutex> state_lock(g_states_mutex);
-    std::lock_guard<std::mutex> active_lock(g_active_instances_mutex);
+void collect_active_instance_ids_from_project(EDIT_SECTION* edit, std::set<std::string>& ids) {
+    int max_layer = edit->info->layer_max;
+    for (int layer = 0; layer <= max_layer; ++layer) {
+        OBJECT_HANDLE obj = edit->find_object(layer, 0);
+        while (obj != nullptr) {
+            for (int i = 0; i < 100; ++i) {
+                std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+                if (edit->get_object_item_value(obj, indexed_filter_name.c_str(), plugin_path_param.name) == nullptr) break;
 
-    for (const auto& active_id : g_active_instance_ids) {
-        if (g_plugin_state_database.count(active_id)) {
-            all_data_str += active_id + ":" + g_plugin_state_database[active_id] + ";";
+                LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+                if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
+                    std::string decoded_id_with_padding = HexToString(hex_encoded_id_str);
+                    ids.insert(std::string(decoded_id_with_padding.c_str()));
+
+                }
+                else {
+                    LPCWSTR legacy_id_w = reinterpret_cast<LPCWSTR>(edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name));
+                    if (legacy_id_w && legacy_id_w[0] != L'\0') {
+                        ids.insert(WideToUtf8(legacy_id_w));
+                    }
+                }
+            }
+            int end_frame = edit->get_object_layer_frame(obj).end;
+            obj = edit->find_object(layer, end_frame + 1);
         }
+    }
+}
+
+void collect_active_ids_proc(EDIT_SECTION* edit) {
+    if (g_active_ids_collector) {
+        collect_active_instance_ids_from_project(edit, *g_active_ids_collector);
+    }
+}
+
+void func_project_save(PROJECT_FILE* pf) {
+    std::set<std::string> active_ids_in_project;
+    g_active_ids_collector = &active_ids_in_project;
+    g_edit_handle->call_edit_section(collect_active_ids_proc);
+    g_active_ids_collector = nullptr;
+    auto hosts_to_destroy_on_main_thread = std::make_shared<std::map<int64_t, std::shared_ptr<IAudioPluginHost>>>();
+    std::string all_data_str;
+
+    {
+        std::scoped_lock lock(g_states_mutex, g_instance_ownership_mutex, g_last_audio_state_mutex, g_active_instances_mutex);
+        for (const auto& instance_id : active_ids_in_project) {
+            auto ownership_it = g_instance_id_to_effect_id_map.find(instance_id);
+            if (ownership_it != g_instance_id_to_effect_id_map.end()) {
+                auto host_it = g_hosts.find(ownership_it->second);
+                if (host_it != g_hosts.end() && host_it->second) {
+                    std::string live_state = host_it->second->GetState();
+                    if (!live_state.empty()) {
+                        g_plugin_state_database[instance_id] = live_state;
+                    }
+                }
+            }
+        }
+        std::map<std::string, std::string> cleaned_db;
+        for (const auto& [id, state] : g_plugin_state_database) {
+            if (active_ids_in_project.count(id)) {
+                cleaned_db[id] = state;
+                all_data_str += id + ":" + state + ";";
+            }
+        }
+        g_plugin_state_database.swap(cleaned_db);
+        std::map<std::string, int64_t> cleaned_ownership_map;
+        std::map<int64_t, std::shared_ptr<IAudioPluginHost>> cleaned_hosts;
+        std::map<int64_t, LastAudioState> cleaned_last_states;
+        for (auto const& [instance_id, effect_id] : g_instance_id_to_effect_id_map) {
+            if (active_ids_in_project.count(instance_id)) {
+                cleaned_ownership_map[instance_id] = effect_id;
+                if (g_hosts.count(effect_id)) cleaned_hosts[effect_id] = g_hosts.at(effect_id);
+                if (g_last_audio_states.count(effect_id)) cleaned_last_states[effect_id] = g_last_audio_states.at(effect_id);
+            }
+        }
+        g_instance_id_to_effect_id_map.swap(cleaned_ownership_map);
+        g_last_audio_states.swap(cleaned_last_states);
+        g_active_instance_ids = active_ids_in_project;
+
+        g_hosts.swap(*hosts_to_destroy_on_main_thread);
+        g_hosts.swap(cleaned_hosts);
+
     }
 
     if (!all_data_str.empty()) {
@@ -437,6 +519,11 @@ void func_project_save(PROJECT_FILE* pf) {
     }
     else {
         pf->set_param_string("AudioHostStateDB", nullptr);
+    }
+    if (!hosts_to_destroy_on_main_thread->empty()) {
+        std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+        g_main_thread_tasks.push_back([hosts_to_destroy = std::move(hosts_to_destroy_on_main_thread)]() {
+            });
     }
 }
 
