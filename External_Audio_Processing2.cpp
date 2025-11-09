@@ -58,6 +58,7 @@ std::vector<std::function<void()>> g_execution_queue;
 std::mutex g_states_mutex;
 std::map<int64_t, std::shared_ptr<IAudioPluginHost>> g_hosts;
 std::map<std::string, std::string> g_plugin_state_database;
+std::map<int64_t, bool> g_pending_reinitialization;
 
 struct LastAudioState {
     int64_t sample_index;
@@ -67,9 +68,9 @@ std::mutex g_last_audio_state_mutex;
 std::map<int64_t, LastAudioState> g_last_audio_states;
 std::mutex g_active_instances_mutex;
 std::set<std::string> g_active_instance_ids;
-static int64_t g_target_object_id_for_update = -1;
-static std::string g_new_instance_id_for_update;
-static std::string g_plugin_path_for_update;
+static std::string g_legacy_id_to_clear;
+static std::string g_plugin_path_for_clear;
+static std::mutex g_clear_task_mutex;
 std::mutex g_instance_ownership_mutex;
 std::map<std::string, int64_t> g_instance_id_to_effect_id_map;
 
@@ -156,29 +157,35 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
     }
 }
 
-void update_instance_id_proc(EDIT_SECTION* edit) {
-    if (g_target_object_id_for_update == -1) return;
+void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
+    OBJECT_HANDLE target_object = nullptr;
+    int max_layer = edit->info->layer_max;
 
-    OBJECT_HANDLE target_object = edit->get_focus_object();
+    for (int layer = 0; layer <= max_layer && !target_object; ++layer) {
+        OBJECT_HANDLE obj = edit->find_object(layer, 0);
+        while (obj != nullptr) {
+            for (int i = 0; i < 100; ++i) {
+                std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
 
-    if (target_object) {
-        for (int i = 0; i < 100; ++i) {
-            std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
+                LPCSTR path_str_c = edit->get_object_item_value(obj, indexed_filter_name.c_str(), plugin_path_param.name);
+                if (!path_str_c) break;
 
-            LPCSTR path_str_c = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), plugin_path_param.name);
-            if (!path_str_c) break;
-            if (g_plugin_path_for_update != std::string(path_str_c)) continue;
-
-            LPCSTR old_id = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
-            if (old_id && old_id[0] != '\0') {
-                edit->set_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name, "");
+                if (g_plugin_path_for_clear == std::string(path_str_c)) {
+                    LPCSTR legacy_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name);
+                    if (legacy_id_str && g_legacy_id_to_clear == legacy_id_str) {
+                        edit->set_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name, "");
+                        DbgPrint("Legacy ID '%s' cleared for object on layer %d.", legacy_id.c_str(), layer);
+                        target_object = obj;
+                        break;
+                    }
+                }
             }
-            break;
+            if (target_object) break;
+
+            int current_end_frame = edit->get_object_layer_frame(obj).end;
+            obj = edit->find_object(layer, current_end_frame + 1);
         }
     }
-    g_target_object_id_for_update = -1;
-    g_new_instance_id_for_update.clear();
-    g_plugin_path_for_update.clear();
 }
 
 bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
@@ -205,6 +212,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
         else {
             instance_id = GenerateUUID();
             strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
+            is_migrated = true;
         }
     }
 
@@ -223,25 +231,18 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
             if (it->second != effect_id) {
                 DbgPrint("Copy detected! old_id: %s, new effect_id: %lld", instance_id.c_str(), effect_id);
 
+                std::string old_instance_id = instance_id;
                 std::string new_instance_id = GenerateUUID();
-
-                {
-                    std::lock_guard<std::mutex> state_lock(g_states_mutex);
-                    if (g_plugin_state_database.count(instance_id)) {
-                        g_plugin_state_database[new_instance_id] = g_plugin_state_database[instance_id];
-                    }
-                }
-
+                { std::lock_guard<std::mutex> state_lock(g_states_mutex); if (g_plugin_state_database.count(old_instance_id)) { g_plugin_state_database[new_instance_id] = g_plugin_state_database[old_instance_id]; } }
                 strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), new_instance_id.c_str());
-
                 g_instance_id_to_effect_id_map[new_instance_id] = effect_id;
-
-                g_target_object_id_for_update = audio->object->id;
-                g_new_instance_id_for_update = new_instance_id;
-                g_plugin_path_for_update = WideToUtf8(plugin_path_w.c_str());
-
-                g_main_thread_tasks.push_back([] {
-                    g_edit_handle->call_edit_section(update_instance_id_proc);
+                std::string plugin_path = WideToUtf8(plugin_path_w.c_str());
+                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+                g_main_thread_tasks.push_back([id_to_clear = old_instance_id, path_to_clear = plugin_path] {
+                    std::lock_guard<std::mutex> lock(g_clear_task_mutex);
+                    g_legacy_id_to_clear = id_to_clear;
+                    g_plugin_path_for_clear = path_to_clear;
+                    g_edit_handle->call_edit_section(find_and_clear_legacy_id_proc);
                     });
 
                 return true;
@@ -249,27 +250,35 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
         }
     }
 
-    {
-        std::lock_guard<std::mutex> lock(g_active_instances_mutex);
-        g_active_instance_ids.insert(instance_id);
-    }
+    { std::lock_guard<std::mutex> lock(g_active_instances_mutex); g_active_instance_ids.insert(instance_id); }
 
-    if (is_migrated || (instance_data_param.value == &instance_data_param.default_value)) {
-        g_target_object_id_for_update = audio->object->id;
-        g_new_instance_id_for_update = instance_id;
-        g_plugin_path_for_update = WideToUtf8(plugin_path_w.c_str());
-
-        g_main_thread_tasks.push_back([] {
-            g_edit_handle->call_edit_section(update_instance_id_proc);
+    if (is_migrated) {
+        std::string plugin_path = WideToUtf8(plugin_path_w.c_str());
+        std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+        g_main_thread_tasks.push_back([id_to_clear = instance_id, path_to_clear = plugin_path]
+            {
+            std::lock_guard<std::mutex> lock(g_clear_task_mutex);
+            g_legacy_id_to_clear = id_to_clear;
+            g_plugin_path_for_clear = path_to_clear;
+            g_edit_handle->call_edit_section(find_and_clear_legacy_id_proc);
             });
         return true;
     }
 
     {
         std::lock_guard<std::mutex> lock(g_states_mutex);
+        if (g_pending_reinitialization.count(effect_id) && g_pending_reinitialization[effect_id]) {
+            return true;
+        }
+    }
+
+    bool needs_reinitialization = false;
+    bool path_changed = false;
+    std::string current_plugin_path;
+
+    {
+        std::lock_guard<std::mutex> lock(g_states_mutex);
         auto it = g_hosts.find(effect_id);
-        bool needs_reinitialization = false;
-        bool path_changed = false;
 
         if (plugin_path_w.empty()) {
             if (it != g_hosts.end()) needs_reinitialization = true;
@@ -278,100 +287,75 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
             if (it == g_hosts.end()) {
                 needs_reinitialization = true;
             }
-            else if (it->second->GetPluginPath() != WideToUtf8(plugin_path_w.c_str())) {
-                needs_reinitialization = true;
-                path_changed = true;
+            else {
+                current_plugin_path = it->second->GetPluginPath();
+                if (current_plugin_path != WideToUtf8(plugin_path_w.c_str())) {
+                    needs_reinitialization = true;
+                    path_changed = true;
+                }
             }
         }
+    }
 
-        if (needs_reinitialization) {
-            double sampleRate = audio->scene->sample_rate;
+    if (needs_reinitialization) {
+        {
+            std::lock_guard<std::mutex> lock(g_states_mutex);
+            g_pending_reinitialization[effect_id] = true;
+        }
 
-            bool isFirstLoad = (it == g_hosts.end());
-            if (!isFirstLoad && plugin_path_w.empty()) {
-                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+        double sampleRate = audio->scene->sample_rate;
+        std::string new_path_utf8 = WideToUtf8(plugin_path_w.c_str());
 
-                g_main_thread_tasks.push_back([instance_id] {
-                    if (instance_id.empty()) return;
+        std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+        g_main_thread_tasks.push_back([effect_id, instance_id, new_path_utf8, sampleRate, path_changed]() {
+            std::shared_ptr<IAudioPluginHost> new_host = nullptr;
 
-                    static std::string target_instance_id_for_callback;
-                    target_instance_id_for_callback = instance_id;
-
-                    auto find_and_update_object_proc = [](EDIT_SECTION* edit) {
-                        if (target_instance_id_for_callback.empty()) return;
-
-                        OBJECT_HANDLE target_object = nullptr;
-                        int max_layer = edit->info->layer_max;
-
-                        for (int layer = 0; layer <= max_layer && !target_object; ++layer) {
-                            OBJECT_HANDLE obj = edit->find_object(layer, 0);
-                            while (obj != nullptr) {
-                                for (int i = 0; i < 100; ++i) {
-                                    std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
-                                    LPCSTR stored_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name);
-                                    if (!stored_id_str) break;
-                                    if (stored_id_str[0] != '\0' && target_instance_id_for_callback == stored_id_str) {
-                                        target_object = obj;
-                                        break;
+            if (!new_path_utf8.empty()) {
+                auto plugin_type = GetPluginTypeFromPath(std::wstring(new_path_utf8.begin(), new_path_utf8.end()));
+                if (plugin_type != PluginType::Unknown) {
+                    new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
+                    if (new_host) {
+                        if (sampleRate > 0) {
+                            if (new_host->LoadPlugin(new_path_utf8, sampleRate, MAX_BLOCK_SIZE)) {
+                                std::string state_to_restore;
+                                {
+                                    std::lock_guard<std::mutex> state_lock(g_states_mutex);
+                                    if (!path_changed && g_plugin_state_database.count(instance_id)) {
+                                        state_to_restore = g_plugin_state_database[instance_id];
                                     }
                                 }
-                                if (target_object) break;
-                                int current_end_frame = edit->get_object_layer_frame(obj).end;
-                                obj = edit->find_object(layer, current_end_frame + 1);
-                            }
-                        }
-
-                        if (target_object) {
-                            for (int i = 0; i < 100; ++i) {
-                                std::wstring indexed_filter_name = std::wstring(filter_name) + L":" + std::to_wstring(i);
-                                LPCSTR stored_id_str = edit->get_object_item_value(target_object, indexed_filter_name.c_str(), instance_id_param.name);
-                                if (!stored_id_str) break;
-                                if (target_instance_id_for_callback == stored_id_str) {
-                                    edit->set_object_item_value(target_object, indexed_filter_name.c_str(), toggle_gui_check.name, "0");
-                                    break;
+                                if (!state_to_restore.empty()) {
+                                    new_host->SetState(state_to_restore);
                                 }
                             }
-                        }
-                        };
-
-                    g_edit_handle->call_edit_section(find_and_update_object_proc);
-                    });
-            }
-            {
-                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-                g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path_w, sampleRate, path_changed]() {
-                    std::lock_guard<std::mutex> host_lock(g_states_mutex);
-
-                    g_hosts.erase(effect_id);
-
-                    if (!plugin_path_w.empty()) {
-                        auto plugin_type = GetPluginTypeFromPath(plugin_path_w);
-                        if (plugin_type != PluginType::Unknown) {
-                            auto new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
-                            if (new_host) {
-                                if (sampleRate > 0) {
-                                    if (new_host->LoadPlugin(WideToUtf8(plugin_path_w.c_str()), sampleRate, MAX_BLOCK_SIZE)) {
-                                        if (!path_changed && g_plugin_state_database.count(instance_id)) {
-                                            new_host->SetState(g_plugin_state_database[instance_id]);
-                                        }
-                                        g_hosts[effect_id] = std::move(new_host);
-                                    }
-                                }
+                            else {
+                                new_host = nullptr;
                             }
                         }
                     }
-                    });
+                }
             }
-            return true;
-        }
+            {
+                std::lock_guard<std::mutex> lock(g_states_mutex);
+                g_hosts.erase(effect_id);
+                if (new_host) {
+                    g_hosts[effect_id] = new_host;
+                }
+                g_pending_reinitialization[effect_id] = false;
+                DbgPrint("Reinitialization complete for effect_id: %lld", effect_id);
+            }
+            });
+
+        return true;
     }
 
     std::shared_ptr<IAudioPluginHost> host_for_audio;
     {
         std::lock_guard<std::mutex> lock(g_states_mutex);
         auto it = g_hosts.find(effect_id);
-        if (it == g_hosts.end()) return true;
-
+        if (it == g_hosts.end()) {
+            return true;
+        }
         host_for_audio = it->second;
     }
 
@@ -401,16 +385,20 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     bool gui_should_show = toggle_gui_check.value;
     if (host_for_audio->IsGuiVisible() != gui_should_show) {
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-        g_main_thread_tasks.push_back([=, host = host_for_audio]() {
-            if (gui_should_show) {
-                host->ShowGui();
-            }
-            else {
-                host->HideGui();
-                std::string state = host->GetState();
-                if (!state.empty()) {
-                    std::lock_guard<std::mutex> db_lock(g_states_mutex);
-                    g_plugin_state_database[instance_id] = state;
+        g_main_thread_tasks.push_back([effect_id, instance_id, gui_should_show]() {
+            std::lock_guard<std::mutex> lock(g_states_mutex);
+            auto it = g_hosts.find(effect_id);
+            if (it != g_hosts.end()) {
+                auto host = it->second;
+                if (gui_should_show) {
+                    host->ShowGui();
+                }
+                else {
+                    host->HideGui();
+                    std::string state = host->GetState();
+                    if (!state.empty()) {
+                        g_plugin_state_database[instance_id] = state;
+                    }
                 }
             }
             });
