@@ -4,15 +4,10 @@
 #include <vector>
 #include <memory>
 #include <map>
-#include <atomic>
 #include <mutex>
 #include <functional>
 #include <algorithm>
-#include <commdlg.h>
 #include <tchar.h>
-#include <shlobj.h>
-#include <objbase.h>
-#include <rpcdce.h>
 #include <iterator>
 #include <set>
 
@@ -90,7 +85,7 @@ struct InstanceData {
 };
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.7"
+#define PLUGIN_VERSION L"v2-0.0.8"
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
@@ -125,7 +120,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio);
 void func_project_save(PROJECT_FILE* pf);
 void func_project_load(PROJECT_FILE* pf);
 
-FILTER_PLUGIN_TABLE filter_pluginable = {
+FILTER_PLUGIN_TABLE filter_plugin_table = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     filter_name,
     L"音声効果",
@@ -418,7 +413,15 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     if (total_samples <= 0) return true;
     int channels = (std::min)(2, audio->object->channel_num);
 
-    std::vector<float> inL(total_samples), inR(total_samples), outL(total_samples), outR(total_samples);
+    thread_local std::vector<float> inL, inR, outL, outR;
+
+    inL.resize(total_samples);
+    outL.resize(total_samples);
+    if (channels >= 2) {
+        inR.resize(total_samples);
+        outR.resize(total_samples);
+    }
+
     if (channels >= 1) audio->get_sample_data(inL.data(), 0);
     if (channels >= 2) audio->get_sample_data(inR.data(), 1);
     else if (channels == 1) inR = inL;
@@ -623,7 +626,7 @@ EXTERN_C __declspec(dllexport) void UninitializePlugin() {
 
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->set_plugin_information(plugin_info);
-    host->register_filter_plugin(&filter_pluginable);
+    host->register_filter_plugin(&filter_plugin_table);
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     g_edit_handle = host->create_edit_handle();
