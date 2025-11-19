@@ -74,12 +74,12 @@
 ## 動作要件
 
 - AviUtl ExEdit2 version 2.00 beta19以降
-  - https://spring-fragrance.mints.ne.jp/aviutl
+  - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
 
 - Visual C++ 再頒布可能パッケージ（[2015/2017/2019/2022] の x64 対応版が必要）
-  - https://learn.microsoft.com/ja-jp/cpp/windows/latest-supported-vc-redist
+  - <https://learn.microsoft.com/ja-jp/cpp/windows/latest-supported-vc-redist>
 
 ## インストール
 
@@ -104,6 +104,12 @@
   v0.0.5以降のバージョンではこの項目の中身は空になります。
 
 ## 改版履歴
+
+- **v0.0.9**
+  - オーディオプラグイン設定の保存時にデータが破損していた問題の修正
+  - 上記の問題などによって破損した設定の簡易復元機能の追加
+  - フィルタ情報の表示を変更(動作に影響はありません)
+  - 内部のファイルパスの扱いを改善
 
 - **v0.0.8**
   - 音声処理パフォーマンスの改善
