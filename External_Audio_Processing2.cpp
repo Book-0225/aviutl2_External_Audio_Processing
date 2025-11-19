@@ -10,6 +10,7 @@
 #include <tchar.h>
 #include <iterator>
 #include <set>
+#include <filesystem>
 
 #include "filter2.h"
 #include "plugin2.h"
@@ -17,11 +18,25 @@
 #include "PluginType.h"
 #include "AudioPluginFactory.h"
 
+#if _MSC_VER >= 1950
+#define VS_VERSION 2026
+#elif _MSC_VER >= 1930
+#define VS_VERSION 2022
+#elif _MSC_VER >= 1920
+#define VS_VERSION 2019
+#elif _MSC_VER >= 1910
+#define VS_VERSION 2017
+#else
+#define VS_VERSION -1
+#endif
+
 #ifdef _DEBUG
 #define DbgPrint(format, ...) do { TCHAR b[512]; _stprintf_s(b, 512, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); OutputDebugString(b); } while (0)
 #else
 #define DbgPrint(format, ...)
 #endif
+
+#define STR2(x) L#x
 
 std::string WideToUtf8(LPCWSTR w) {
     if (!w || !w[0]) return "";
@@ -85,12 +100,24 @@ struct InstanceData {
 };
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.8"
+#define PLUGIN_VERSION L"v2-0.0.9"
+#ifdef _DEBUG
+#define DEBUG_PREFIX L"-dev"
+#else
+#define DEBUG_PREFIX L""
+#endif
 #define PLUGIN_AUTHOR L"BOOK25"
 #define FILTER_NAME L"External Audio Processing 2"
 #define FILTER_NAME_SHORT L"EAP2"
-#define MIN_VER 2001900
-#define FILTER_INFO_FMT(name, ver, author) (name L" filter " ver L" by " author)
+#define MINIMUM_VERSION 2001900
+#define RECOMMENDED_VS_VERSION 2022
+#if VS_VSERSION == -1
+#define FILTER_INFO_FMT(name, ver, debug, vsver, author) (name L" filter " ver debug L"-VSUnkown by " author)
+#elif VS_VERSION != RECOMMENDED_VS_VERSION
+#define FILTER_INFO_FMT(name, ver, debug, vsver, author) (name L" filter " ver debug L"-VS" STR2(vsver) L" by " author)
+#else
+#define FILTER_INFO_FMT(name, ver, debug, author) (name L" filter " ver debug L" by " author)
+#endif
 #define PLUGIN_INFO_FMT(name, attr) (name L" Info: " attr)
 
 TCHAR filter[] =
@@ -100,7 +127,13 @@ L"CLAP Plugins (*.clap)\0*.clap\0"
 L"All Files (*.*)\0*.*\0\0";
 
 constexpr wchar_t filter_name[] = FILTER_NAME;
-constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
+#if VS_VERSION == -1
+constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
+#elif VS_VERSION != RECOMMENDED_VS_VERSION
+constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, VS_VERSION, PLUGIN_AUTHOR);
+#else
+constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
+#endif
 constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBUTION);
 
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter);
@@ -316,7 +349,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
             std::shared_ptr<IAudioPluginHost> new_host = nullptr;
 
             if (!new_path_utf8.empty()) {
-                auto plugin_type = GetPluginTypeFromPath(std::wstring(new_path_utf8.begin(), new_path_utf8.end()));
+                auto plugin_type = GetPluginTypeFromPath(std::filesystem::u8path(new_path_utf8).wstring());
                 if (plugin_type != PluginType::Unknown) {
                     new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
                     if (new_host) {
@@ -330,7 +363,12 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
                                     }
                                 }
                                 if (!state_to_restore.empty()) {
-                                    new_host->SetState(state_to_restore);
+                                    DbgPrint("Restoring state for instance %s", instance_id.c_str());
+                                    if (!new_host->SetState(state_to_restore)) {
+                                        DbgPrint("Failed to restore state for instance %s", instance_id.c_str());
+                                    }
+                                } else {
+                                    DbgPrint("No state to restore for instance %s", instance_id.c_str());
                                 }
                             }
                             else {
@@ -403,6 +441,7 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
                     std::string state = host->GetState();
                     if (!state.empty()) {
                         g_plugin_state_database[instance_id] = state;
+                        DbgPrint("Saved state for instance %s on GUI hide", instance_id.c_str());
                     }
                 }
             }
@@ -519,9 +558,11 @@ void func_project_save(PROJECT_FILE* pf) {
 
     if (!all_data_str.empty()) {
         pf->set_param_string("AudioHostStateDB", all_data_str.c_str());
+        DbgPrint("Saved project state, size: %zu", all_data_str.size());
     }
     else {
         pf->set_param_string("AudioHostStateDB", nullptr);
+        DbgPrint("Saved empty project state");
     }
     if (!hosts_to_destroy_on_main_thread->empty()) {
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
@@ -544,8 +585,12 @@ void func_project_load(PROJECT_FILE* pf) {
     std::lock_guard<std::mutex> lock(g_states_mutex);
     g_plugin_state_database.clear();
     LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
-    if (!all_data_str) return;
+    if (!all_data_str) {
+        DbgPrint("Loaded empty project state");
+        return;
+    }
     std::string str(all_data_str);
+    DbgPrint("Loaded project state, size: %zu", str.size());
     size_t start = 0;
     while (start < str.length()) {
         size_t end = str.find(';', start);
@@ -565,7 +610,7 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD, LPVOID) {
 }
 
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
-    if (version < MIN_VER) {
+    if (version < MINIMUM_VERSION) {
         MessageBox(NULL, L"AviUtl2のバージョンが古すぎます。", filter_name, MB_OK | MB_ICONERROR);
         return false;
     }
