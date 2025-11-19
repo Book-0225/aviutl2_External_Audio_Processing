@@ -158,7 +158,7 @@
 6. `cmake ..\vst3sdk\`
 7. `cmake --build . --config Release`
 8. `cd ..`
-9. `msbuild /p:Configuration=Release /p:Platform="x64"`
+9. `msbuild aviutl2_External_Audio_Processing.vcxproj /p:Configuration=Release /p:Platform="x64"`
 
 上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`が生成されるはずです。
 
