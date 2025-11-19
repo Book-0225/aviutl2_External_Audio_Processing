@@ -56,9 +56,10 @@ std::string GenerateUUID() {
 
 std::string HexToString(const std::string& hex) {
     std::string res;
+    res.reserve(hex.length() / 2); 
     for (size_t i = 0; i < hex.length(); i += 2) {
-        std::string byteString = hex.substr(i, 2);
-        char byte = static_cast<char>(strtol(byteString.c_str(), nullptr, 16));
+        char buf[3] = { hex[i], hex[i+1], '\0' };
+        char byte = static_cast<char>(strtol(buf, nullptr, 16));
         res.push_back(byte);
     }
     return res;
@@ -100,7 +101,7 @@ struct InstanceData {
 };
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.9"
+#define PLUGIN_VERSION L"v2-0.0.10"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -137,12 +138,16 @@ constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, PLUGIN_VERSION, D
 constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBUTION);
 
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter);
+FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_volume(L"Volume", 100.0, 0.0, 500.0, 0.1);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 FILTER_ITEM_DATA<InstanceData> instance_data_param(L"INSTANCE_ID");
 
 void* filter_items[] = {
     &plugin_path_param,
+    &track_wet,
+    &track_volume,
     &toggle_gui_check,
     &instance_id_param,
     &instance_data_param,
@@ -448,6 +453,10 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
             });
     }
 
+    if (track_volume.value == 100.0f && track_wet.value == 0.0f) {
+        return true;
+    }
+
     int total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
     int channels = (std::min)(2, audio->object->channel_num);
@@ -465,10 +474,41 @@ bool func_proc_audio(FILTER_PROC_AUDIO* audio) {
     if (channels >= 2) audio->get_sample_data(inR.data(), 1);
     else if (channels == 1) inR = inL;
 
+    if (track_volume.value == 0.0f) {
+        std::fill(outL.begin(), outL.end(), 0.0f);
+        if (channels >= 2) std::fill(outR.begin(), outR.end(), 0.0f);
+        audio->set_sample_data(outL.data(), 0);
+        if (channels >= 2) audio->set_sample_data(outR.data(), 1);
+        return true;
+    }
+
+    float volume = std::clamp(static_cast<float>(track_volume.value), 0.0f, 500.0f) / 100.0f;
+
+    if (track_wet.value == 0.0f) {
+        if (channels >= 1) {
+            std::transform(inL.begin(), inL.end(), outL.begin(), [volume](float x) { return x * volume; });
+            audio->set_sample_data(outL.data(), 0);
+        }
+        if (channels >= 2) {
+            std::transform(inR.begin(), inR.end(), outR.begin(), [volume](float x) { return x * volume; });
+            audio->set_sample_data(outR.data(), 1);
+        }
+        return true;
+    }
+
+    float wet_ratio = std::clamp(static_cast<float>(track_wet.value), 0.0f, 100.0f) / 100.0f;
+    float dry_ratio = 1.0f - wet_ratio;
+    
     host_for_audio->ProcessAudio(inL.data(), inR.data(), outL.data(), outR.data(), total_samples, channels);
 
-    if (channels >= 1) audio->set_sample_data(outL.data(), 0);
-    if (channels >= 2) audio->set_sample_data(outR.data(), 1);
+    if (channels >= 1) {
+        std::transform(outL.begin(), outL.end(), inL.begin(), outL.begin(), [wet_ratio, dry_ratio, volume](float x, float y) { return (x * wet_ratio + y * dry_ratio) * volume; });
+        audio->set_sample_data(outL.data(), 0);
+    }
+    if (channels >= 2) {
+        std::transform(outR.begin(), outR.end(), inR.begin(), outR.begin(), [wet_ratio, dry_ratio, volume](float x, float y) { return (x * wet_ratio + y * dry_ratio) * volume; });
+        audio->set_sample_data(outR.data(), 1);
+    }
 
     return true;
 }
@@ -589,16 +629,17 @@ void func_project_load(PROJECT_FILE* pf) {
         DbgPrint("Loaded empty project state");
         return;
     }
-    std::string str(all_data_str);
-    DbgPrint("Loaded project state, size: %zu", str.size());
+    std::string_view sv(all_data_str);
     size_t start = 0;
-    while (start < str.length()) {
-        size_t end = str.find(';', start);
-        if (end == std::string::npos) break;
-        std::string pair_str = str.substr(start, end - start);
-        size_t colon_pos = pair_str.find(':');
-        if (colon_pos != std::string::npos) {
-            g_plugin_state_database[pair_str.substr(0, colon_pos)] = pair_str.substr(colon_pos + 1);
+    while (start < sv.length()) {
+        size_t end = sv.find(';', start);
+        if (end == std::string_view::npos) break;
+        std::string_view pair_sv = sv.substr(start, end - start);
+        size_t colon_pos = pair_sv.find(':');
+        if (colon_pos != std::string_view::npos) {
+            std::string key(pair_sv.substr(0, colon_pos));
+            std::string val(pair_sv.substr(colon_pos + 1));
+            g_plugin_state_database[key] = val;
         }
         start = end + 1;
     }
