@@ -18,6 +18,7 @@
 #include <wincrypt.h>
 #include <objbase.h>
 #include <mutex>
+#include <filesystem>
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
@@ -26,19 +27,37 @@ using namespace VST3::Hosting;
 static std::string Base64Encode(const BYTE* data, DWORD len) {
     if (!data || len == 0) return "";
     DWORD b64_len = 0;
-    if (!CryptBinaryToStringA(data, len, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &b64_len)) return "";
+    DWORD flags = CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF;
+    if (!CryptBinaryToStringA(data, len, flags, nullptr, &b64_len)) return "";
     std::string s(b64_len, '\0');
-    if (!CryptBinaryToStringA(data, len, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &s[0], &b64_len)) return "";
-    s.resize(b64_len - 1);
+    if (!CryptBinaryToStringA(data, len, flags, &s[0], &b64_len)) return "";
+    size_t nullPos = s.find('\0');
+    if (nullPos != std::string::npos) {
+        s.resize(nullPos);
+    } else {
+        s.resize(b64_len); 
+    }
+    while (!s.empty() && (s.back() == '\0' || s.back() == '\r' || s.back() == '\n')) {
+        s.pop_back();
+    }
     return s;
 }
 
 static std::vector<BYTE> Base64Decode(const std::string& b64) {
     if (b64.empty()) return {};
+    std::string safe_b64 = b64;
+    while (safe_b64.size() % 4 != 0) {
+        safe_b64 += '=';
+    }
     DWORD bin_len = 0;
-    if (!CryptStringToBinaryA(b64.c_str(), (DWORD)b64.size(), CRYPT_STRING_BASE64, nullptr, &bin_len, nullptr, nullptr)) return {};
+    DWORD flags = CRYPT_STRING_BASE64_ANY;
+    if (!CryptStringToBinaryA(safe_b64.c_str(), (DWORD)safe_b64.size(), flags, nullptr, &bin_len, nullptr, nullptr)) {
+        return {};
+    }
     std::vector<BYTE> v(bin_len);
-    if (!CryptStringToBinaryA(b64.c_str(), (DWORD)b64.size(), CRYPT_STRING_BASE64, v.data(), &bin_len, nullptr, nullptr)) return {};
+    if (!CryptStringToBinaryA(safe_b64.c_str(), (DWORD)safe_b64.size(), flags, v.data(), &bin_len, nullptr, nullptr)) {
+        return {};
+    }
     return v;
 }
 
@@ -126,7 +145,7 @@ struct VstHost::Impl {
     FUnknownPtr<IPlugView> plugView;
     WindowController* windowController = nullptr;
     std::string currentPluginPath;
-    double currentSampleRate = 44100.0;
+    double currentSampleRate = 44140.0;
     int32_t currentBlockSize = 1024;
 
     std::mutex paramMutex;
@@ -229,12 +248,12 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     {
         std::lock_guard<std::mutex> lock(paramMutex);
         if (!pendingParamChanges.empty()) {
-            for (const auto& change : pendingParamChanges) {
+            for (const auto& [id, value] : pendingParamChanges) {
                 int32 numPoints = 1;
-                IParamValueQueue* queue = inParamChanges.addParameterData(change.first, numPoints);
+                IParamValueQueue* queue = inParamChanges.addParameterData(id, numPoints);
                 if (queue) {
                     int32 pointIndex;
-                    queue->addPoint(0, change.second, pointIndex);
+                    queue->addPoint(0, value, pointIndex);
                 }
             }
             pendingParamChanges.clear();
@@ -373,8 +392,8 @@ void VstHost::Impl::HideGui() {
 std::string VstHost::Impl::GetState() {
     if (!provider || !component || !controller) return "";
     MemoryStream cStream, tStream;
-    component->getState(&cStream);
-    controller->getState(&tStream);
+    if (component->getState(&cStream) != kResultOk) return "";
+    if (controller->getState(&tStream) != kResultOk) return "";
     MemoryStream full;
     int32 b;
     int64 cs = cStream.getSize(), ts = tStream.getSize();
@@ -395,12 +414,14 @@ bool VstHost::Impl::SetState(const std::string& state_b64) {
     stream.read(&cs, sizeof(cs), &br);
     if (cs > 0 && component) {
         std::vector<BYTE> d(cs); stream.read(d.data(), (int32)cs, &br);
-        MemoryStream s(d.data(), cs); component->setState(&s);
+        MemoryStream s(d.data(), cs); 
+        if (component->setState(&s) != kResultOk) return false;
     }
     stream.read(&ts, sizeof(ts), &br);
     if (ts > 0 && controller) {
         std::vector<BYTE> d(ts); stream.read(d.data(), (int32)ts, &br);
-        MemoryStream s(d.data(), ts); controller->setState(&s);
+        MemoryStream s(d.data(), ts); 
+        if (controller->setState(&s) != kResultOk) return false;
     }
     return true;
 }
