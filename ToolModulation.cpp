@@ -1,0 +1,201 @@
+﻿#define _USE_MATH_DEFINES
+
+#include "Eap2Common.h"
+#include <cmath>
+#include <vector>
+#include <map>
+#include <mutex>
+#include <algorithm>
+#include <regex>
+
+#define TOOL_NAME L"Modulation"
+
+FILTER_ITEM_CHECK mod_chorus(L"Chorus", true);
+FILTER_ITEM_CHECK mod_flanger(L"Flanger", false);
+FILTER_ITEM_CHECK mod_tremolo(L"Tremolo", false);
+FILTER_ITEM_TRACK mod_rate(L"Rate", 1.0, 0.01, 20.0, 0.01);
+FILTER_ITEM_TRACK mod_depth(L"Depth", 50.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK mod_feedback(L"Feedback", 0.0, 0.0, 95.0, 0.1);
+FILTER_ITEM_TRACK mod_delay(L"Delay", 10.0, 0.1, 50.0, 0.1);
+FILTER_ITEM_TRACK mod_mix(L"Mix", 50.0, 0.0, 100.0, 0.1);
+
+void* filter_items_modulation[] = {
+    &mod_chorus,
+    &mod_flanger,
+    &mod_tremolo,
+    &mod_rate,
+    &mod_depth,
+    &mod_feedback,
+    &mod_delay,
+    &mod_mix,
+    nullptr
+};
+
+const int MAX_BUFFER_SIZE = 48000 * 2;
+
+struct ModulationState {
+    std::vector<float> bufferL;
+    std::vector<float> bufferR;
+    int write_pos = 0;
+    double phase = 0.0;
+    bool initialized = false;
+    int64_t last_sample_index = -1;
+
+    void init() {
+        bufferL.assign(MAX_BUFFER_SIZE, 0.0f);
+        bufferR.assign(MAX_BUFFER_SIZE, 0.0f);
+        write_pos = 0;
+        phase = 0.0;
+        initialized = true;
+    }
+
+    void clear() {
+        if (initialized) {
+            std::fill(bufferL.begin(), bufferL.end(), 0.0f);
+            std::fill(bufferR.begin(), bufferR.end(), 0.0f);
+            write_pos = 0;
+            phase = 0.0;
+        }
+    }
+};
+
+static std::mutex g_mod_state_mutex;
+static std::map<const void*, ModulationState> g_mod_states;
+
+inline float interpolate(const std::vector<float>& buffer, double index, int size) {
+    int i = static_cast<int>(index);
+    float frac = static_cast<float>(index - i);
+    if (i < 0) i += size;
+    if (i >= size) i -= size;
+    int i_next = i + 1;
+    if (i_next >= size) i_next = 0;
+    return buffer[i] * (1.0f - frac) + buffer[i_next] * frac;
+}
+
+bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
+    int total_samples = audio->object->sample_num;
+    if (total_samples <= 0) return true;
+    int channels = (std::min)(2, audio->object->channel_num);
+
+    bool is_chorus = mod_chorus.value;
+    bool is_flanger = mod_flanger.value;
+    bool is_tremolo = mod_tremolo.value;
+    bool is_delay_mod = is_chorus || is_flanger;
+
+    float rate = static_cast<float>(mod_rate.value);
+    float depth = static_cast<float>(mod_depth.value) / 100.0f;
+    float feedback = static_cast<float>(mod_feedback.value) / 100.0f;
+    float base_delay_ms = static_cast<float>(mod_delay.value);
+    float mix = static_cast<float>(mod_mix.value) / 100.0f;
+
+    if (!is_delay_mod && !is_tremolo) return true;
+
+    ModulationState* state = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_mod_state_mutex);
+        state = &g_mod_states[audio->object];
+
+        if (!state->initialized) {
+            state->init();
+        }
+
+        if (state->last_sample_index != -1 &&
+            state->last_sample_index + total_samples != audio->object->sample_index) {
+             state->clear();
+        }
+        state->last_sample_index = audio->object->sample_index;
+    }
+
+    double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
+    double lfo_inc = (2.0 * M_PI * rate) / Fs;
+
+    thread_local std::vector<float> bufL, bufR;
+    if (bufL.size() < total_samples) { bufL.resize(total_samples); bufR.resize(total_samples); }
+
+    if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
+    if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
+    else if (channels == 1) bufR = bufL;
+
+    int w_pos = state->write_pos;
+    const int buf_size = MAX_BUFFER_SIZE;
+    std::vector<float>& bL = state->bufferL;
+    std::vector<float>& bR = state->bufferR;
+    double current_phase = state->phase;
+
+    float base_delay_samples = static_cast<float>(base_delay_ms * 0.001 * Fs);
+
+    for (int i = 0; i < total_samples; ++i) {
+        float l = bufL[i];
+        float r = bufR[i];
+        
+        float out_l = l;
+        float out_r = r;
+
+        float lfo = static_cast<float>(std::sin(current_phase));
+        current_phase += lfo_inc;
+        if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+
+        if (is_delay_mod) {
+            float mod_delay_samples = base_delay_samples * (1.0f + lfo * depth * 0.5f);
+            if (mod_delay_samples < 1.0f) mod_delay_samples = 1.0f;
+            if (mod_delay_samples > MAX_BUFFER_SIZE - 100) mod_delay_samples = MAX_BUFFER_SIZE - 100;
+
+            double read_pos = w_pos - mod_delay_samples;
+            if (read_pos < 0) read_pos += buf_size;
+
+            float delayed_l = interpolate(bL, read_pos, buf_size);
+            float delayed_r = interpolate(bR, read_pos, buf_size);
+
+            float next_l = l + delayed_l * feedback;
+            float next_r = r + delayed_r * feedback;
+            
+            if (next_l > 2.0f) next_l = 2.0f; else if (next_l < -2.0f) next_l = -2.0f;
+            if (next_r > 2.0f) next_r = 2.0f; else if (next_r < -2.0f) next_r = -2.0f;
+
+            bL[w_pos] = next_l;
+            bR[w_pos] = next_r;
+
+            out_l = l * (1.0f - mix) + delayed_l * mix;
+            out_r = r * (1.0f - mix) + delayed_r * mix;
+        } else {
+            bL[w_pos] = l;
+            bR[w_pos] = r;
+        }
+
+        if (is_tremolo) {
+            float mod = 1.0f - depth * (0.5f * (lfo + 1.0f));
+            out_l = out_l * mod;
+            out_r = out_r * mod;
+        }
+
+        w_pos++;
+        if (w_pos >= buf_size) w_pos = 0;
+
+        bufL[i] = out_l;
+        bufR[i] = out_r;
+    }
+
+    state->write_pos = w_pos;
+    state->phase = current_phase;
+
+    if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
+    if (channels >= 2) audio->set_sample_data(bufR.data(), 1);
+
+    return true;
+}
+
+FILTER_PLUGIN_TABLE filter_plugin_table_modulation = {
+    FILTER_PLUGIN_TABLE::FLAG_AUDIO,
+    []() {
+        static std::wstring s = std::regex_replace(tool_name, std::wregex(regex_tool_name), TOOL_NAME);
+        return s.c_str();
+    }(),
+    L"音声効果",
+    []() {
+        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), TOOL_NAME);
+        return s.c_str();
+    }(),
+    filter_items_modulation,
+    nullptr,
+    func_proc_audio_modulation
+};

@@ -13,11 +13,21 @@
   <ItemGroup>
     <ClCompile Include="AudioPluginFactory.cpp" />
     <ClCompile Include="CLAPHost.cpp" />
-    <ClCompile Include="External_Audio_Processing2.cpp" />
+    <ClCompile Include="ToolDynamics.cpp" />
+    <ClCompile Include="ToolEQ.cpp" />
+    <ClCompile Include="ToolSpatial.cpp" />
+    <ClCompile Include="ToolStereo.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\common\memorystream.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\vst\hosting\module_win32.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\vst\hosting\plugprovider.cpp" />
     <ClCompile Include="VSTHost.cpp" />
+    <ClCompile Include="FilterHost.cpp" />
+    <ClCompile Include="PluginMain.cpp" />
+    <ClCompile Include="ToolUtility.cpp" />
+    <ClCompile Include="ToolModulation.cpp" />
+    <ClCompile Include="ToolDistortion.cpp" />
+    <ClCompile Include="ToolMaximizer.cpp" />
+    <ClCompile Include="PluginManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPluginFactory.h" />
@@ -25,6 +35,9 @@
     <ClInclude Include="IAudioPluginHost.h" />
     <ClInclude Include="PluginType.h" />
     <ClInclude Include="VstHost.h" />
+    <ClInclude Include="Eap2Common.h" />
+    <ClInclude Include="PluginManager.h" />
+    <ClInclude Include="StringUtils.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

@@ -19,47 +19,12 @@
 #include <objbase.h>
 #include <mutex>
 #include <filesystem>
+#include "StringUtils.h"
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
 
-static std::string Base64Encode(const BYTE* data, DWORD len) {
-    if (!data || len == 0) return "";
-    DWORD b64_len = 0;
-    DWORD flags = CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF;
-    if (!CryptBinaryToStringA(data, len, flags, nullptr, &b64_len)) return "";
-    std::string s(b64_len, '\0');
-    if (!CryptBinaryToStringA(data, len, flags, &s[0], &b64_len)) return "";
-    size_t nullPos = s.find('\0');
-    if (nullPos != std::string::npos) {
-        s.resize(nullPos);
-    } else {
-        s.resize(b64_len); 
-    }
-    while (!s.empty() && (s.back() == '\0' || s.back() == '\r' || s.back() == '\n')) {
-        s.pop_back();
-    }
-    return s;
-}
-
-static std::vector<BYTE> Base64Decode(const std::string& b64) {
-    if (b64.empty()) return {};
-    std::string safe_b64 = b64;
-    while (safe_b64.size() % 4 != 0) {
-        safe_b64 += '=';
-    }
-    DWORD bin_len = 0;
-    DWORD flags = CRYPT_STRING_BASE64_ANY;
-    if (!CryptStringToBinaryA(safe_b64.c_str(), (DWORD)safe_b64.size(), flags, nullptr, &bin_len, nullptr, nullptr)) {
-        return {};
-    }
-    std::vector<BYTE> v(bin_len);
-    if (!CryptStringToBinaryA(safe_b64.c_str(), (DWORD)safe_b64.size(), flags, v.data(), &bin_len, nullptr, nullptr)) {
-        return {};
-    }
-    return v;
-}
 
 class WindowController : public IPlugFrame {
 public:
@@ -401,12 +366,12 @@ std::string VstHost::Impl::GetState() {
     if (cs > 0) full.write(cStream.getData(), (int32_t)cs, &b);
     full.write(&ts, sizeof(ts), &b);
     if (ts > 0) full.write(tStream.getData(), (int32_t)ts, &b);
-    return "VST3_DUAL:" + Base64Encode((const BYTE*)full.getData(), (DWORD)full.getSize());
+    return "VST3_DUAL:" + StringUtils::Base64Encode((const BYTE*)full.getData(), (DWORD)full.getSize());
 }
 
 bool VstHost::Impl::SetState(const std::string& state_b64) {
     if (state_b64.rfind("VST3_DUAL:", 0) != 0) return false;
-    auto data = Base64Decode(state_b64.substr(10));
+    auto data = StringUtils::Base64Decode(state_b64.substr(10));
     if (data.empty() && !state_b64.empty()) return false;
     MemoryStream stream(data.data(), data.size());
     int32 br;

@@ -7,43 +7,7 @@
 #include <wincrypt.h>
 #include <filesystem>
 #include <algorithm>
-
-static std::string Base64Encode(const BYTE* data, DWORD len) {
-    if (!data || len == 0) return "";
-    DWORD b64_len = 0;
-    DWORD flags = CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF;
-    if (!CryptBinaryToStringA(data, len, flags, nullptr, &b64_len)) return "";
-    std::string s(b64_len, '\0');
-    if (!CryptBinaryToStringA(data, len, flags, &s[0], &b64_len)) return "";
-    size_t nullPos = s.find('\0');
-    if (nullPos != std::string::npos) {
-        s.resize(nullPos);
-    } else {
-        s.resize(b64_len); 
-    }
-    while (!s.empty() && (s.back() == '\0' || s.back() == '\r' || s.back() == '\n')) {
-        s.pop_back();
-    }
-    return s;
-}
-
-static std::vector<BYTE> Base64Decode(const std::string& b64) {
-    if (b64.empty()) return {};
-    std::string safe_b64 = b64;
-    while (safe_b64.size() % 4 != 0) {
-        safe_b64 += '=';
-    }
-    DWORD bin_len = 0;
-    DWORD flags = CRYPT_STRING_BASE64_ANY;
-    if (!CryptStringToBinaryA(safe_b64.c_str(), (DWORD)safe_b64.size(), flags, nullptr, &bin_len, nullptr, nullptr)) {
-        return {};
-    } 
-    std::vector<BYTE> v(bin_len);
-    if (!CryptStringToBinaryA(safe_b64.c_str(), (DWORD)safe_b64.size(), flags, v.data(), &bin_len, nullptr, nullptr)) {
-        return {};
-    }
-    return v;
-}
+#include "StringUtils.h"
 
 struct ClapHost::Impl {
     Impl(HINSTANCE hInst);
@@ -327,14 +291,14 @@ std::string ClapHost::Impl::GetState() {
         return (int64_t)size;
     } };
     if (extState->save(plugin, &stream)) {
-        return "CLAP:" + Base64Encode(ctx.data.data(), (DWORD)ctx.data.size());
+        return "CLAP:" + StringUtils::Base64Encode(ctx.data.data(), (DWORD)ctx.data.size());
     }
     return "";
 }
 
 bool ClapHost::Impl::SetState(const std::string& state_b64) {
     if (state_b64.rfind("CLAP:", 0) != 0 || !plugin || !extState) return false;
-    auto data = Base64Decode(state_b64.substr(5));
+    auto data = StringUtils::Base64Decode(state_b64.substr(5));
     if (data.empty() && !state_b64.empty()) return false;
     struct Ctx { const std::vector<BYTE>* d; size_t pos = 0; };
     Ctx ctx{ &data };
