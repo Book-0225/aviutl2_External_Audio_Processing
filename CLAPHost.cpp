@@ -336,3 +336,12 @@ bool ClapHost::IsGuiVisible() const {
 std::string ClapHost::GetPluginPath() const {
     return m_impl->m_pluginPath;
 }
+
+void ClapHost::SetParameter(uint32_t paramId, float value) {
+    // TODO: CLAP版実装
+}
+
+int32_t ClapHost::GetLastTouchedParamID() {
+    // TODO: CLAP版実装
+    return -1;
+}

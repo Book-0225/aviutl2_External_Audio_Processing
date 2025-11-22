@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 #include <memory>
+#include <array>
 
 class PluginManager {
 public:
@@ -25,6 +26,9 @@ public:
     void SetPendingReinitialization(int64_t effect_id, bool pending);
     bool ShouldReset(int64_t effect_id, int64_t current_sample_index, int current_sample_num);
     void UpdateLastAudioState(int64_t effect_id, int64_t current_sample_index, int current_sample_num);
+    void UpdateMapping(const std::string& instance_id, int sliderInfoIndex, int32_t vstParamID);
+    int32_t GetMappedParamID(const std::string& instance_id, int sliderInfoIndex);
+    void ClearMapping(const std::string& instance_id);
 
 private:
     PluginManager() = default;
@@ -47,4 +51,7 @@ private:
 
     std::mutex m_instance_ownership_mutex;
     std::map<std::string, int64_t> m_instance_id_to_effect_id_map;
+
+    using ParamMapping = std::array<int32_t, 4>;
+    std::map<std::string, ParamMapping> m_param_mappings;
 };

@@ -64,8 +64,12 @@ private:
 class HostComponentHandler : public IComponentHandler
 {
 public:
+    std::atomic<int32_t> lastTouchedParamID{ -1 };
     tresult PLUGIN_API beginEdit(ParamID tag) override { return kResultOk; }
-    tresult PLUGIN_API performEdit(ParamID tag, ParamValue valueNormalized) override { return kResultOk; }
+    tresult PLUGIN_API performEdit(ParamID tag, ParamValue valueNormalized) override {
+        lastTouchedParamID.store(static_cast<int32_t>(tag));
+        return kResultOk;
+    }
     tresult PLUGIN_API endEdit(ParamID tag) override { return kResultOk; }
     tresult PLUGIN_API restartComponent(int32 flags) override { return kResultOk; }
     tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override {
@@ -97,6 +101,30 @@ struct VstHost::Impl {
     void ReleasePlugin();
     bool IsGuiVisible() const { return guiWindow && IsWindow(guiWindow); }
     std::string GetPluginPath() const { return currentPluginPath; }
+
+    struct PendingParamChange {
+        ParamID id;
+        ParamValue value;
+    };
+    std::vector<PendingParamChange> paramQueue;
+    std::mutex paramQueueMutex;
+
+    int32_t GetLastTouchedParamID() {
+        if (componentHandler) {
+            return componentHandler->lastTouchedParamID.exchange(-1);
+        }
+        return -1;
+    }
+
+    void SetParameter(uint32_t paramId, float value) {
+        if (controller) {
+            controller->setParamNormalized(paramId, (ParamValue)value);
+        }
+
+        std::lock_guard<std::mutex> lock(paramQueueMutex);
+        paramQueue.push_back({ paramId, (ParamValue)value });
+    }
+
 
     HINSTANCE hInstance = nullptr;
     Module::Ptr module;
@@ -203,32 +231,32 @@ void VstHost::Impl::ReleasePlugin() {
 }
 
 void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) {
-    if (!isReady || !processor || numSamples <= 0 || numChannels <= 0) {
-        memcpy(outL, inL, numSamples * sizeof(float));
-        if (numChannels > 1) memcpy(outR, inR, numSamples * sizeof(float));
+    if (!isReady || !processor || !component || numSamples <= 0 || numChannels <= 0) {
+        if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
+        if (numChannels > 1 && outR != inR) memcpy(outR, inR, numSamples * sizeof(float));
         return;
     }
 
     ParameterChanges inParamChanges;
     {
-        std::lock_guard<std::mutex> lock(paramMutex);
-        if (!pendingParamChanges.empty()) {
-            for (const auto& [id, value] : pendingParamChanges) {
-                int32 numPoints = 1;
-                IParamValueQueue* queue = inParamChanges.addParameterData(id, numPoints);
+        std::lock_guard<std::mutex> lock(paramQueueMutex);
+        if (!paramQueue.empty()) {
+            for (const auto& change : paramQueue) {
+                int32 index = 0;
+                IParamValueQueue* queue = inParamChanges.addParameterData(change.id, index);
                 if (queue) {
-                    int32 pointIndex;
-                    queue->addPoint(0, value, pointIndex);
+                    int32 pointIndex = 0;
+                    queue->addPoint(0, change.value, pointIndex);
                 }
             }
-            pendingParamChanges.clear();
+            paramQueue.clear();
         }
     }
 
     ProcessData data{};
     data.numSamples = numSamples;
     data.symbolicSampleSize = kSample32;
-
+    data.inputParameterChanges = &inParamChanges;
     std::vector<AudioBusBuffers> inBufs;
     std::vector<std::vector<float*>> inPtrs;
     int32_t numInputs = component->getBusCount(kAudio, kInput);
@@ -236,15 +264,27 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         inBufs.resize(numInputs);
         inPtrs.resize(numInputs);
         for (int32_t i = 0; i < numInputs; ++i) {
-            BusInfo info; component->getBusInfo(kAudio, kInput, i, info);
-            inBufs[i].numChannels = info.channelCount;
-            inPtrs[i].resize(info.channelCount);
-            if (i == 0) {
-                inPtrs[i][0] = const_cast<float*>(inL);
-                if (info.channelCount > 1 && numChannels > 1) inPtrs[i][1] = const_cast<float*>(inR);
-                else if (info.channelCount > 1) inPtrs[i][1] = const_cast<float*>(inL);
+            BusInfo info;
+            if (component->getBusInfo(kAudio, kInput, i, info) != kResultOk) {
+                info.channelCount = 0;
             }
-            inBufs[i].channelBuffers32 = inPtrs[i].data();
+
+            inBufs[i].numChannels = info.channelCount;
+            inBufs[i].silenceFlags = 0;
+
+            if (info.channelCount > 0) {
+                inPtrs[i].resize(info.channelCount);
+                if (i == 0) {
+                    inPtrs[i][0] = const_cast<float*>(inL);
+                    if (info.channelCount > 1) {
+                        inPtrs[i][1] = const_cast<float*>(numChannels > 1 ? inR : inL);
+                    }
+                }
+                else {
+                    std::fill(inPtrs[i].begin(), inPtrs[i].end(), nullptr);
+                }
+                inBufs[i].channelBuffers32 = inPtrs[i].data();
+            }
         }
         data.numInputs = numInputs;
         data.inputs = inBufs.data();
@@ -257,15 +297,27 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         outBufs.resize(numOutputs);
         outPtrs.resize(numOutputs);
         for (int32_t i = 0; i < numOutputs; ++i) {
-            BusInfo info; component->getBusInfo(kAudio, kOutput, i, info);
-            outBufs[i].numChannels = info.channelCount;
-            outPtrs[i].resize(info.channelCount);
-            if (i == 0) {
-                outPtrs[i][0] = outL;
-                if (info.channelCount > 1 && numChannels > 1) outPtrs[i][1] = outR;
-                else if (info.channelCount > 1) outPtrs[i][1] = outL;
+            BusInfo info;
+            if (component->getBusInfo(kAudio, kOutput, i, info) != kResultOk) {
+                info.channelCount = 0;
             }
-            outBufs[i].channelBuffers32 = outPtrs[i].data();
+
+            outBufs[i].numChannels = info.channelCount;
+            outBufs[i].silenceFlags = 0;
+
+            if (info.channelCount > 0) {
+                outPtrs[i].resize(info.channelCount);
+                if (i == 0) {
+                    outPtrs[i][0] = outL;
+                    if (info.channelCount > 1) {
+                        outPtrs[i][1] = outR;
+                    }
+                }
+                else {
+                    std::fill(outPtrs[i].begin(), outPtrs[i].end(), nullptr);
+                }
+                outBufs[i].channelBuffers32 = outPtrs[i].data();
+            }
         }
         data.numOutputs = numOutputs;
         data.outputs = outBufs.data();
@@ -275,10 +327,11 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     ctx.state = ProcessContext::kPlaying;
     ctx.sampleRate = currentSampleRate;
     data.processContext = &ctx;
+    tresult result = processor->process(data);
 
-    if (processor->process(data) != kResultOk) {
-        memcpy(outL, inL, numSamples * sizeof(float));
-        if (numChannels > 1) memcpy(outR, inR, numSamples * sizeof(float));
+    if (result != kResultOk) {
+        if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
+        if (numChannels > 1 && outR != inR) memcpy(outR, inR, numSamples * sizeof(float));
     }
 }
 
@@ -410,3 +463,15 @@ bool VstHost::SetState(const std::string& state_b64) { return m_impl->SetState(s
 void VstHost::Cleanup() { m_impl->ReleasePlugin(); }
 bool VstHost::IsGuiVisible() const { return m_impl->IsGuiVisible(); }
 std::string VstHost::GetPluginPath() const { return m_impl->GetPluginPath(); }
+void VstHost::SetParameter(uint32_t paramId, float value) {
+    if (m_impl) {
+        m_impl->SetParameter(paramId, value);
+    }
+}
+
+int32_t VstHost::GetLastTouchedParamID() {
+    if (m_impl) {
+        return m_impl->GetLastTouchedParamID();
+    }
+    return -1;
+}

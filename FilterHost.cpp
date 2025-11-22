@@ -20,6 +20,14 @@ const int MAX_BLOCK_SIZE = 2048;
 static std::mutex g_cleanup_mutex;
 static std::string g_legacy_id_to_clear;
 static std::string g_plugin_path_for_clear;
+struct ParamCache {
+    double prev_val[4] = { -1.0, -1.0, -1.0, -1.0 };
+};
+static std::map<std::string, ParamCache> g_param_cache;
+struct ResetGUIContext {
+    std::string target_instance_id;
+    LPCWSTR param_name;
+};
 
 TCHAR filter_ext[] =
 L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0"
@@ -33,6 +41,12 @@ FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1);
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
+FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
+FILTER_ITEM_CHECK check_map_reset(L"Reset Mapping", false);
+FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 struct InstanceData {
     char uuid[40] = { 0 };
@@ -46,6 +60,12 @@ void* filter_items_host[] = {
     &check_apply_l,
     &check_apply_r,
     &toggle_gui_check,
+    &check_param_learn,
+    &check_map_reset,
+    &track_param1,
+    &track_param2,
+    &track_param3,
+    &track_param4,
     &instance_id_param,
     &instance_data_param,
     nullptr
@@ -152,6 +172,43 @@ void func_project_load(PROJECT_FILE* pf) {
     DbgPrint("Loaded project state, size: %zu", strlen(all_data_str));
 }
 
+void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
+    auto* ctx = static_cast<ResetGUIContext*>(param);
+    if (!ctx) return;
+
+    int max_layer = edit->info->layer_max;
+
+    for (int layer = 0; layer <= max_layer; ++layer) {
+        int current_frame = 0;
+        while (true) {
+            OBJECT_HANDLE obj = edit->find_object(layer, current_frame);
+            if (obj == nullptr) break;
+
+            int effect_count = edit->count_object_effect(obj, filter_name);
+            for (int i = 0; i < effect_count; ++i) {
+                std::wstring indexed_filter_name = std::wstring(filter_name);
+                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+
+                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+
+                if (hex_id) {
+                    std::string raw_data = StringUtils::HexToString(hex_id);
+                    if (raw_data.size() >= 36) {
+                        std::string obj_uuid = std::string(raw_data.c_str());
+
+                        if (obj_uuid == ctx->target_instance_id) {
+                            bool result = edit->set_object_item_value(obj, indexed_filter_name.c_str(), ctx->param_name, "0");
+                            return;
+                        }
+                    }
+                }
+            }
+            OBJECT_LAYER_FRAME frame_info = edit->get_object_layer_frame(obj);
+            current_frame = frame_info.end + 1;
+        }
+    }
+}
+
 bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
     std::string instance_id;
     bool is_migrated = false;
@@ -242,6 +299,11 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         double sampleRate = audio->scene->sample_rate;
         std::string new_path_utf8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
 
+        if (path_changed) {
+            PluginManager::GetInstance().ClearMapping(instance_id);
+            DbgPrint("Plugin path changed. Mappings cleared for %hs", instance_id.c_str());
+        }
+
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
         g_main_thread_tasks.push_back([effect_id, instance_id, new_path_utf8, sampleRate, path_changed]() {
             std::shared_ptr<IAudioPluginHost> new_host = nullptr;
@@ -274,6 +336,59 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
             });
 
         return true;
+    }
+
+    if (host) {
+        if (check_map_reset.value) {
+            PluginManager::GetInstance().ClearMapping(instance_id);
+            {
+                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+                g_main_thread_tasks.push_back([tgt_id = instance_id]() {
+                    if (g_edit_handle) {
+
+                        ResetGUIContext ctx;
+                        ctx.target_instance_id = tgt_id;
+                        ctx.param_name = check_map_reset.name;
+                        g_edit_handle->call_edit_section_param(&ctx, reset_checkbox_proc);
+                    }
+                    });
+            }
+            DbgPrint("Mappings Cleared and GUI reset requested for %hs", instance_id.c_str());
+        }
+        float slider_vals[4] = {
+            (float)track_param1.value,
+            (float)track_param2.value,
+            (float)track_param3.value,
+            (float)track_param4.value
+        };
+
+        bool is_learning = check_param_learn.value;
+        int32_t lastTouched = host->GetLastTouchedParamID();
+
+        ParamCache& cache = g_param_cache[instance_id];
+
+        if (is_learning && lastTouched != -1) {
+            for (int i = 0; i < 4; ++i) {
+                if (cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
+                    PluginManager::GetInstance().UpdateMapping(instance_id, i, lastTouched);
+                    DbgPrint("Mapped Slider %d to ParamID %d", i + 1, lastTouched);
+                    break;
+                }
+            }
+        }
+
+        for (int i = 0; i < 4; ++i) {
+            int32_t mapID = PluginManager::GetInstance().GetMappedParamID(instance_id, i);
+            if (mapID != -1) {
+
+                float normalized = slider_vals[i] / 100.0f;
+                if (normalized < 0.0f) normalized = 0.0f;
+                if (normalized > 1.0f) normalized = 1.0f;
+
+                host->SetParameter(mapID, normalized);
+            }
+            cache.prev_val[i] = slider_vals[i];
+        }
     }
 
     int total_samples = audio->object->sample_num;
