@@ -1,13 +1,23 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="External_Audio_Processing2.cpp" />
     <ClCompile Include="VSTHost.cpp" />
     <ClCompile Include="CLAPHost.cpp" />
     <ClCompile Include="AudioPluginFactory.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\common\memorystream.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\vst\hosting\module_win32.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\vst\hosting\plugprovider.cpp" />
+    <ClCompile Include="FilterHost.cpp" />
+    <ClCompile Include="PluginMain.cpp" />
+    <ClCompile Include="ToolUtility.cpp" />
+    <ClCompile Include="ToolEQ.cpp" />
+    <ClCompile Include="ToolStereo.cpp" />
+    <ClCompile Include="ToolDynamics.cpp" />
+    <ClCompile Include="ToolSpatial.cpp" />
+    <ClCompile Include="ToolModulation.cpp" />
+    <ClCompile Include="ToolDistortion.cpp" />
+    <ClCompile Include="ToolMaximizer.cpp" />
+    <ClCompile Include="PluginManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />
@@ -15,5 +25,8 @@
     <ClInclude Include="VstHost.h" />
     <ClInclude Include="ClapHost.h" />
     <ClInclude Include="AudioPluginFactory.h" />
+    <ClInclude Include="Eap2Common.h" />
+    <ClInclude Include="PluginManager.h" />
+    <ClInclude Include="StringUtils.h" />
   </ItemGroup>
 </Project>

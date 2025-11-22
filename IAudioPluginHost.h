@@ -24,4 +24,7 @@ public:
     virtual void Cleanup() = 0;
     virtual bool IsGuiVisible() const = 0;
     virtual std::string GetPluginPath() const = 0;
+
+    virtual void SetParameter(uint32_t paramId, float value) = 0;
+    virtual int32_t GetLastTouchedParamID() = 0;
 };

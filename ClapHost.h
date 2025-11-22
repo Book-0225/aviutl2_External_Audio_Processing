@@ -18,6 +18,8 @@ public:
     void Cleanup() override;
     bool IsGuiVisible() const override;
     std::string GetPluginPath() const override;
+    void SetParameter(uint32_t paramId, float value) override;
+    int32_t GetLastTouchedParamID() override;
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };
