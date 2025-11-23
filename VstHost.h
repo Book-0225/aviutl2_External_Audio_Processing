@@ -10,7 +10,7 @@ public:
     VstHost(HINSTANCE hInstance);
     ~VstHost() override;
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) override;
-    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) override;
+    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) override;
     void Reset() override;
     void ShowGui() override;
     void HideGui() override;

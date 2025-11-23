@@ -25,44 +25,30 @@ void PluginManager::CleanupResources() {
 
 std::string PluginManager::PrepareProjectState(const std::set<std::string>& active_ids) {
     std::scoped_lock lock(m_states_mutex, m_instance_ownership_mutex);
-    for (const auto& instance_id : active_ids) {
-        auto ownership_it = m_instance_id_to_effect_id_map.find(instance_id);
-        if (ownership_it != m_instance_id_to_effect_id_map.end()) {
-            int64_t effect_id = ownership_it->second;
-            auto host_it = m_hosts.find(effect_id);
-            if (host_it != m_hosts.end() && host_it->second) {
-                std::string live_state = host_it->second->GetState();
-                if (!live_state.empty()) {
-                    m_plugin_state_database[instance_id] = live_state;
-                }
-            }
-        }
-    }
     for (auto it = m_plugin_state_database.begin(); it != m_plugin_state_database.end(); ) {
-        if (active_ids.find(it->first) == active_ids.end()) {
-            it = m_plugin_state_database.erase(it);
-        } else {
-            ++it;
-        }
+        if (active_ids.find(it->first) == active_ids.end()) it = m_plugin_state_database.erase(it); else ++it;
     }
     for (auto it = m_instance_id_to_effect_id_map.begin(); it != m_instance_id_to_effect_id_map.end(); ) {
-        if (active_ids.find(it->first) == active_ids.end()) {
-            it = m_instance_id_to_effect_id_map.erase(it);
-        } else {
-            ++it;
+        if (active_ids.find(it->first) == active_ids.end()) it = m_instance_id_to_effect_id_map.erase(it); else ++it;
+    }
+    for (const auto& instance_id : active_ids) {
+        auto ownership_it = m_instance_id_to_effect_id_map.find(instance_id);
+        if (ownership_it == m_instance_id_to_effect_id_map.end()) continue;
+        int64_t effect_id = ownership_it->second;
+        auto host_it = m_hosts.find(effect_id);
+        if (host_it == m_hosts.end()) continue;
+        if (!host_it->second) continue;
+        try {
+            std::string live_state = host_it->second->GetState();
+            if (!live_state.empty()) {
+                m_plugin_state_database[instance_id] = live_state;
+            }
+        }
+        catch (...) {
+            DbgPrint("[EAP2 Warning] Failed to save state for Instance: %hs", instance_id.c_str());
         }
     }
-    std::set<int64_t> active_effect_ids;
-    for (const auto& pair : m_instance_id_to_effect_id_map) {
-        active_effect_ids.insert(pair.second);
-    }
-    for (auto it = m_hosts.begin(); it != m_hosts.end(); ) {
-        if (active_effect_ids.find(it->first) == active_effect_ids.end()) {
-            it = m_hosts.erase(it);
-        } else {
-            ++it;
-        }
-    }
+
     std::string all_data_str;
     for (const auto& [id, state] : m_plugin_state_database) {
         all_data_str += id + ":" + state;
@@ -85,7 +71,7 @@ void PluginManager::LoadProjectState(const std::string& data) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     m_plugin_state_database.clear();
     m_param_mappings.clear();
-
+    if (data.empty()) return;
     std::string_view sv(data);
     size_t start = 0;
     while (start < sv.length()) {
@@ -93,40 +79,53 @@ void PluginManager::LoadProjectState(const std::string& data) {
         if (end == std::string_view::npos) break;
 
         std::string_view entry = sv.substr(start, end - start);
-
+        start = end + 1;
+        if (entry.empty()) continue;
         size_t pipe_pos = entry.find('|');
 
         std::string_view id_state_part = (pipe_pos == std::string_view::npos) ? entry : entry.substr(0, pipe_pos);
 
         size_t colon_pos = id_state_part.find(':');
         if (colon_pos != std::string_view::npos) {
-            std::string key(id_state_part.substr(0, colon_pos));
-            std::string val(id_state_part.substr(colon_pos + 1));
-            m_plugin_state_database[key] = val;
+            try {
+                std::string key(id_state_part.substr(0, colon_pos));
+                std::string val(id_state_part.substr(colon_pos + 1));
+                m_plugin_state_database[key] = val;
 
-            if (pipe_pos != std::string_view::npos) {
-                std::string_view map_part = entry.substr(pipe_pos + 1);
-                ParamMapping mapping = { -1, -1, -1, -1 };
+                if (pipe_pos != std::string_view::npos) {
+                    std::string_view map_part = entry.substr(pipe_pos + 1);
+                    ParamMapping mapping = { -1, -1, -1, -1 };
 
-                size_t map_start = 0;
-                while (map_start < map_part.length()) {
-                    size_t map_end = map_part.find(',', map_start);
-                    if (map_end == std::string_view::npos) map_end = map_part.length();
+                    size_t map_start = 0;
+                    while (map_start < map_part.length()) {
+                        size_t map_end = map_part.find(',', map_start);
+                        if (map_end == std::string_view::npos) map_end = map_part.length();
 
-                    std::string_view kv = map_part.substr(map_start, map_end - map_start);
-                    size_t eq = kv.find('=');
-                    if (eq != std::string_view::npos) {
-                        int idx = std::atoi(std::string(kv.substr(0, eq)).c_str());
-                        int32_t pid = std::atoi(std::string(kv.substr(eq + 1)).c_str());
-                        if (idx >= 0 && idx < 4) mapping[idx] = pid;
+                        std::string_view kv = map_part.substr(map_start, map_end - map_start);
+                        size_t eq = kv.find('=');
+                        if (eq != std::string_view::npos) {
+                            std::string idx_str(kv.substr(0, eq));
+                            std::string pid_str(kv.substr(eq + 1));
+                            try {
+                                int idx = std::stoi(idx_str);
+                                int32_t pid = std::stoi(pid_str);
+                                if (idx >= 0 && idx < 4) mapping[idx] = pid;
+                            }
+                            catch (...) {
+								DbgPrint("Warning: Invalid mapping entry '%hs' for instance_id %hs", std::string(kv).c_str(), key.c_str());
+                            }
+                        }
+                        if (map_end == map_part.length()) break;
+                        map_start = map_end + 1;
                     }
-                    if (map_end == map_part.length()) break;
-                    map_start = map_end + 1;
+                    m_param_mappings[key] = mapping;
                 }
-                m_param_mappings[key] = mapping;
+            }
+            catch (...) {
+				DbgPrint("Warning: Invalid entry '%hs' in project state data", std::string(entry).c_str());
+                continue;
             }
         }
-        start = end + 1;
     }
 }
 

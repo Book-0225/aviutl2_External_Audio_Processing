@@ -322,7 +322,7 @@ ClapHost::Impl::~Impl() {
 ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
 bool ClapHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
-void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels); }
+void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels); }
 void ClapHost::Reset() { m_impl->Reset(); }
 void ClapHost::ShowGui() { m_impl->ShowGui(); }
 void ClapHost::HideGui() { m_impl->HideGui(); }
