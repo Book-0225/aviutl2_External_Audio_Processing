@@ -456,7 +456,7 @@ std::string VstHost::Impl::GetState() {
 
         int64_t cs = cStream.getSize();
         int64_t ts = tStream.getSize();
-        if (cs < 0 || ts < 0 || cs > 200 * 1024 * 1024) return ""; // 200MB制限
+        if (cs < 0 || ts < 0 || cs > 200 * 1024 * 1024) return "";
 
         MemoryStream full;
         int32 b;

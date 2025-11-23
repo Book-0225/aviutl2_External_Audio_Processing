@@ -6,6 +6,26 @@ PluginManager& PluginManager::GetInstance() {
     return instance;
 }
 
+static bool IsValidStateData(const std::string& state) {
+    if (state.empty()) return false;
+    bool is_vst3 = (state.rfind("VST3_DUAL:", 0) == 0);
+    bool is_clap = (state.rfind("CLAP:", 0) == 0);
+    if (!is_vst3 && !is_clap) {
+        return false;
+    }
+    std::string b64_part = state.substr(is_vst3 ? 10 : 5);
+    std::vector<BYTE> data = StringUtils::Base64Decode(b64_part);
+    if (data.empty()) return false;
+    if (is_vst3) {
+        if (data.size() < 16) return false;
+        int64_t* sizes = reinterpret_cast<int64_t*>(data.data());
+        int64_t compSize = sizes[0];
+        if (compSize < 0 || compSize >(int64_t)data.size()) return false;
+    }
+
+    return true;
+}
+
 void PluginManager::CleanupResources() {
     {
         std::lock_guard<std::mutex> lock(m_states_mutex);
@@ -79,17 +99,16 @@ void PluginManager::LoadProjectState(const std::string& data) {
         if (end == std::string_view::npos) break;
 
         std::string_view entry = sv.substr(start, end - start);
-        start = end + 1;
-        if (entry.empty()) continue;
+
         size_t pipe_pos = entry.find('|');
 
         std::string_view id_state_part = (pipe_pos == std::string_view::npos) ? entry : entry.substr(0, pipe_pos);
 
         size_t colon_pos = id_state_part.find(':');
         if (colon_pos != std::string_view::npos) {
-            try {
-                std::string key(id_state_part.substr(0, colon_pos));
-                std::string val(id_state_part.substr(colon_pos + 1));
+            std::string key(id_state_part.substr(0, colon_pos));
+            std::string val(id_state_part.substr(colon_pos + 1));
+            if (IsValidStateData(val)) {
                 m_plugin_state_database[key] = val;
 
                 if (pipe_pos != std::string_view::npos) {
@@ -104,16 +123,12 @@ void PluginManager::LoadProjectState(const std::string& data) {
                         std::string_view kv = map_part.substr(map_start, map_end - map_start);
                         size_t eq = kv.find('=');
                         if (eq != std::string_view::npos) {
-                            std::string idx_str(kv.substr(0, eq));
-                            std::string pid_str(kv.substr(eq + 1));
                             try {
-                                int idx = std::stoi(idx_str);
-                                int32_t pid = std::stoi(pid_str);
+                                int idx = std::stoi(std::string(kv.substr(0, eq)));
+                                int32_t pid = std::stol(std::string(kv.substr(eq + 1)));
                                 if (idx >= 0 && idx < 4) mapping[idx] = pid;
                             }
-                            catch (...) {
-								DbgPrint("Warning: Invalid mapping entry '%hs' for instance_id %hs", std::string(kv).c_str(), key.c_str());
-                            }
+                            catch (...) {}
                         }
                         if (map_end == map_part.length()) break;
                         map_start = map_end + 1;
@@ -121,11 +136,11 @@ void PluginManager::LoadProjectState(const std::string& data) {
                     m_param_mappings[key] = mapping;
                 }
             }
-            catch (...) {
-				DbgPrint("Warning: Invalid entry '%hs' in project state data", std::string(entry).c_str());
-                continue;
+            else {
+                DbgPrint("[EAP2 Warning] Corrupted state data detected and discarded for ID: %hs", key.c_str());
             }
         }
+        start = end + 1;
     }
 }
 
