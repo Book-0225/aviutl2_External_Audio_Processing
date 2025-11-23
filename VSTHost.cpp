@@ -20,6 +20,7 @@
 #include <mutex>
 #include <filesystem>
 #include "StringUtils.h"
+#include "Eap2Common.h"
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
@@ -87,12 +88,28 @@ private:
     std::atomic<uint32> refCount{ 1 };
 };
 
+static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
+    if (!processor) return kResultFalse;
+
+    __try {
+        return processor->process(data);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        DbgPrint("[EAP2 Error] Access Violation inside VST3::process()");
+        return kResultFalse;
+    }
+}
+
+
 struct VstHost::Impl {
-    Impl(HINSTANCE hInst) : hInstance(hInst), isReady(false) {}
+    std::vector<float> dummyBuffer;
+    Impl(HINSTANCE hInst) : hInstance(hInst), isReady(false) {
+        dummyBuffer.assign(4096, 0.0f);
+    }
     ~Impl() { ReleasePlugin(); }
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
-    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels);
+    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom);
     void Reset();
     void ShowGui();
     void HideGui();
@@ -125,6 +142,12 @@ struct VstHost::Impl {
         paramQueue.push_back({ paramId, (ParamValue)value });
     }
 
+    float* GetDummyBuffer(int32_t requiredSize) {
+        if (dummyBuffer.size() < (size_t)requiredSize) {
+            dummyBuffer.assign(requiredSize + 1024, 0.0f);
+        }
+        return dummyBuffer.data();
+    }
 
     HINSTANCE hInstance = nullptr;
     Module::Ptr module;
@@ -230,7 +253,7 @@ void VstHost::Impl::ReleasePlugin() {
     componentHandler.reset();
 }
 
-void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) {
+void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) {
     if (!isReady || !processor || !component || numSamples <= 0 || numChannels <= 0) {
         if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
         if (numChannels > 1 && outR != inR) memcpy(outR, inR, numSamples * sizeof(float));
@@ -253,6 +276,8 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         }
     }
 
+    float* silence = GetDummyBuffer(numSamples);
+
     ProcessData data{};
     data.numSamples = numSamples;
     data.symbolicSampleSize = kSample32;
@@ -265,9 +290,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         inPtrs.resize(numInputs);
         for (int32_t i = 0; i < numInputs; ++i) {
             BusInfo info;
-            if (component->getBusInfo(kAudio, kInput, i, info) != kResultOk) {
-                info.channelCount = 0;
-            }
+            component->getBusInfo(kAudio, kInput, i, info);
 
             inBufs[i].numChannels = info.channelCount;
             inBufs[i].silenceFlags = 0;
@@ -279,9 +302,15 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     if (info.channelCount > 1) {
                         inPtrs[i][1] = const_cast<float*>(numChannels > 1 ? inR : inL);
                     }
+                    for (int ch = 2; ch < info.channelCount; ++ch) {
+                        inPtrs[i][ch] = silence;
+                    }
                 }
                 else {
-                    std::fill(inPtrs[i].begin(), inPtrs[i].end(), nullptr);
+                    for (int ch = 0; ch < info.channelCount; ++ch) {
+                        inPtrs[i][ch] = silence;
+                    }
+                    inBufs[i].silenceFlags = (1 << info.channelCount) - 1;
                 }
                 inBufs[i].channelBuffers32 = inPtrs[i].data();
             }
@@ -298,9 +327,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         outPtrs.resize(numOutputs);
         for (int32_t i = 0; i < numOutputs; ++i) {
             BusInfo info;
-            if (component->getBusInfo(kAudio, kOutput, i, info) != kResultOk) {
-                info.channelCount = 0;
-            }
+            component->getBusInfo(kAudio, kOutput, i, info);
 
             outBufs[i].numChannels = info.channelCount;
             outBufs[i].silenceFlags = 0;
@@ -310,11 +337,16 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                 if (i == 0) {
                     outPtrs[i][0] = outL;
                     if (info.channelCount > 1) {
-                        outPtrs[i][1] = outR;
+                        outPtrs[i][1] = (numChannels > 1) ? outR : silence;
+                    }
+                    for (int ch = 2; ch < info.channelCount; ++ch) {
+                        outPtrs[i][ch] = silence;
                     }
                 }
                 else {
-                    std::fill(outPtrs[i].begin(), outPtrs[i].end(), nullptr);
+                    for (int ch = 0; ch < info.channelCount; ++ch) {
+                        outPtrs[i][ch] = silence;
+                    }
                 }
                 outBufs[i].channelBuffers32 = outPtrs[i].data();
             }
@@ -326,8 +358,13 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     ProcessContext ctx{};
     ctx.state = ProcessContext::kPlaying;
     ctx.sampleRate = currentSampleRate;
+	ctx.projectTimeSamples = currentSampleIndex;
+	ctx.tempo = bpm;
+	ctx.timeSigNumerator = tsNum;
+	ctx.timeSigDenominator = tsDenom;
     data.processContext = &ctx;
-    tresult result = processor->process(data);
+    tresult result = kResultFalse;
+    result = SafeProcessCall(processor, data);
 
     if (result != kResultOk) {
         if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
@@ -409,17 +446,30 @@ void VstHost::Impl::HideGui() {
 
 std::string VstHost::Impl::GetState() {
     if (!provider || !component || !controller) return "";
-    MemoryStream cStream, tStream;
-    if (component->getState(&cStream) != kResultOk) return "";
-    if (controller->getState(&tStream) != kResultOk) return "";
-    MemoryStream full;
-    int32 b;
-    int64 cs = cStream.getSize(), ts = tStream.getSize();
-    full.write(&cs, sizeof(cs), &b);
-    if (cs > 0) full.write(cStream.getData(), (int32_t)cs, &b);
-    full.write(&ts, sizeof(ts), &b);
-    if (ts > 0) full.write(tStream.getData(), (int32_t)ts, &b);
-    return "VST3_DUAL:" + StringUtils::Base64Encode((const BYTE*)full.getData(), (DWORD)full.getSize());
+    try {
+        MemoryStream cStream, tStream;
+        if (component->getState(&cStream) != kResultOk) return "";
+
+        if (controller->getState(&tStream) != kResultOk) {
+            DbgPrint("[EAP2 Error] Exception inside VST3 GetState");
+        }
+
+        int64_t cs = cStream.getSize();
+        int64_t ts = tStream.getSize();
+        if (cs < 0 || ts < 0 || cs > 200 * 1024 * 1024) return "";
+
+        MemoryStream full;
+        int32 b;
+        full.write(&cs, sizeof(cs), &b);
+        if (cs > 0) full.write(cStream.getData(), (int32_t)cs, &b);
+        full.write(&ts, sizeof(ts), &b);
+        if (ts > 0) full.write(tStream.getData(), (int32_t)ts, &b);
+        return "VST3_DUAL:" + StringUtils::Base64Encode((const BYTE*)full.getData(), (DWORD)full.getSize());
+    }
+    catch (...) {
+        DbgPrint("[EAP2 Error] Exception inside VST3 GetState");
+        return "";
+    }
 }
 
 bool VstHost::Impl::SetState(const std::string& state_b64) {
@@ -451,8 +501,8 @@ bool VstHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blo
     return m_impl->LoadPlugin(path, sampleRate, blockSize);
 }
 
-void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) {
-    m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels);
+void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) {
+    m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, currentSampleIndex, bpm, tsNum, tsDenom);
 }
 
 void VstHost::Reset() { m_impl->Reset(); }

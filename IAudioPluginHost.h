@@ -11,7 +11,11 @@ public:
         const float* inL, const float* inR,
         float* outL, float* outR,
         int32_t numSamples,
-        int32_t numChannels
+        int32_t numChannels,
+        int64_t currentSampleIndex,
+        double bpm,
+        int32_t timeSigNum,
+        int32_t timeSigDenom
     ) = 0;
     virtual void Reset() = 0;
 
@@ -27,4 +31,5 @@ public:
 
     virtual void SetParameter(uint32_t paramId, float value) = 0;
     virtual int32_t GetLastTouchedParamID() = 0;
+
 };

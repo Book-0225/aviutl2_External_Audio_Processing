@@ -38,6 +38,9 @@ L"All Files (*.*)\0*.*\0\0";
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
 FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1);
+FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01);
+FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0);
+FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0);
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
@@ -57,6 +60,9 @@ void* filter_items_host[] = {
     &plugin_path_param,
     &track_wet,
     &track_volume,
+    &track_bpm,
+    &track_ts_num,
+    &track_ts_denom,
     &check_apply_l,
     &check_apply_r,
     &toggle_gui_check,
@@ -90,7 +96,7 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
                 if (i > 0) {
                     indexed_filter_name += L":" + std::to_wstring(i);
                 }
-                
+
                 LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
                 if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
                     std::string decoded_id_with_padding = StringUtils::HexToString(hex_encoded_id_str);
@@ -142,21 +148,52 @@ void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
     }
 }
 
-void func_project_save(PROJECT_FILE* pf) {
+void func_project_save_impl(PROJECT_FILE* pf) {
     std::set<std::string> active_ids_in_project;
     g_active_ids_collector = &active_ids_in_project;
     if (g_edit_handle) {
-        g_edit_handle->call_edit_section(collect_active_ids_proc);
+        try {
+            g_edit_handle->call_edit_section(collect_active_ids_proc);
+        }
+        catch (...) {
+            DbgPrint("[EAP2 Error] Exception in collect_active_ids_proc");
+        }
     }
     g_active_ids_collector = nullptr;
 
     std::string all_data_str = PluginManager::GetInstance().PrepareProjectState(active_ids_in_project);
 
     if (!all_data_str.empty()) {
-        pf->set_param_string("AudioHostStateDB", all_data_str.c_str());
-        DbgPrint("Saved project state, size: %zu", all_data_str.size());
+        if (all_data_str.size() > 32 * 1024 * 1024) {
+            DbgPrint("[EAP2 Error] State data too large. Skipping.");
+            pf->set_param_string("AudioHostStateDB", "");
+        }
+        else {
+            pf->set_param_string("AudioHostStateDB", all_data_str.c_str());
+            DbgPrint("Saved project state, size: %zu", all_data_str.size());
+        }
     }
     else {
+        pf->set_param_string("AudioHostStateDB", nullptr);
+    }
+}
+
+int ProjectSaveExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS* ep) {
+    if (code == EXCEPTION_ACCESS_VIOLATION) {
+        DbgPrint("[EAP2 Critical] Access Violation at %p", ep->ExceptionRecord->ExceptionAddress);
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void func_project_save(PROJECT_FILE* pf) {
+    if (!pf) return;
+
+    __try {
+        func_project_save_impl(pf);
+    }
+    __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
+        DbgPrint("[EAP2 Critical] Save aborted. Clearing project data.");
         pf->set_param_string("AudioHostStateDB", nullptr);
     }
 }
@@ -164,12 +201,17 @@ void func_project_save(PROJECT_FILE* pf) {
 void func_project_load(PROJECT_FILE* pf) {
     CleanupMainFilterResources();
 
-    LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
-    if (!all_data_str) {
-        return;
+    if (!pf) return;
+    try {
+        LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
+        if (all_data_str) {
+            PluginManager::GetInstance().LoadProjectState(all_data_str);
+            DbgPrint("Loaded project state, size: %zu", strlen(all_data_str));
+        }
     }
-    PluginManager::GetInstance().LoadProjectState(all_data_str);
-    DbgPrint("Loaded project state, size: %zu", strlen(all_data_str));
+    catch (...) {
+        DbgPrint("[EAP2 Error] Exception in func_project_load");
+    }
 }
 
 void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
@@ -446,13 +488,18 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         return true;
     }
 
+    int64_t current_pos = audio->object->sample_index;
+    double bpm = track_bpm.value;
+    int32_t ts_num = (int32_t)track_ts_num.value;
+    int32_t ts_denom = (int32_t)track_ts_denom.value;
+
     if (host_for_audio) {
         if (PluginManager::GetInstance().ShouldReset(effect_id, audio->object->sample_index, audio->object->sample_num)) {
             host_for_audio->Reset();
         }
         PluginManager::GetInstance().UpdateLastAudioState(effect_id, audio->object->sample_index, audio->object->sample_num);
 
-        host_for_audio->ProcessAudio(inL.data(), inR.data(), outL.data(), outR.data(), total_samples, channels);
+        host_for_audio->ProcessAudio(inL.data(), inR.data(), outL.data(), outR.data(), total_samples, channels, current_pos, bpm, ts_num, ts_denom);
     }
     else {
         std::copy(inL.begin(), inL.begin() + total_samples, outL.begin());
