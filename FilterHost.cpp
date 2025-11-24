@@ -488,7 +488,7 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         return true;
     }
 
-    int64_t current_pos = audio->object->sample_index;
+    int64_t current_pos = (int64_t)(audio->object->time * audio->scene->sample_rate);
     double bpm = track_bpm.value;
     int32_t ts_num = (int32_t)track_ts_num.value;
     int32_t ts_denom = (int32_t)track_ts_denom.value;
@@ -497,7 +497,7 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         if (PluginManager::GetInstance().ShouldReset(effect_id, audio->object->sample_index, audio->object->sample_num)) {
             host_for_audio->Reset();
         }
-        PluginManager::GetInstance().UpdateLastAudioState(effect_id, audio->object->sample_index, audio->object->sample_num);
+        PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
         host_for_audio->ProcessAudio(inL.data(), inR.data(), outL.data(), outR.data(), total_samples, channels, current_pos, bpm, ts_num, ts_denom);
     }
