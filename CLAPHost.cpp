@@ -243,7 +243,7 @@ void ClapHost::Impl::ShowGui() {
     wc.lpszClassName = L"ClapHostGuiWindowClass";
     RegisterClassW(&wc);
 
-    guiWindow = CreateWindowExW(0, wc.lpszClassName, L"CLAP Plugin", WS_OVERLAPPEDWINDOW,
+    guiWindow = CreateWindowEx(0, wc.lpszClassName, L"CLAP Plugin", WS_OVERLAPPED | WS_CAPTION,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, hInstance, this);
     if (!guiWindow) return;
 

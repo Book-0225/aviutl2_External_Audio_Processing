@@ -30,6 +30,7 @@ MidiParser::~MidiParser() {}
 
 void MidiParser::Clear() {
     m_events.clear();
+    m_tempoEvents.clear();
     m_tpqn = 480;
 }
 
@@ -80,7 +81,21 @@ bool MidiParser::Load(const std::string& path) {
                     uint8_t type;
                     f.read((char*)&type, 1);
                     uint32_t len = ReadVarInt(f);
-                    f.seekg(len, std::ios::cur);
+
+                    if (type == 0x51 && len == 3) {
+                        uint8_t bytes[3];
+                        f.read((char*)bytes, 3);
+
+                        uint32_t microseconds = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];
+
+                        if (microseconds > 0) {
+                            double bpm = 60000000.0 / (double)microseconds;
+                            m_tempoEvents.push_back({ currentTick, microseconds, bpm });
+                        }
+                    }
+                    else {
+                        f.seekg(len, std::ios::cur);
+                    }
                 }
                 else if (status == 0xF0 || status == 0xF7) {
                     uint32_t len = ReadVarInt(f);
@@ -106,7 +121,7 @@ bool MidiParser::Load(const std::string& path) {
             }
             else {
                 if (runningStatus == 0) {
-                    break; 
+                    break;
                 }
                 uint8_t data1 = status;
                 uint8_t type = runningStatus & 0xF0;
@@ -122,7 +137,68 @@ bool MidiParser::Load(const std::string& path) {
 
     std::sort(m_events.begin(), m_events.end(), [](const RawMidiEvent& a, const RawMidiEvent& b) {
         return a.absoluteTick < b.absoluteTick;
-    });
+        });
 
+    std::sort(m_tempoEvents.begin(), m_tempoEvents.end(), [](const TempoEvent& a, const TempoEvent& b) {
+        return a.absoluteTick < b.absoluteTick;
+        });
+    BuildTempoMap();
     return true;
+}
+
+void MidiParser::BuildTempoMap() {
+    m_tempoMap.clear();
+    uint32_t currentTick = 0;
+    double currentTime = 0.0;
+    uint32_t currentMpqn = 500000;
+
+    m_tempoMap.push_back({ currentTime, currentTick, currentMpqn });
+
+    for (const auto& te : m_tempoEvents) {
+        if (te.absoluteTick <= currentTick) {
+            currentMpqn = te.mpqn;
+            if (!m_tempoMap.empty()) m_tempoMap.back().mpqn = currentMpqn;
+            continue;
+        }
+
+        uint32_t deltaTick = te.absoluteTick - currentTick;
+        double deltaTime = (double)deltaTick * (double)currentMpqn / (1000000.0 * (double)m_tpqn);
+
+        currentTime += deltaTime;
+        currentTick = te.absoluteTick;
+        currentMpqn = te.mpqn;
+
+        m_tempoMap.push_back({ currentTime, currentTick, currentMpqn });
+    }
+}
+
+int64_t MidiParser::GetTickAtTime(double time) const {
+    if (m_tempoMap.empty()) return 0;
+
+    size_t idx = 0;
+    for (size_t i = 0; i < m_tempoMap.size(); ++i) {
+        if (m_tempoMap[i].time > time) break;
+        idx = i;
+    }
+
+    const auto& entry = m_tempoMap[idx];
+    double dt = time - entry.time;
+    if (dt < 0) dt = 0;
+
+    double ticks = dt * 1000000.0 * (double)m_tpqn / (double)entry.mpqn;
+
+    return entry.tick + (int64_t)(ticks + 0.5);
+}
+
+double MidiParser::GetBpmAtTime(double time) const {
+    if (m_tempoMap.empty()) return 120.0;
+
+    size_t idx = 0;
+    for (size_t i = 0; i < m_tempoMap.size(); ++i) {
+        if (m_tempoMap[i].time > time) break;
+        idx = i;
+    }
+
+    uint32_t mpqn = m_tempoMap[idx].mpqn;
+    return (mpqn > 0) ? (60000000.0 / (double)mpqn) : 120.0;
 }
