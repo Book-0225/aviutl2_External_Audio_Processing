@@ -489,7 +489,7 @@ void VstHost::Impl::ShowGui() {
 
     ViewRect vr; plugView->getSize(&vr);
     RECT rc = { 0, 0, vr.right - vr.left, vr.bottom - vr.top };
-    AdjustWindowRectEx(&rc, WS_OVERLAPPEDWINDOW, FALSE, 0);
+    AdjustWindowRectEx(&rc, WS_OVERLAPPED | WS_CAPTION, FALSE, 0);
 
     WNDCLASS wc{};
     wc.lpfnWndProc = [](HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) -> LRESULT {
@@ -522,7 +522,7 @@ void VstHost::Impl::ShowGui() {
     wc.lpszClassName = L"VstHostGuiWindowClass";
     RegisterClass(&wc);
 
-    guiWindow = CreateWindowEx(0, wc.lpszClassName, L"VST3 Plugin", WS_OVERLAPPEDWINDOW,
+    guiWindow = CreateWindowEx(0, wc.lpszClassName, L"VST3 Plugin", WS_OVERLAPPED | WS_CAPTION,
         CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
         nullptr, nullptr, hInstance, this);
     if (!guiWindow) { plugView.reset(); return; }
