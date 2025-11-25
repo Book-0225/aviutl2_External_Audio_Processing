@@ -8,6 +8,7 @@
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstcomponent.h"
 #include "pluginterfaces/vst/ivstprocesscontext.h"
+#include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/vsttypes.h"
 #include "pluginterfaces/gui/iplugview.h"
 #include "pluginterfaces/base/ustring.h"
@@ -19,6 +20,7 @@
 #include <objbase.h>
 #include <mutex>
 #include <filesystem>
+#include <set>
 #include "StringUtils.h"
 #include "Eap2Common.h"
 
@@ -100,6 +102,36 @@ static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
     }
 }
 
+class EventList : public IEventList {
+public:
+    EventList() {}
+    virtual ~EventList() {}
+
+    int32 PLUGIN_API getEventCount() override { return (int32)events.size(); }
+    tresult PLUGIN_API getEvent(int32 index, Event& e) override {
+        if (index < 0 || index >= (int32)events.size()) return kResultFalse;
+        e = events[index];
+        return kResultOk;
+    }
+    tresult PLUGIN_API addEvent(Event& e) override {
+        events.push_back(e);
+        return kResultOk;
+    }
+
+    tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) override {
+        if (FUnknownPrivate::iidEqual(_iid, IEventList::iid) || FUnknownPrivate::iidEqual(_iid, FUnknown::iid)) {
+            *obj = this; addRef(); return kResultTrue;
+        }
+        *obj = nullptr; return kNoInterface;
+    }
+    uint32 PLUGIN_API addRef() override { return 1; }
+    uint32 PLUGIN_API release() override { return 1; }
+
+    void clear() { events.clear(); }
+
+private:
+    std::vector<Event> events;
+};
 
 struct VstHost::Impl {
     std::vector<float> dummyBuffer;
@@ -109,7 +141,7 @@ struct VstHost::Impl {
     ~Impl() { ReleasePlugin(); }
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
-    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom);
+    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents);
     void Reset();
     void ShowGui();
     void HideGui();
@@ -167,6 +199,13 @@ struct VstHost::Impl {
     std::mutex paramMutex;
     std::mutex processorUpdateMutex;
     std::vector<std::pair<ParamID, ParamValue>> pendingParamChanges;
+    std::set<int> activeNotes;
+    std::mutex activeNotesMutex;
+    EventList eventList;
+    std::atomic<bool> pendingStopNotes{ false };
+    void RequestStopAllNotes() {
+        pendingStopNotes = true;
+    }
 };
 
 bool VstHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
@@ -214,6 +253,9 @@ bool VstHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32
     for (int32_t i = 0; i < numIn; ++i) component->activateBus(kAudio, kInput, i, true);
     for (int32_t i = 0; i < numOut; ++i) component->activateBus(kAudio, kOutput, i, true);
 
+    int32_t numEventIn = component->getBusCount(kEvent, kInput);
+    for (int32_t i = 0; i < numEventIn; ++i) component->activateBus(kEvent, kInput, i, true);
+
     processor->setProcessing(true);
     currentSampleRate = sampleRate;
     currentBlockSize = blockSize;
@@ -253,7 +295,7 @@ void VstHost::Impl::ReleasePlugin() {
     componentHandler.reset();
 }
 
-void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) {
+void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
     if (!isReady || !processor || !component || numSamples <= 0 || numChannels <= 0) {
         if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
         if (numChannels > 1 && outR != inR) memcpy(outR, inR, numSamples * sizeof(float));
@@ -276,12 +318,67 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         }
     }
 
+    eventList.clear();
+
+    if (pendingStopNotes.exchange(false)) {
+        std::lock_guard<std::mutex> lock(activeNotesMutex);
+        for (int noteKey : activeNotes) {
+            int channel = (noteKey >> 8) & 0xFF;
+            int pitch = noteKey & 0xFF;
+
+            Event e = {};
+            e.type = Event::kNoteOffEvent;
+            e.noteOff.channel = (int16)channel;
+            e.noteOff.pitch = (int16)pitch;
+            e.noteOff.velocity = 0.0f;
+            e.noteOff.noteId = -1;
+            e.sampleOffset = 0;
+            eventList.addEvent(e);
+        }
+        activeNotes.clear();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(activeNotesMutex);
+        for (const auto& me : midiEvents) {
+            Event e = {};
+            e.busIndex = 0;
+            e.sampleOffset = me.deltaFrames;
+            e.ppqPosition = 0;
+            e.flags = 0;
+
+            if ((me.status & 0xF0) == 0x90 && me.data2 > 0) {
+                e.type = Event::kNoteOnEvent;
+                e.noteOn.channel = me.status & 0x0F;
+                e.noteOn.pitch = me.data1;
+                e.noteOn.velocity = me.data2 / 127.0f;
+                e.noteOn.length = 0;
+                e.noteOn.noteId = -1;
+                eventList.addEvent(e);
+
+                activeNotes.insert((e.noteOn.channel << 8) | e.noteOn.pitch);
+            }
+            else if ((me.status & 0xF0) == 0x80 || ((me.status & 0xF0) == 0x90 && me.data2 == 0)) {
+                e.type = Event::kNoteOffEvent;
+                e.noteOff.channel = me.status & 0x0F;
+                e.noteOff.pitch = me.data1;
+                e.noteOff.velocity = me.data2 / 127.0f;
+                e.noteOff.noteId = -1;
+                eventList.addEvent(e);
+
+                activeNotes.erase((e.noteOff.channel << 8) | e.noteOff.pitch);
+            }
+        }
+    }
+
     float* silence = GetDummyBuffer(numSamples);
 
     ProcessData data{};
     data.numSamples = numSamples;
     data.symbolicSampleSize = kSample32;
     data.inputParameterChanges = &inParamChanges;
+    data.inputEvents = &eventList;
+
     std::vector<AudioBusBuffers> inBufs;
     std::vector<std::vector<float*>> inPtrs;
     int32_t numInputs = component->getBusCount(kAudio, kInput);
@@ -376,6 +473,7 @@ void VstHost::Impl::Reset() {
     if (!isReady || !component) {
         return;
     }
+	pendingStopNotes = true;
     component->setActive(false);
     component->setActive(true);
 }
@@ -501,8 +599,8 @@ bool VstHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blo
     return m_impl->LoadPlugin(path, sampleRate, blockSize);
 }
 
-void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) {
-    m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, currentSampleIndex, bpm, tsNum, tsDenom);
+void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
+    m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, currentSampleIndex, bpm, tsNum, tsDenom, midiEvents);
 }
 
 void VstHost::Reset() { m_impl->Reset(); }

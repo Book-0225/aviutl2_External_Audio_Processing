@@ -14,7 +14,7 @@ struct ClapHost::Impl {
     ~Impl();
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
-    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels);
+    void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, const std::vector<MidiEvent>& midiEvents);
     void Reset();
     void ShowGui();
     void HideGui();
@@ -167,7 +167,7 @@ void ClapHost::Impl::ReleasePlugin() {
     m_isGuiVisible = false;
 }
 
-void ClapHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels) {
+void ClapHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, const std::vector<MidiEvent>& midiEvents) {
     if (!isReady || !plugin) {
         memcpy(outL, inL, numSamples * sizeof(float));
         if (numChannels > 1) memcpy(outR, inR, numSamples * sizeof(float));
@@ -322,7 +322,7 @@ ClapHost::Impl::~Impl() {
 ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
 bool ClapHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
-void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels); }
+void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, midiEvents); }
 void ClapHost::Reset() { m_impl->Reset(); }
 void ClapHost::ShowGui() { m_impl->ShowGui(); }
 void ClapHost::HideGui() { m_impl->HideGui(); }

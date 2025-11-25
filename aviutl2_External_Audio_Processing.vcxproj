@@ -28,6 +28,7 @@
     <ClCompile Include="ToolDistortion.cpp" />
     <ClCompile Include="ToolMaximizer.cpp" />
     <ClCompile Include="PluginManager.cpp" />
+    <ClCompile Include="MidiParser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPluginFactory.h" />
@@ -38,6 +39,7 @@
     <ClInclude Include="Eap2Common.h" />
     <ClInclude Include="PluginManager.h" />
     <ClInclude Include="StringUtils.h" />
+    <ClInclude Include="MidiParser.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
