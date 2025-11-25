@@ -12,6 +12,7 @@
 #include "AudioPluginFactory.h"
 #include "PluginManager.h"
 #include "StringUtils.h"
+#include "MidiParser.h"
 
 #define FILTER_NAME L"Host"
 
@@ -24,6 +25,13 @@ struct ParamCache {
     double prev_val[4] = { -1.0, -1.0, -1.0, -1.0 };
 };
 static std::map<std::string, ParamCache> g_param_cache;
+
+struct MidiState {
+    std::string prev_path;
+    MidiParser parser;
+};
+static std::map<std::string, MidiState> g_midi_state;
+
 struct ResetGUIContext {
     std::string target_instance_id;
     LPCWSTR param_name;
@@ -50,6 +58,7 @@ FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 struct InstanceData {
     char uuid[40] = { 0 };
@@ -72,6 +81,7 @@ void* filter_items_host[] = {
     &track_param2,
     &track_param3,
     &track_param4,
+    &midi_path_param,
     &instance_id_param,
     &instance_data_param,
     nullptr
@@ -442,6 +452,11 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         inL.resize(total_samples); outL.resize(total_samples);
         inR.resize(total_samples); outR.resize(total_samples);
     }
+    
+    std::fill(inL.begin(), inL.begin() + total_samples, 0.0f);
+    if (channels >= 2) std::fill(inR.begin(), inR.begin() + total_samples, 0.0f);
+    std::fill(outL.begin(), outL.begin() + total_samples, 0.0f);
+    if (channels >= 2) std::fill(outR.begin(), outR.begin() + total_samples, 0.0f);
 
     if (channels >= 1) audio->get_sample_data(inL.data(), 0);
     if (channels >= 2) audio->get_sample_data(inR.data(), 1);
@@ -488,18 +503,70 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         return true;
     }
 
-    int64_t current_pos = audio->object->sample_index;
+    int64_t current_pos = (int64_t)(audio->object->time * audio->scene->sample_rate + 0.5);
     double bpm = track_bpm.value;
     int32_t ts_num = (int32_t)track_ts_num.value;
     int32_t ts_denom = (int32_t)track_ts_denom.value;
 
     if (host_for_audio) {
-        if (PluginManager::GetInstance().ShouldReset(effect_id, audio->object->sample_index, audio->object->sample_num)) {
+        if (PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num)) {
             host_for_audio->Reset();
         }
-        PluginManager::GetInstance().UpdateLastAudioState(effect_id, audio->object->sample_index, audio->object->sample_num);
+        PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
-        host_for_audio->ProcessAudio(inL.data(), inR.data(), outL.data(), outR.data(), total_samples, channels, current_pos, bpm, ts_num, ts_denom);
+        std::string midi_path_u8 = StringUtils::WideToUtf8(midi_path_param.value);
+        MidiState& ms = g_midi_state[instance_id];
+        if (ms.prev_path != midi_path_u8) {
+            ms.parser.Load(midi_path_u8);
+            ms.prev_path = midi_path_u8;
+        }
+
+        int processed = 0;
+        while (processed < total_samples) {
+            int block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
+            int64_t current_block_pos = current_pos + processed;
+
+            std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
+
+            if (ms.parser.GetTPQN() > 0) {
+                double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
+
+                int64_t start_tick = (int64_t)(current_block_pos / samplesPerTick);
+                int64_t end_tick = (int64_t)((current_block_pos + block_size) / samplesPerTick);
+
+                const auto& all_events = ms.parser.GetEvents();
+
+                auto it = std::lower_bound(all_events.begin(), all_events.end(), (uint32_t)start_tick, [](const RawMidiEvent& e, uint32_t tick) {
+                    return e.absoluteTick < tick;
+                    });
+
+                for (; it != all_events.end(); ++it) {
+                    if (it->absoluteTick >= end_tick) break;
+
+                    int32_t delta = (int32_t)((it->absoluteTick * samplesPerTick) - current_block_pos);
+                    if (delta < 0) delta = 0;
+                    if (delta >= block_size) delta = block_size - 1;
+
+                    midi_events_for_block.push_back({ delta, it->status, it->data1, it->data2 });
+                }
+            }
+
+            host_for_audio->ProcessAudio(
+                inL.data() + processed,
+                inR.data() + processed,
+                outL.data() + processed,
+                outR.data() + processed,
+                block_size,
+                channels,
+                current_block_pos,
+                bpm,
+                ts_num,
+                ts_denom,
+                midi_events_for_block
+            );
+
+            processed += block_size;
+        }
     }
     else {
         std::copy(inL.begin(), inL.begin() + total_samples, outL.begin());

@@ -1,8 +1,16 @@
 ﻿#pragma once
 #include <string>
+#include <vector>
 
 class IAudioPluginHost {
 public:
+    struct MidiEvent {
+        int32_t deltaFrames;
+        uint8_t status;
+        uint8_t data1;
+        uint8_t data2;
+    };
+
     virtual ~IAudioPluginHost() = default;
 
     virtual bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) = 0;
@@ -15,7 +23,8 @@ public:
         int64_t currentSampleIndex,
         double bpm,
         int32_t timeSigNum,
-        int32_t timeSigDenom
+        int32_t timeSigDenom,
+        const std::vector<MidiEvent>& midiEvents
     ) = 0;
     virtual void Reset() = 0;
 

@@ -224,6 +224,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     std::lock_guard<std::mutex> lock(m_last_audio_state_mutex);
     auto it = m_last_audio_states.find(effect_id);
     bool needs_reset = false;
+    DbgPrint("ShouldReset: %lld %lld %d", effect_id, current_sample_index, current_sample_num);
     if (it != m_last_audio_states.end()) {
         if (current_sample_index != it->second.sample_index + it->second.sample_num) {
             needs_reset = true;
@@ -231,6 +232,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     } else {
         needs_reset = true;
     }
+	DbgPrint("ShouldReset result: %d", needs_reset);
     return needs_reset;
 }
 
