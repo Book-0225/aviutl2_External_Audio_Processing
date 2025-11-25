@@ -60,6 +60,7 @@ FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
+FILTER_ITEM_CHECK check_bpm_sync_midi(L"MIDIにBPMを同期", false);
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 struct InstanceData {
     char uuid[40] = { 0 };
@@ -83,6 +84,7 @@ void* filter_items_host[] = {
     &track_param3,
     &track_param4,
     &midi_path_param,
+    &check_bpm_sync_midi,
     &instance_id_param,
     &instance_data_param,
     nullptr
@@ -101,6 +103,7 @@ void* filter_items_host_media[] = {
     &track_param3,
     &track_param4,
     &midi_path_param,
+    &check_bpm_sync_midi,
     &instance_data_param,
     nullptr
 };
@@ -531,7 +534,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
 
     int64_t current_pos = (int64_t)(audio->object->time * audio->scene->sample_rate + 0.5);
-    double bpm = track_bpm.value;
+    double bpm;
+    bool sync_bpm = check_bpm_sync_midi.value;
     int32_t ts_num = (int32_t)track_ts_num.value;
     int32_t ts_denom = (int32_t)track_ts_denom.value;
 
@@ -548,33 +552,62 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             ms.prev_path = midi_path_u8;
         }
 
+        if (sync_bpm) {
+            double current_time_sec = (double)current_pos / audio->scene->sample_rate;
+            bpm = ms.parser.GetBpmAtTime(current_time_sec);
+        }
+        else {
+            bpm = track_bpm.value;
+        }
+
         int processed = 0;
         while (processed < total_samples) {
             int block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
 
+            double time_start = (double)current_block_pos / audio->scene->sample_rate;
+            double time_end = (double)(current_block_pos + block_size) / audio->scene->sample_rate;
+
             std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
+            int64_t start_tick = 0;
+            int64_t end_tick = 0;
 
             if (ms.parser.GetTPQN() > 0) {
-                double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
-
-                int64_t start_tick = (int64_t)(current_block_pos / samplesPerTick);
-                int64_t end_tick = (int64_t)((current_block_pos + block_size) / samplesPerTick);
+                if (sync_bpm) {
+                    start_tick = ms.parser.GetTickAtTime(time_start);
+                    end_tick = ms.parser.GetTickAtTime(time_end);
+                }
+                else {
+                    double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
+                    start_tick = (int64_t)(current_block_pos / samplesPerTick);
+                    end_tick = (int64_t)((current_block_pos + block_size) / samplesPerTick);
+                }
 
                 const auto& all_events = ms.parser.GetEvents();
-
-                auto it = std::lower_bound(all_events.begin(), all_events.end(), (uint32_t)start_tick, [](const RawMidiEvent& e, uint32_t tick) {
-                    return e.absoluteTick < tick;
-                    });
+                auto it = std::lower_bound(all_events.begin(), all_events.end(), (uint32_t)start_tick,
+                    [](const RawMidiEvent& e, uint32_t tick) { return e.absoluteTick < tick; });
 
                 for (; it != all_events.end(); ++it) {
                     if (it->absoluteTick >= end_tick) break;
 
-                    int32_t delta = (int32_t)((it->absoluteTick * samplesPerTick) - current_block_pos);
-                    if (delta < 0) delta = 0;
-                    if (delta >= block_size) delta = block_size - 1;
+                    int32_t delta_samples = 0;
 
-                    midi_events_for_block.push_back({ delta, it->status, it->data1, it->data2 });
+                    if (sync_bpm) {
+                        int64_t tick_diff = it->absoluteTick - start_tick;
+                        int64_t total_tick_diff = end_tick - start_tick;
+                        if (total_tick_diff > 0) {
+                            delta_samples = (int32_t)((double)tick_diff / total_tick_diff * block_size);
+                        }
+                    }
+                    else {
+                        double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
+                        delta_samples = (int32_t)((it->absoluteTick * samplesPerTick) - current_block_pos);
+                    }
+
+                    if (delta_samples < 0) delta_samples = 0;
+                    if (delta_samples >= block_size) delta_samples = block_size - 1;
+
+                    midi_events_for_block.push_back({ delta_samples, it->status, it->data1, it->data2 });
                 }
             }
 
