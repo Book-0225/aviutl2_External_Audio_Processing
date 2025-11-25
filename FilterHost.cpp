@@ -15,6 +15,7 @@
 #include "MidiParser.h"
 
 #define FILTER_NAME L"Host"
+#define FILTER_NAME_MEDIA L"Host (Media)"
 
 const int MAX_BLOCK_SIZE = 2048;
 
@@ -83,6 +84,23 @@ void* filter_items_host[] = {
     &track_param4,
     &midi_path_param,
     &instance_id_param,
+    &instance_data_param,
+    nullptr
+};
+
+void* filter_items_host_media[] = {
+    &plugin_path_param,
+    &track_bpm,
+    &track_ts_num,
+    &track_ts_denom,
+    &toggle_gui_check,
+    &check_param_learn,
+    &check_map_reset,
+    &track_param1,
+    &track_param2,
+    &track_param3,
+    &track_param4,
+    &midi_path_param,
     &instance_data_param,
     nullptr
 };
@@ -261,7 +279,7 @@ void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
     }
 }
 
-bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
+bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     std::string instance_id;
     bool is_migrated = false;
 
@@ -269,7 +287,8 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
         instance_id = instance_data_param.value->uuid;
     }
     else {
-        LPCWSTR legacy_id_w = instance_id_param.value;
+        LPCWSTR legacy_id_w = nullptr;
+        if (!is_object) legacy_id_w = instance_id_param.value;
         if (legacy_id_w && legacy_id_w[0] != L'\0') {
             instance_id = StringUtils::WideToUtf8(legacy_id_w);
             strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
@@ -310,10 +329,16 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
     }
 
     std::wstring plugin_path_w = plugin_path_param.value;
-    float wet_val = static_cast<float>(track_wet.value);
-    float vol_val = static_cast<float>(track_volume.value);
-    bool apply_l = check_apply_l.value;
-    bool apply_r = check_apply_r.value;
+	float wet_val = 100.0f;
+    float vol_val = 100.0f;
+    bool apply_l = true;
+    bool apply_r = true;
+    if (!is_object) {
+        wet_val = static_cast<float>(track_wet.value);
+        vol_val = static_cast<float>(track_volume.value);
+        apply_l = check_apply_l.value;
+        apply_r = check_apply_r.value;
+    }
 
     bool effective_bypass = (!apply_l && !apply_r) || (wet_val == 0.0f);
     if (effective_bypass && vol_val == 100.0f) {
@@ -458,9 +483,11 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
     std::fill(outL.begin(), outL.begin() + total_samples, 0.0f);
     if (channels >= 2) std::fill(outR.begin(), outR.begin() + total_samples, 0.0f);
 
-    if (channels >= 1) audio->get_sample_data(inL.data(), 0);
-    if (channels >= 2) audio->get_sample_data(inR.data(), 1);
-    else if (channels == 1) std::copy(inL.begin(), inL.begin() + total_samples, inR.begin());
+    if (!is_object) {
+        if (channels >= 1) audio->get_sample_data(inL.data(), 0);
+        if (channels >= 2) audio->get_sample_data(inR.data(), 1);
+        else if (channels == 1) std::copy(inL.begin(), inL.begin() + total_samples, inR.begin());
+    }
 
     std::shared_ptr<IAudioPluginHost> host_for_audio = PluginManager::GetInstance().GetHost(effect_id);
 
@@ -601,6 +628,14 @@ bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+bool func_proc_audio_host(FILTER_PROC_AUDIO* audio) {
+    return func_proc_audio_host_common(audio, false);
+}
+
+bool func_proc_audio_host_media(FILTER_PROC_AUDIO* audio) {
+    return func_proc_audio_host_common(audio, true);
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     filter_name,
@@ -612,4 +647,18 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     filter_items_host,
     nullptr,
     func_proc_audio_host
+};
+
+
+FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
+    FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
+    filter_name_media,
+    L"音声効果",
+    []() {
+        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), FILTER_NAME_MEDIA);
+        return s.c_str();
+    }(),
+    filter_items_host_media,
+    nullptr,
+    func_proc_audio_host_media
 };

@@ -49,12 +49,14 @@ extern const wchar_t regex_info_name[];
 extern const wchar_t regex_tool_name[];
 extern const wchar_t filter_name[];
 extern const wchar_t filter_info[];
+extern const wchar_t filter_name_media[];
 extern const wchar_t tool_name[];
 
 extern std::mutex g_task_queue_mutex;
 extern std::vector<std::function<void()>> g_main_thread_tasks;
 
 extern FILTER_PLUGIN_TABLE filter_plugin_table_host;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_host_media;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_utility;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_eq;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_stereo;

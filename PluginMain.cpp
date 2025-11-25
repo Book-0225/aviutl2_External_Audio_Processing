@@ -5,7 +5,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.12"
+#define PLUGIN_VERSION L"v2-0.0.13"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -19,6 +19,7 @@
 #define MINIMUM_VERSION 2002100
 #define RECOMMENDED_VS_VERSION 2022
 
+#define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
 #define TOOL_NAME_FMT(name, regex) (name L" " regex)
 #if VS_VSERSION == -1
 #define FILTER_INFO_FMT(name, regex, ver, debug, vsver, author) (name L" " regex L" " ver debug L"-VSUnknown by " author)
@@ -30,6 +31,7 @@
 #define PLUGIN_INFO_FMT(name, attr) (name L" Info: " attr)
 
 extern constexpr wchar_t filter_name[] = FILTER_NAME;
+extern constexpr wchar_t filter_name_media[] = FILTER_NAME_MEDIA_FMT(FILTER_NAME);
 extern constexpr wchar_t tool_name[] = TOOL_NAME_FMT(FILTER_NAME, REGEX_TOOL_NAME);
 #if VS_VERSION == -1
 extern constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
@@ -161,6 +163,7 @@ EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->set_plugin_information(plugin_info);
     host->register_filter_plugin(&filter_plugin_table_host);
+	host->register_filter_plugin(&filter_plugin_table_host_media);
     host->register_filter_plugin(&filter_plugin_table_utility);
 	host->register_filter_plugin(&filter_plugin_table_eq);
 	host->register_filter_plugin(&filter_plugin_table_stereo);
