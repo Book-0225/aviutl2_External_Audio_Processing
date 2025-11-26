@@ -533,7 +533,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         return true;
     }
 
-    int64_t current_pos = (int64_t)(audio->object->time * audio->scene->sample_rate + 0.5);
+    int64_t current_pos = (int64_t)(audio->object->sample_index + 0.5);
     double bpm;
     bool sync_bpm = check_bpm_sync_midi.value;
     int32_t ts_num = (int32_t)track_ts_num.value;

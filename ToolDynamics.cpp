@@ -38,7 +38,7 @@ struct DynamicsState {
 static std::mutex g_dyn_state_mutex;
 static std::map<const void*, DynamicsState> g_dyn_states;
 
-bool func_proc_dynamics(FILTER_PROC_AUDIO* audio) {
+bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     int total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
     int channels = (std::min)(2, audio->object->channel_num);
@@ -169,5 +169,5 @@ FILTER_PLUGIN_TABLE filter_plugin_table_dynamics = {
     }(),
     filter_items_dynamics,
     nullptr,
-    func_proc_dynamics
+    func_proc_audio_dynamics
 };
