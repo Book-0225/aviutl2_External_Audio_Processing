@@ -4,7 +4,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
-#include <regex>
+#include "Avx2Utils.h"
 
 #define TOOL_NAME L"EQ"
 
@@ -136,6 +136,7 @@ struct EQState {
 
 static std::mutex g_eq_state_mutex;
 static std::map<const void*, EQState> g_eq_states;
+const int BLOCK_SIZE = 256;
 
 bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     int total_samples = audio->object->sample_num;
@@ -149,7 +150,6 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     double val_mid = eq_mid.value;
     double val_mh = eq_mh.value;
     double val_high = eq_high.value;
-
     double val_low_freq = eq_low_freq.value;
     double val_ml_freq = eq_ml_freq.value;
     double val_mid_freq = eq_mid_freq.value;
@@ -194,25 +194,31 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     state->filtersR[6] = state->filtersL[6];
 
     thread_local std::vector<float> bufL, bufR;
-    if (bufL.size() < total_samples) { bufL.resize(total_samples); bufR.resize(total_samples); }
+    if (bufL.size() < static_cast<size_t>(total_samples)) {
+        bufL.resize(total_samples);
+        bufR.resize(total_samples);
+    }
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) bufR = bufL;
+    else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    for (int i = 0; i < total_samples; ++i) {
-        float l = bufL[i];
-        float r = bufR[i];
+    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        float* pL = bufL.data() + i;
+        float* pR = bufR.data() + i;
 
-        for (int stage = 0; stage < FILTER_STAGES; ++stage) {
-            l = state->filtersL[stage].process(l);
-            if (channels >= 2) {
-                r = state->filtersR[stage].process(r);
+        for (int k = 0; k < block_count; ++k) {
+            float l = pL[k];
+            float r = pR[k];
+
+            for (int s = 0; s < FILTER_STAGES; ++s) {
+                l = state->filtersL[s].process(l);
+                r = state->filtersR[s].process(r);
             }
+            pL[k] = l;
+            pR[k] = r;
         }
-
-        bufL[i] = l;
-        bufR[i] = r;
     }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
@@ -223,15 +229,9 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
 
 FILTER_PLUGIN_TABLE filter_plugin_table_eq = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
-    []() {
-        static std::wstring s = std::regex_replace(tool_name, std::wregex(regex_tool_name), TOOL_NAME);
-        return s.c_str();
-    }(),
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), TOOL_NAME);
-        return s.c_str();
-    }(),
+    GEN_TOOL_NAME(TOOL_NAME),
+    label,
+    GEN_FILTER_INFO(TOOL_NAME),
     filter_items_eq,
     nullptr,
     func_proc_audio_eq

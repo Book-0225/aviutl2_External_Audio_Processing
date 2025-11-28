@@ -1,6 +1,5 @@
 ﻿#include "Eap2Common.h"
 #include "AudioPluginFactory.h"
-#include <objbase.h>
 
 #define STR2(x) L#x
 
@@ -30,20 +29,21 @@
 #endif
 #define PLUGIN_INFO_FMT(name, attr) (name L" Info: " attr)
 
-extern constexpr wchar_t filter_name[] = FILTER_NAME;
-extern constexpr wchar_t filter_name_media[] = FILTER_NAME_MEDIA_FMT(FILTER_NAME);
-extern constexpr wchar_t tool_name[] = TOOL_NAME_FMT(FILTER_NAME, REGEX_TOOL_NAME);
+constexpr wchar_t filter_name[] = FILTER_NAME;
+constexpr wchar_t filter_name_media[] = FILTER_NAME_MEDIA_FMT(FILTER_NAME);
+constexpr wchar_t tool_name[] = TOOL_NAME_FMT(FILTER_NAME, REGEX_TOOL_NAME);
 #if VS_VERSION == -1
-extern constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
+constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
 #elif VS_VERSION != RECOMMENDED_VS_VERSION
-extern constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, VS_VERSION, PLUGIN_AUTHOR);
+constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, VS_VERSION, PLUGIN_AUTHOR);
 #else
-extern constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
+constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
 #endif
-extern constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBUTION);
+constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBUTION);
 
-extern constexpr wchar_t regex_info_name[] = REGEX_FILTER_NAME;
-extern constexpr wchar_t regex_tool_name[] = REGEX_TOOL_NAME;
+constexpr wchar_t regex_info_name[] = REGEX_FILTER_NAME;
+constexpr wchar_t regex_tool_name[] = REGEX_TOOL_NAME;
+constexpr wchar_t label[] = FILTER_NAME_SHORT;
 
 HINSTANCE g_hinstance = NULL;
 EDIT_HANDLE* g_edit_handle = nullptr;
@@ -172,6 +172,17 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
 	host->register_filter_plugin(&filter_plugin_table_modulation);
 	host->register_filter_plugin(&filter_plugin_table_distortion);
 	host->register_filter_plugin(&filter_plugin_table_maximizer);
+    host->register_filter_plugin(&filter_plugin_table_chain_send);
+    host->register_filter_plugin(&filter_plugin_table_chain_comp);
+	host->register_filter_plugin(&filter_plugin_table_chain_gate);
+	host->register_filter_plugin(&filter_plugin_table_chain_dyn_eq);
+	host->register_filter_plugin(&filter_plugin_table_chain_filter);
+    host->register_filter_plugin(&filter_plugin_table_reverb);
+    host->register_filter_plugin(&filter_plugin_table_phaser);
+    host->register_filter_plugin(&filter_plugin_table_generator);
+    host->register_filter_plugin(&filter_plugin_table_pitch_shift);
+	host->register_filter_plugin(&filter_plugin_table_autowah);
+	host->register_filter_plugin(&filter_plugin_table_deesser);
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     g_edit_handle = host->create_edit_handle();

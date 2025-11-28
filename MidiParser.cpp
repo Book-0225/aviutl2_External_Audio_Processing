@@ -1,7 +1,6 @@
 ﻿#include "MidiParser.h"
 #include <fstream>
 #include <algorithm>
-#include <iostream>
 
 static uint16_t ReadBE16(std::ifstream& f) {
     uint8_t b[2];

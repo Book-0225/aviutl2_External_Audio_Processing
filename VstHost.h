@@ -3,7 +3,6 @@
 #include <windows.h>
 #include <string>
 #include <memory>
-#include <atomic>
 
 class VstHost : public IAudioPluginHost {
 public:

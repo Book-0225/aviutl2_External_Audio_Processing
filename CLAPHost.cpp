@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <wincrypt.h>
 #include <filesystem>
 #include <algorithm>
 #include "StringUtils.h"

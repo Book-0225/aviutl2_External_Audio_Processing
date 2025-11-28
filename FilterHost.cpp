@@ -1,11 +1,8 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
-#include "Eap2Common.h"
+﻿#include "Eap2Common.h"
 #include <map>
 #include <set>
 #include <filesystem>
-#include <random>
 #include <string>
-#include <regex>
 
 #include "IAudioPluginHost.h"
 #include "PluginType.h"
@@ -13,6 +10,7 @@
 #include "PluginManager.h"
 #include "StringUtils.h"
 #include "MidiParser.h"
+#include "Avx2Utils.h"
 
 #define FILTER_NAME L"Host"
 #define FILTER_NAME_MEDIA L"Host (Media)"
@@ -209,7 +207,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
     }
 }
 
-int ProjectSaveExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS* ep) {
+int ProjectSaveExceptionFilter(uint32_t code, struct _EXCEPTION_POINTERS* ep) {
     if (code == EXCEPTION_ACCESS_VIOLATION) {
         DbgPrint("[EAP2 Critical] Access Violation at %p", ep->ExceptionRecord->ExceptionAddress);
         return EXCEPTION_EXECUTE_HANDLER;
@@ -356,7 +354,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         return true;
     }
 
-    auto host = PluginManager::GetInstance().GetHost(effect_id);
+    std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHost(effect_id);
     if (plugin_path_w.empty()) {
         if (host) needs_reinitialization = true;
     }
@@ -480,19 +478,14 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         inL.resize(total_samples); outL.resize(total_samples);
         inR.resize(total_samples); outR.resize(total_samples);
     }
-    
-    std::fill(inL.begin(), inL.begin() + total_samples, 0.0f);
-    if (channels >= 2) std::fill(inR.begin(), inR.begin() + total_samples, 0.0f);
-    std::fill(outL.begin(), outL.begin() + total_samples, 0.0f);
-    if (channels >= 2) std::fill(outR.begin(), outR.begin() + total_samples, 0.0f);
 
     if (!is_object) {
         if (channels >= 1) audio->get_sample_data(inL.data(), 0);
         if (channels >= 2) audio->get_sample_data(inR.data(), 1);
-        else if (channels == 1) std::copy(inL.begin(), inL.begin() + total_samples, inR.begin());
+        else if (channels == 1) Avx2Utils::CopyBufferAVX2(inR.data(), inL.data(), total_samples);
     }
 
-    std::shared_ptr<IAudioPluginHost> host_for_audio = PluginManager::GetInstance().GetHost(effect_id);
+    std::shared_ptr<IAudioPluginHost> host_for_audio = host;
 
     if (host_for_audio) {
         bool gui_should_show = toggle_gui_check.value;
@@ -519,14 +512,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (effective_bypass) {
         float vol_ratio = vol_val / 100.0f;
         if (vol_ratio == 0.0f) {
-            std::fill(outL.begin(), outL.begin() + total_samples, 0.0f);
-            if (channels >= 2) std::fill(outR.begin(), outR.begin() + total_samples, 0.0f);
+            Avx2Utils::FillBufferAVX2(outL.data(), total_samples, 0.0f);
+            if (channels >= 2) Avx2Utils::FillBufferAVX2(outR.data(), total_samples, 0.0f);
         }
         else {
-            for (int i = 0; i < total_samples; ++i) {
-                outL[i] = inL[i] * vol_ratio;
-                if (channels >= 2) outR[i] = inR[i] * vol_ratio;
-            }
+            Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
+            if (channels >= 2) Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
         }
         if (channels >= 1) audio->set_sample_data(outL.data(), 0);
         if (channels >= 2) audio->set_sample_data(outR.data(), 1);
@@ -538,6 +529,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     bool sync_bpm = check_bpm_sync_midi.value;
     int32_t ts_num = (int32_t)track_ts_num.value;
     int32_t ts_denom = (int32_t)track_ts_denom.value;
+    bool processed_by_host = false;
 
     if (host_for_audio) {
         if (PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num)) {
@@ -627,31 +619,38 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
             processed += block_size;
         }
-    }
-    else {
-        std::copy(inL.begin(), inL.begin() + total_samples, outL.begin());
-        if (channels >= 2) std::copy(inR.begin(), inR.begin() + total_samples, outR.begin());
+        processed_by_host = true;
     }
 
     float wet_ratio = wet_val / 100.0f;
     float dry_ratio = 1.0f - wet_ratio;
     float vol_ratio = vol_val / 100.0f;
 
-    for (int i = 0; i < total_samples; ++i) {
+    if (processed_by_host) {
         if (apply_l) {
-            outL[i] = (outL[i] * wet_ratio + inL[i] * dry_ratio) * vol_ratio;
+            Avx2Utils::MixAudioAVX2(outL.data(), inL.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
         }
         else {
-            outL[i] = inL[i] * vol_ratio;
+            Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
         }
 
         if (channels >= 2) {
             if (apply_r) {
-                outR[i] = (outR[i] * wet_ratio + inR[i] * dry_ratio) * vol_ratio;
+                Avx2Utils::MixAudioAVX2(outR.data(), inR.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
             }
             else {
-                outR[i] = inR[i] * vol_ratio;
+                Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
             }
+        }
+    }
+    else {
+
+        float combined_scale = (apply_l ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
+        Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, combined_scale);
+
+        if (channels >= 2) {
+            combined_scale = (apply_r ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
+            Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, combined_scale);
         }
     }
 
@@ -672,11 +671,8 @@ bool func_proc_audio_host_media(FILTER_PROC_AUDIO* audio) {
 FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     filter_name,
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), FILTER_NAME);
-        return s.c_str();
-    }(),
+    label,
+	GEN_FILTER_INFO(FILTER_NAME),
     filter_items_host,
     nullptr,
     func_proc_audio_host
@@ -686,11 +682,8 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
 FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
     filter_name_media,
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), FILTER_NAME_MEDIA);
-        return s.c_str();
-    }(),
+    label,
+	GEN_FILTER_INFO(FILTER_NAME_MEDIA),
     filter_items_host_media,
     nullptr,
     func_proc_audio_host_media

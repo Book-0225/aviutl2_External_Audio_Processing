@@ -1,7 +1,7 @@
 ﻿#include "Eap2Common.h"
+#include "Avx2Utils.h"
 #include <vector>
 #include <algorithm>
-#include <regex>
 
 #define TOOL_NAME L"Stereo"
 
@@ -30,39 +30,31 @@ bool func_proc_audio_stereo(FILTER_PROC_AUDIO* audio) {
     }
 
     thread_local std::vector<float> bufL, bufR;
-    if (bufL.size() < total_samples) { bufL.resize(total_samples); bufR.resize(total_samples); }
+    if (bufL.size() < static_cast<size_t>(total_samples)) {
+        bufL.resize(total_samples);
+        bufR.resize(total_samples);
+    }
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) bufR = bufL;
+    else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     float width_ratio = width_val / 100.0f;
     float mid_ratio = mid_val / 100.0f;
     float side_ratio = side_val / 100.0f;
 
-    for (int i = 0; i < total_samples; ++i) {
-        float l = bufL[i];
-        float r = bufR[i];
+    if (channels >= 2) {
+        float term_common = 0.5f * mid_ratio;
+        float term_diff = 0.5f * width_ratio * side_ratio;
 
-        if (channels >= 2) {
-            float mid = (l + r) * 0.5f;
-            float side = (l - r) * 0.5f;
+        float coeff_same = term_common + term_diff;
+        float coeff_swap = term_common - term_diff;
 
-            side *= width_ratio;
-
-            mid *= mid_ratio;
-            side *= side_ratio;
-
-            l = mid + side;
-            r = mid - side;
-        }
-        else {
-            l *= mid_ratio;
-            r *= mid_ratio;
-        }
-
-        bufL[i] = l;
-        bufR[i] = r;
+        Avx2Utils::MatrixMixStereoAVX2(bufL.data(), bufR.data(), bufL.data(), bufR.data(), total_samples, coeff_same, coeff_swap, coeff_swap, coeff_same);
+    }
+    else {
+        Avx2Utils::ScaleBufferAVX2(bufL.data(), bufL.data(), total_samples, mid_ratio);
+        Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
     }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
@@ -73,15 +65,9 @@ bool func_proc_audio_stereo(FILTER_PROC_AUDIO* audio) {
 
 FILTER_PLUGIN_TABLE filter_plugin_table_stereo = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
-    []() {
-        static std::wstring s = std::regex_replace(tool_name, std::wregex(regex_tool_name), TOOL_NAME);
-        return s.c_str();
-    }(),
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), TOOL_NAME);
-        return s.c_str();
-    }(),
+    GEN_TOOL_NAME(TOOL_NAME),
+    label,
+    GEN_FILTER_INFO(TOOL_NAME),
     filter_items_stereo,
     nullptr,
     func_proc_audio_stereo

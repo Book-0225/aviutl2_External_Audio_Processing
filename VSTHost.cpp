@@ -2,7 +2,6 @@
 #include "VstHost.h"
 #include "public.sdk/source/vst/hosting/module.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
-#include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
@@ -11,18 +10,15 @@
 #include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/vsttypes.h"
 #include "pluginterfaces/gui/iplugview.h"
-#include "pluginterfaces/base/ustring.h"
 #include "public.sdk/source/common/memorystream.h"
 #include <windows.h>
 #include <vector>
 #include <string>
-#include <wincrypt.h>
-#include <objbase.h>
 #include <mutex>
-#include <filesystem>
 #include <set>
 #include "StringUtils.h"
 #include "Eap2Common.h"
+#include "Avx2Utils.h"
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
@@ -372,6 +368,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     }
 
     float* silence = GetDummyBuffer(numSamples);
+    Avx2Utils::FillBufferAVX2(silence, numSamples, 0.0f);
 
     ProcessData data{};
     data.numSamples = numSamples;
@@ -407,7 +404,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     for (int ch = 0; ch < info.channelCount; ++ch) {
                         inPtrs[i][ch] = silence;
                     }
-                    inBufs[i].silenceFlags = (1 << info.channelCount) - 1;
+                    inBufs[i].silenceFlags = (1ULL << info.channelCount) - 1;
                 }
                 inBufs[i].channelBuffers32 = inPtrs[i].data();
             }
@@ -464,8 +461,8 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     result = SafeProcessCall(processor, data);
 
     if (result != kResultOk) {
-        if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
-        if (numChannels > 1 && outR != inR) memcpy(outR, inR, numSamples * sizeof(float));
+        if (outL != inL) Avx2Utils::CopyBufferAVX2(outL, inL, numSamples);
+        if (numChannels > 1 && outR != inR) Avx2Utils::CopyBufferAVX2(outR, inR, numSamples);
     }
 }
 

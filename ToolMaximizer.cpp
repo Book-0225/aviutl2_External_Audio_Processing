@@ -4,7 +4,7 @@
 #include <map>
 #include <mutex>
 #include <algorithm>
-#include <regex>
+#include "Avx2Utils.h"
 
 #define TOOL_NAME L"Maximizer"
 
@@ -22,6 +22,7 @@ void* filter_items_maximizer[] = {
 };
 
 const int MAX_LOOKAHEAD_BUFFER = 4096;
+const int BLOCK_SIZE = 64;
 
 struct MaximizerState {
     std::vector<float> bufferL;
@@ -32,19 +33,14 @@ struct MaximizerState {
     int64_t last_sample_index = -1;
 
     void init() {
-        bufferL.assign(MAX_LOOKAHEAD_BUFFER, 0.0f);
-        bufferR.assign(MAX_LOOKAHEAD_BUFFER, 0.0f);
-        write_pos = 0;
-        envelope = 0.0;
-        initialized = true;
+        bufferL.assign(MAX_LOOKAHEAD_BUFFER, 0.0f); bufferR.assign(MAX_LOOKAHEAD_BUFFER, 0.0f);
+        write_pos = 0; envelope = 0.0; initialized = true;
     }
 
     void clear() {
         if (initialized) {
-            std::fill(bufferL.begin(), bufferL.end(), 0.0f);
-            std::fill(bufferR.begin(), bufferR.end(), 0.0f);
-            write_pos = 0;
-            envelope = 0.0;
+            std::fill(bufferL.begin(), bufferL.end(), 0.0f); std::fill(bufferR.begin(), bufferR.end(), 0.0f);
+            write_pos = 0; envelope = 0.0;
         }
     }
 };
@@ -62,19 +58,13 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     double release_ms = max_release.value;
     double lookahead_ms = max_lookahead.value;
 
-    if (threshold_db >= 0.0 && ceiling_db >= 0.0) {
-        return true;
-    }
+    if (threshold_db >= 0.0 && ceiling_db >= 0.0) return true;
 
     MaximizerState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_max_state_mutex);
         state = &g_max_states[audio->object];
-
-        if (!state->initialized) {
-            state->init();
-        }
-
+        if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             state->last_sample_index + total_samples != audio->object->sample_index) {
             state->clear();
@@ -83,67 +73,73 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-
-    double makeup_gain = std::pow(10.0, -threshold_db / 20.0);
-    
+    float makeup_gain = static_cast<float>(std::pow(10.0, -threshold_db / 20.0));
     double ceiling_lin = std::pow(10.0, ceiling_db / 20.0);
-
     double release_coef = std::exp(-1.0 / (release_ms * 0.001 * Fs));
 
     int lookahead_samples = static_cast<int>(lookahead_ms * 0.001 * Fs);
     if (lookahead_samples >= MAX_LOOKAHEAD_BUFFER) lookahead_samples = MAX_LOOKAHEAD_BUFFER - 1;
 
     thread_local std::vector<float> bufL, bufR;
-    if (bufL.size() < total_samples) { bufL.resize(total_samples); bufR.resize(total_samples); }
+    if (bufL.size() < static_cast<size_t>(total_samples)) {
+        bufL.resize(total_samples);
+        bufR.resize(total_samples);
+    }
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) bufR = bufL;
+    else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    std::vector<float>& bL = state->bufferL;
-    std::vector<float>& bR = state->bufferR;
     int w_pos = state->write_pos;
     double current_env = state->envelope;
-    const int buf_mask = MAX_LOOKAHEAD_BUFFER;
+    const int buf_size = MAX_LOOKAHEAD_BUFFER;
 
-    for (int i = 0; i < total_samples; ++i) {
-        float l = bufL[i];
-        float r = bufR[i];
+    alignas(32) float temp_gain[BLOCK_SIZE];
+    alignas(32) float temp_out_L[BLOCK_SIZE];
+    alignas(32) float temp_out_R[BLOCK_SIZE];
 
-        l *= (float)makeup_gain;
-        r *= (float)makeup_gain;
+    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        float* pL = bufL.data() + i;
+        float* pR = bufR.data() + i;
 
-        bL[w_pos] = l;
-        bR[w_pos] = r;
+        Avx2Utils::ScaleBufferAVX2(pL, pL, block_count, makeup_gain);
+        Avx2Utils::ScaleBufferAVX2(pR, pR, block_count, makeup_gain);
 
-        double in_peak = std::abs(l);
-        if (channels >= 2) in_peak = (std::max)(in_peak, (double)std::abs(r));
+        Avx2Utils::WriteRingBufferAVX2(state->bufferL, pL, buf_size, w_pos, block_count);
+        Avx2Utils::WriteRingBufferAVX2(state->bufferR, pR, buf_size, w_pos, block_count);
 
-        if (in_peak > current_env) {
-            current_env = in_peak;
-        } else {
-            current_env = in_peak + release_coef * (current_env - in_peak);
+        for (int k = 0; k < block_count; ++k) {
+            float l = pL[k];
+            float r = pR[k];
+            double in_peak = std::abs(l);
+            double r_peak = std::abs(r);
+            if (r_peak > in_peak) in_peak = r_peak;
+
+            if (in_peak > current_env) {
+                current_env = in_peak;
+            }
+            else {
+                current_env = in_peak + release_coef * (current_env - in_peak);
+            }
+
+            double gain = 1.0;
+            if (current_env > ceiling_lin) {
+                gain = ceiling_lin / current_env;
+            }
+            temp_gain[k] = static_cast<float>(gain);
         }
 
         int r_pos = w_pos - lookahead_samples;
-        if (r_pos < 0) r_pos += MAX_LOOKAHEAD_BUFFER;
-        
-        float out_l = bL[r_pos];
-        float out_r = bR[r_pos];
+        if (r_pos < 0) r_pos += buf_size;
 
-        double gain = 1.0;
-        if (current_env > ceiling_lin) {
-            gain = ceiling_lin / current_env;
-        }
+        Avx2Utils::ReadRingBufferAVX2(temp_out_L, state->bufferL, buf_size, r_pos, block_count);
+        Avx2Utils::ReadRingBufferAVX2(temp_out_R, state->bufferR, buf_size, r_pos, block_count);
+        Avx2Utils::MultiplyBufferAVX2(pL, temp_out_L, temp_gain, block_count);
+        Avx2Utils::MultiplyBufferAVX2(pR, temp_out_R, temp_gain, block_count);
 
-        out_l *= (float)gain;
-        out_r *= (float)gain;
-
-        bufL[i] = out_l;
-        bufR[i] = out_r;
-
-        w_pos++;
-        if (w_pos >= MAX_LOOKAHEAD_BUFFER) w_pos = 0;
+        w_pos += block_count;
+        if (w_pos >= buf_size) w_pos -= buf_size;
     }
 
     state->write_pos = w_pos;
@@ -157,15 +153,9 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
 
 FILTER_PLUGIN_TABLE filter_plugin_table_maximizer = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
-    []() {
-        static std::wstring s = std::regex_replace(tool_name, std::wregex(regex_tool_name), TOOL_NAME);
-        return s.c_str();
-    }(),
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), TOOL_NAME);
-        return s.c_str();
-    }(),
+    GEN_TOOL_NAME(TOOL_NAME),
+    label,
+    GEN_FILTER_INFO(TOOL_NAME),
     filter_items_maximizer,
     nullptr,
     func_proc_maximizer
