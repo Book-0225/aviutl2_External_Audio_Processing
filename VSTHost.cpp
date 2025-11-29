@@ -177,6 +177,22 @@ struct VstHost::Impl {
         return dummyBuffer.data();
     }
 
+    std::mutex outputParamMutex;
+    std::vector<std::pair<ParamID, ParamValue>> outputParamQueue;
+
+    void ProcessGuiUpdates() {
+        if (!controller) return;
+        std::vector<std::pair<ParamID, ParamValue>> updates;
+        {
+            std::lock_guard<std::mutex> lock(outputParamMutex);
+            if (outputParamQueue.empty()) return;
+            updates.swap(outputParamQueue);
+        }
+        for (const auto& update : updates) {
+            controller->setParamNormalized(update.first, update.second);
+        }
+    }
+
     HINSTANCE hInstance = nullptr;
     Module::Ptr module;
     PlugProvider* provider = nullptr;
@@ -195,7 +211,7 @@ struct VstHost::Impl {
     std::mutex paramMutex;
     std::mutex processorUpdateMutex;
     std::vector<std::pair<ParamID, ParamValue>> pendingParamChanges;
-    std::set<int> activeNotes;
+    std::set<int32_t> activeNotes;
     std::mutex activeNotesMutex;
     EventList eventList;
     std::atomic<bool> pendingStopNotes{ false };
@@ -299,6 +315,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     }
 
     ParameterChanges inParamChanges;
+    ParameterChanges outParamChanges;
     {
         std::lock_guard<std::mutex> lock(paramQueueMutex);
         if (!paramQueue.empty()) {
@@ -375,6 +392,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     data.symbolicSampleSize = kSample32;
     data.inputParameterChanges = &inParamChanges;
     data.inputEvents = &eventList;
+    data.outputParameterChanges = &outParamChanges;
 
     std::vector<AudioBusBuffers> inBufs;
     std::vector<std::vector<float*>> inPtrs;
@@ -460,7 +478,24 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     tresult result = kResultFalse;
     result = SafeProcessCall(processor, data);
 
-    if (result != kResultOk) {
+    if (result == kResultOk) {
+        int32_t numOutParams = outParamChanges.getParameterCount();
+        if (numOutParams > 0) {
+            std::lock_guard<std::mutex> lock(outputParamMutex);
+            for (int32_t i = 0; i < numOutParams; ++i) {
+                IParamValueQueue* queue = outParamChanges.getParameterData(i);
+                if (queue && queue->getPointCount() > 0) {
+                    ParamID id = queue->getParameterId();
+                    ParamValue value;
+                    int32_t sampleOffset;
+                    if (queue->getPoint(queue->getPointCount() - 1, sampleOffset, value) == kResultTrue) {
+                        outputParamQueue.push_back({ id, value });
+                    }
+                }
+            }
+        }
+    }
+    else {
         if (outL != inL) Avx2Utils::CopyBufferAVX2(outL, inL, numSamples);
         if (numChannels > 1 && outR != inR) Avx2Utils::CopyBufferAVX2(outR, inR, numSamples);
     }
@@ -494,14 +529,24 @@ void VstHost::Impl::ShowGui() {
         if (msg == WM_CREATE) {
             self = (VstHost::Impl*)((CREATESTRUCT*)lp)->lpCreateParams;
             SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)self);
+            SetTimer(hWnd, 1001, 30, NULL);
         }
         else {
             self = (VstHost::Impl*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
         }
 
+        if (msg == WM_TIMER && wp == 1001) {
+            if (self) {
+                self->ProcessGuiUpdates();
+            }
+            return 0;
+        }
+
         if (msg == WM_CLOSE) return 0;
 
         if (msg == WM_DESTROY) {
+            KillTimer(hWnd, 1001);
+
             if (self) {
                 if (self->plugView) self->plugView->removed();
                 self->plugView.reset();
