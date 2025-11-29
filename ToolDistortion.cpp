@@ -37,7 +37,7 @@ struct DistortionState {
     float lp_hist_r = 0.0f;
     float sample_hold_l = 0.0f;
     float sample_hold_r = 0.0f;
-    int sample_counter = 0;
+    int32_t sample_counter = 0;
     bool initialized = false;
     int64_t last_sample_index = -1;
 
@@ -51,12 +51,12 @@ struct DistortionState {
 
 static std::mutex g_dist_state_mutex;
 static std::map<const void*, DistortionState> g_dist_states;
-const int BLOCK_SIZE = 64;
+const int32_t BLOCK_SIZE = 64;
 
 bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     bool is_overdrive = dist_overdrive.value;
     bool is_fuzz = dist_fuzz.value;
@@ -90,7 +90,7 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     bool tone_active = (tone_freq < 19000.0f);
 
     float step_size = 1.0f / std::pow(2.0f, bits);
-    int ds_factor = static_cast<int>(downsample);
+    int32_t ds_factor = static_cast<int32_t>(downsample);
     if (ds_factor < 1) ds_factor = 1;
     bool ds_active = (ds_factor > 1);
     bool quant_active = (bits < 24.0f);
@@ -108,8 +108,8 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_L[BLOCK_SIZE];
     alignas(32) float temp_wet_R[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* p_dry_L = bufL.data() + i;
         float* p_dry_R = bufR.data() + i;
 
@@ -137,7 +137,7 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
             }
 
             if (ds_active) {
-                for (int k = 0; k < block_count; ++k) {
+                for (int32_t k = 0; k < block_count; ++k) {
                     if (state->sample_counter % ds_factor == 0) {
                         float l = temp_wet_L[k];
                         float r = temp_wet_R[k];
@@ -156,7 +156,7 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
         }
 
         if (tone_active) {
-            for (int k = 0; k < block_count; ++k) {
+            for (int32_t k = 0; k < block_count; ++k) {
                 state->lp_hist_l += alpha * (temp_wet_L[k] - state->lp_hist_l);
                 state->lp_hist_r += alpha * (temp_wet_R[k] - state->lp_hist_r);
                 temp_wet_L[k] = state->lp_hist_l;

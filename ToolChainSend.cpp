@@ -16,11 +16,11 @@ void* filter_items_send[] = {
 };
 
 bool func_proc_audio_chain_send(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    int bus_idx = static_cast<int>(send_id.value) - 1;
+    int32_t bus_idx = static_cast<int32_t>(send_id.value) - 1;
     if (bus_idx < 0 || bus_idx >= ChainManager::MAX_CHAINS) return true;
 
     double gain_val = send_gain.value / 100.0f;

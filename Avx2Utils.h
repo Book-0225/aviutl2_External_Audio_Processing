@@ -161,10 +161,10 @@ namespace Avx2Utils {
         }
     }
 
-    inline void ReadRingBufferAVX2(float* dst, const std::vector<float>& buf, int buf_size, int read_pos, int count) {
+    inline void ReadRingBufferAVX2(float* dst, const std::vector<float>& buf, int32_t buf_size, int32_t read_pos, int32_t count) {
         if (read_pos < 0) read_pos += buf_size;
 
-        int first_chunk = count;
+        int32_t first_chunk = count;
         if (read_pos + count > buf_size) {
             first_chunk = buf_size - read_pos;
         }
@@ -176,8 +176,8 @@ namespace Avx2Utils {
         }
     }
 
-    inline void WriteRingBufferAVX2(std::vector<float>& buf, const float* src, int buf_size, int write_pos, int count) {
-        int first_chunk = count;
+    inline void WriteRingBufferAVX2(std::vector<float>& buf, const float* src, int32_t buf_size, int32_t write_pos, int32_t count) {
+        int32_t first_chunk = count;
         if (write_pos + count > buf_size) {
             first_chunk = buf_size - write_pos;
         }
@@ -278,7 +278,7 @@ namespace Avx2Utils {
         alignas(32) float temp[8];
         _mm256_store_ps(temp, v_max);
         float max_val = 0.0f;
-        for (int k = 0; k < 8; ++k) {
+        for (int32_t k = 0; k < 8; ++k) {
             if (temp[k] > max_val) max_val = temp[k];
         }
 

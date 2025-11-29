@@ -43,11 +43,11 @@ struct AutoWahState {
 static std::mutex g_wah_mutex;
 static std::map<const void*, AutoWahState> g_wah_states;
 
-const int BLOCK_SIZE = 64;
-const int CONTROL_RATE = 8;
+const int32_t BLOCK_SIZE = 64;
+const int32_t CONTROL_RATE = 8;
 
 bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
     float sens = (float)wah_sens.value / 20.0f;
@@ -73,7 +73,7 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
         state->initialized = true;
     }
 
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -105,12 +105,12 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_L[BLOCK_SIZE];
     alignas(32) float temp_wet_R[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             float inL = pL[k];
             float inR = pR[k];
             float input_level = (std::abs(inL) + std::abs(inR)) * 0.5f;

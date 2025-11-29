@@ -36,21 +36,21 @@ struct DynEqState {
     double envelope = 0.0;
     int64_t last_sample_index = -1;
     uint32_t last_update_count = 0;
-    int missed_count = 0;
+    int32_t missed_count = 0;
     float c_b0 = 1.0f, c_b1 = 0.0f, c_b2 = 0.0f, c_a1 = 0.0f, c_a2 = 0.0f;
 };
 
 static std::mutex g_dyneq_mutex;
 static std::map<const void*, DynEqState> g_dyneq_states;
 
-const int BLOCK_SIZE = 64;
-const int CONTROL_RATE = 8;
+const int32_t BLOCK_SIZE = 64;
+const int32_t CONTROL_RATE = 8;
 
 bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
-    int bus_idx = static_cast<int>(deq_id.value) - 1;
+    int32_t bus_idx = static_cast<int32_t>(deq_id.value) - 1;
     if (bus_idx < 0 || bus_idx >= ChainManager::MAX_CHAINS) return true;
 
     double freq = deq_freq.value;
@@ -94,7 +94,7 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
         }
     }
 
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -109,12 +109,12 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     float c_b0 = state->c_b0, c_b1 = state->c_b1, c_b2 = state->c_b2;
     float c_a1 = state->c_a1, c_a2 = state->c_a2;
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             if (trigger_abs > current_env)
                 current_env += att_coef * (trigger_abs - current_env);
             else

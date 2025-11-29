@@ -38,11 +38,11 @@ struct DeesserState {
 static std::mutex g_deess_mutex;
 static std::map<const void*, DeesserState> g_deess_states;
 
-const int BLOCK_SIZE = 64;
-const int CONTROL_RATE = 8;
+const int32_t BLOCK_SIZE = 64;
+const int32_t CONTROL_RATE = 8;
 
 bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
     float freq = (float)deess_freq.value;
@@ -68,7 +68,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
         state->initialized = true;
     }
 
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -95,12 +95,12 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     float c_b0 = state->cur_b0; float c_b1 = state->cur_b1; float c_b2 = state->cur_b2;
     float c_a1 = state->cur_a1; float c_a2 = state->cur_a2;
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             float scL = state->scFilterL.process_ret(pL[k], b0_sc, b1_sc, b2_sc, a1_sc, a2_sc);
             float scR = state->scFilterR.process_ret(pR[k], b0_sc, b1_sc, b2_sc, a1_sc, a2_sc);
             float sc_level = (std::max)(std::abs(scL), std::abs(scR));

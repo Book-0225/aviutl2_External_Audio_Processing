@@ -28,7 +28,7 @@ void* filter_items_generator[] = {
     nullptr
 };
 
-const int BLOCK_SIZE = 64;
+const int32_t BLOCK_SIZE = 64;
 
 struct GeneratorState {
     double phase = 0.0;
@@ -46,11 +46,11 @@ static std::mt19937 g_rng(12345);
 static std::uniform_real_distribution<float> g_dist(-1.0f, 1.0f);
 
 bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    int type = gen_type.value;
+    int32_t type = gen_type.value;
     float freq = static_cast<float>(gen_freq.value);
 
     GeneratorState* state = nullptr;
@@ -77,10 +77,10 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
 
     alignas(32) float temp_gen[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             float sample = 0.0f;
             switch (type) {
             case 0:

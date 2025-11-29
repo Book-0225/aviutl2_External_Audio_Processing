@@ -53,7 +53,7 @@ bool MidiParser::Load(const std::string& path) {
         f.seekg(headerLength - 6, std::ios::cur);
     }
 
-    for (int t = 0; t < numTracks; ++t) {
+    for (int32_t t = 0; t < numTracks; ++t) {
         f.read(chunkType, 4);
         while (memcmp(chunkType, "MTrk", 4) != 0) {
             uint32_t len = ReadBE32(f);

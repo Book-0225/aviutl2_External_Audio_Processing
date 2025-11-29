@@ -36,13 +36,13 @@ namespace {
             *obj = nullptr;
             return kNoInterface;
         }
-        uint32 PLUGIN_API addRef() override { return ++refCount; }
-        uint32 PLUGIN_API release() override {
+        uint32_t PLUGIN_API addRef() override { return ++refCount; }
+        uint32_t PLUGIN_API release() override {
             if (--refCount == 0) { delete this; return 0; }
             return refCount;
         }
     private:
-        std::atomic<uint32> refCount{ 1 };
+        std::atomic<uint32_t> refCount{ 1 };
     };
 
     FUnknownPtr<MyHostApplication> g_host_app_context;

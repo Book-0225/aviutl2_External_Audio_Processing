@@ -15,7 +15,7 @@
 #define FILTER_NAME L"Host"
 #define FILTER_NAME_MEDIA L"Host (Media)"
 
-const int MAX_BLOCK_SIZE = 2048;
+const int32_t MAX_BLOCK_SIZE = 2048;
 
 static std::mutex g_cleanup_mutex;
 static std::string g_legacy_id_to_clear;
@@ -115,12 +115,12 @@ static std::set<std::string>* g_active_ids_collector = nullptr;
 void collect_active_ids_proc(EDIT_SECTION* edit) {
     if (!g_active_ids_collector) return;
 
-    int max_layer = edit->info->layer_max;
-    for (int layer = 0; layer <= max_layer; ++layer) {
+    int32_t max_layer = edit->info->layer_max;
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE obj = edit->find_object(layer, 0);
         while (obj != nullptr) {
-            int effect_count = edit->count_object_effect(obj, filter_name);
-            for (int i = 0; i < effect_count; ++i) {
+            int32_t effect_count = edit->count_object_effect(obj, filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
                 std::wstring indexed_filter_name = std::wstring(filter_name);
                 if (i > 0) {
                     indexed_filter_name += L":" + std::to_wstring(i);
@@ -138,7 +138,7 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
                     }
                 }
             }
-            int end_frame = edit->get_object_layer_frame(obj).end;
+            int32_t end_frame = edit->get_object_layer_frame(obj).end;
             obj = edit->find_object(layer, end_frame + 1);
         }
     }
@@ -147,13 +147,13 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
 void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
     if (g_legacy_id_to_clear.empty()) return;
 
-    int max_layer = edit->info->layer_max;
+    int32_t max_layer = edit->info->layer_max;
 
-    for (int layer = 0; layer <= max_layer; ++layer) {
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE obj = edit->find_object(layer, 0);
         while (obj != nullptr) {
-            int effect_count = edit->count_object_effect(obj, filter_name);
-            for (int i = 0; i < effect_count; ++i) {
+            int32_t effect_count = edit->count_object_effect(obj, filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
                 std::wstring indexed_filter_name_w = std::wstring(filter_name);
                 if (i > 0) {
                     indexed_filter_name_w += L":" + std::to_wstring(i);
@@ -171,7 +171,7 @@ void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
                     }
                 }
             }
-            int current_end_frame = edit->get_object_layer_frame(obj).end;
+            int32_t current_end_frame = edit->get_object_layer_frame(obj).end;
             obj = edit->find_object(layer, current_end_frame + 1);
         }
     }
@@ -207,7 +207,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
     }
 }
 
-int ProjectSaveExceptionFilter(uint32_t code, struct _EXCEPTION_POINTERS* ep) {
+int32_t ProjectSaveExceptionFilter(uint32_t code, struct _EXCEPTION_POINTERS* ep) {
     if (code == EXCEPTION_ACCESS_VIOLATION) {
         DbgPrint("[EAP2 Critical] Access Violation at %p", ep->ExceptionRecord->ExceptionAddress);
         return EXCEPTION_EXECUTE_HANDLER;
@@ -247,16 +247,16 @@ void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
     auto* ctx = static_cast<ResetGUIContext*>(param);
     if (!ctx) return;
 
-    int max_layer = edit->info->layer_max;
+    int32_t max_layer = edit->info->layer_max;
 
-    for (int layer = 0; layer <= max_layer; ++layer) {
-        int current_frame = 0;
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
+        int32_t current_frame = 0;
         while (true) {
             OBJECT_HANDLE obj = edit->find_object(layer, current_frame);
             if (obj == nullptr) break;
 
-            int effect_count = edit->count_object_effect(obj, filter_name);
-            for (int i = 0; i < effect_count; ++i) {
+            int32_t effect_count = edit->count_object_effect(obj, filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
                 std::wstring indexed_filter_name = std::wstring(filter_name);
                 if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
 
@@ -446,7 +446,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         ParamCache& cache = g_param_cache[instance_id];
 
         if (is_learning && lastTouched != -1) {
-            for (int i = 0; i < 4; ++i) {
+            for (int32_t i = 0; i < 4; ++i) {
                 if (cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
                     PluginManager::GetInstance().UpdateMapping(instance_id, i, lastTouched);
                     DbgPrint("Mapped Slider %d to ParamID %d", i + 1, lastTouched);
@@ -455,7 +455,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             }
         }
 
-        for (int i = 0; i < 4; ++i) {
+        for (int32_t i = 0; i < 4; ++i) {
             int32_t mapID = PluginManager::GetInstance().GetMappedParamID(instance_id, i);
             if (mapID != -1) {
 
@@ -469,9 +469,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
     }
 
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     thread_local std::vector<float> inL, inR, outL, outR;
     if (inL.size() < total_samples) {
@@ -552,9 +552,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             bpm = track_bpm.value;
         }
 
-        int processed = 0;
+        int32_t processed = 0;
         while (processed < total_samples) {
-            int block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
+            int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
 
             double time_start = (double)current_block_pos / audio->scene->sample_rate;

@@ -21,13 +21,13 @@ void* filter_items_maximizer[] = {
     nullptr
 };
 
-const int MAX_LOOKAHEAD_BUFFER = 4096;
-const int BLOCK_SIZE = 64;
+const int32_t MAX_LOOKAHEAD_BUFFER = 4096;
+const int32_t BLOCK_SIZE = 64;
 
 struct MaximizerState {
     std::vector<float> bufferL;
     std::vector<float> bufferR;
-    int write_pos = 0;
+    int32_t write_pos = 0;
     double envelope = 0.0;
     bool initialized = false;
     int64_t last_sample_index = -1;
@@ -49,9 +49,9 @@ static std::mutex g_max_state_mutex;
 static std::map<const void*, MaximizerState> g_max_states;
 
 bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     double threshold_db = max_threshold.value;
     double ceiling_db = max_ceiling.value;
@@ -77,7 +77,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     double ceiling_lin = std::pow(10.0, ceiling_db / 20.0);
     double release_coef = std::exp(-1.0 / (release_ms * 0.001 * Fs));
 
-    int lookahead_samples = static_cast<int>(lookahead_ms * 0.001 * Fs);
+    int32_t lookahead_samples = static_cast<int32_t>(lookahead_ms * 0.001 * Fs);
     if (lookahead_samples >= MAX_LOOKAHEAD_BUFFER) lookahead_samples = MAX_LOOKAHEAD_BUFFER - 1;
 
     thread_local std::vector<float> bufL, bufR;
@@ -90,16 +90,16 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
     else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    int w_pos = state->write_pos;
+    int32_t w_pos = state->write_pos;
     double current_env = state->envelope;
-    const int buf_size = MAX_LOOKAHEAD_BUFFER;
+    const int32_t buf_size = MAX_LOOKAHEAD_BUFFER;
 
     alignas(32) float temp_gain[BLOCK_SIZE];
     alignas(32) float temp_out_L[BLOCK_SIZE];
     alignas(32) float temp_out_R[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
@@ -109,7 +109,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
         Avx2Utils::WriteRingBufferAVX2(state->bufferL, pL, buf_size, w_pos, block_count);
         Avx2Utils::WriteRingBufferAVX2(state->bufferR, pR, buf_size, w_pos, block_count);
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             float l = pL[k];
             float r = pR[k];
             double in_peak = std::abs(l);
@@ -130,7 +130,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
             temp_gain[k] = static_cast<float>(gain);
         }
 
-        int r_pos = w_pos - lookahead_samples;
+        int32_t r_pos = w_pos - lookahead_samples;
         if (r_pos < 0) r_pos += buf_size;
 
         Avx2Utils::ReadRingBufferAVX2(temp_out_L, state->bufferL, buf_size, r_pos, block_count);

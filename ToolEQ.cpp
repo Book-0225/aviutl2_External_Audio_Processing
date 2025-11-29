@@ -126,7 +126,7 @@ struct Biquad {
     }
 };
 
-static const int FILTER_STAGES = 7;
+static const int32_t FILTER_STAGES = 7;
 
 struct EQState {
     Biquad filtersL[FILTER_STAGES];
@@ -136,12 +136,12 @@ struct EQState {
 
 static std::mutex g_eq_state_mutex;
 static std::map<const void*, EQState> g_eq_states;
-const int BLOCK_SIZE = 256;
+const int32_t BLOCK_SIZE = 256;
 
 bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     double val_hpf = eq_hpf.value;
     double val_lpf = eq_lpf.value;
@@ -168,7 +168,7 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
         state = &g_eq_states[audio->object];
         if (state->last_sample_index != -1 &&
             state->last_sample_index + total_samples != audio->object->sample_index) {
-            for (int i = 0; i < FILTER_STAGES; ++i) {
+            for (int32_t i = 0; i < FILTER_STAGES; ++i) {
                 state->filtersL[i].resetState();
                 state->filtersR[i].resetState();
             }
@@ -203,16 +203,16 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
     else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             float l = pL[k];
             float r = pR[k];
 
-            for (int s = 0; s < FILTER_STAGES; ++s) {
+            for (int32_t s = 0; s < FILTER_STAGES; ++s) {
                 l = state->filtersL[s].process(l);
                 r = state->filtersR[s].process(r);
             }

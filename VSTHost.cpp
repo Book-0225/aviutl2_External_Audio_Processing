@@ -38,8 +38,8 @@ public:
         }
         *obj = nullptr; return kNoInterface;
     }
-    uint32 PLUGIN_API addRef() override { return ++m_refCount; }
-    uint32 PLUGIN_API release() override {
+    uint32_t PLUGIN_API addRef() override { return ++m_refCount; }
+    uint32_t PLUGIN_API release() override {
         if (--m_refCount == 0) { delete this; return 0; }
         return m_refCount;
     }
@@ -57,7 +57,7 @@ public:
 private:
     IPlugView* plugView = nullptr;
     HWND parentWindow = nullptr;
-    std::atomic<uint32> m_refCount{ 1 };
+    std::atomic<uint32_t> m_refCount{ 1 };
 };
 
 class HostComponentHandler : public IComponentHandler
@@ -70,20 +70,20 @@ public:
         return kResultOk;
     }
     tresult PLUGIN_API endEdit(ParamID tag) override { return kResultOk; }
-    tresult PLUGIN_API restartComponent(int32 flags) override { return kResultOk; }
+    tresult PLUGIN_API restartComponent(int32_t flags) override { return kResultOk; }
     tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override {
         QUERY_INTERFACE(iid, obj, IComponentHandler::iid, IComponentHandler)
             QUERY_INTERFACE(iid, obj, FUnknown::iid, FUnknown)
             * obj = nullptr;
         return kNoInterface;
     }
-    uint32 PLUGIN_API addRef() override { return ++refCount; }
-    uint32 PLUGIN_API release() override {
+    uint32_t PLUGIN_API addRef() override { return ++refCount; }
+    uint32_t PLUGIN_API release() override {
         if (--refCount == 0) { delete this; return 0; }
         return refCount;
     }
 private:
-    std::atomic<uint32> refCount{ 1 };
+    std::atomic<uint32_t> refCount{ 1 };
 };
 
 static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
@@ -103,9 +103,9 @@ public:
     EventList() {}
     virtual ~EventList() {}
 
-    int32 PLUGIN_API getEventCount() override { return (int32)events.size(); }
-    tresult PLUGIN_API getEvent(int32 index, Event& e) override {
-        if (index < 0 || index >= (int32)events.size()) return kResultFalse;
+    int32_t PLUGIN_API getEventCount() override { return (int32_t)events.size(); }
+    tresult PLUGIN_API getEvent(int32_t index, Event& e) override {
+        if (index < 0 || index >= (int32_t)events.size()) return kResultFalse;
         e = events[index];
         return kResultOk;
     }
@@ -120,8 +120,8 @@ public:
         }
         *obj = nullptr; return kNoInterface;
     }
-    uint32 PLUGIN_API addRef() override { return 1; }
-    uint32 PLUGIN_API release() override { return 1; }
+    uint32_t PLUGIN_API addRef() override { return 1; }
+    uint32_t PLUGIN_API release() override { return 1; }
 
     void clear() { events.clear(); }
 
@@ -303,10 +303,10 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         std::lock_guard<std::mutex> lock(paramQueueMutex);
         if (!paramQueue.empty()) {
             for (const auto& change : paramQueue) {
-                int32 index = 0;
+                int32_t index = 0;
                 IParamValueQueue* queue = inParamChanges.addParameterData(change.id, index);
                 if (queue) {
-                    int32 pointIndex = 0;
+                    int32_t pointIndex = 0;
                     queue->addPoint(0, change.value, pointIndex);
                 }
             }
@@ -318,9 +318,9 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 
     if (pendingStopNotes.exchange(false)) {
         std::lock_guard<std::mutex> lock(activeNotesMutex);
-        for (int noteKey : activeNotes) {
-            int channel = (noteKey >> 8) & 0xFF;
-            int pitch = noteKey & 0xFF;
+        for (int32_t noteKey : activeNotes) {
+            int32_t channel = (noteKey >> 8) & 0xFF;
+            int32_t pitch = noteKey & 0xFF;
 
             Event e = {};
             e.type = Event::kNoteOffEvent;
@@ -396,12 +396,12 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     if (info.channelCount > 1) {
                         inPtrs[i][1] = const_cast<float*>(numChannels > 1 ? inR : inL);
                     }
-                    for (int ch = 2; ch < info.channelCount; ++ch) {
+                    for (int32_t ch = 2; ch < info.channelCount; ++ch) {
                         inPtrs[i][ch] = silence;
                     }
                 }
                 else {
-                    for (int ch = 0; ch < info.channelCount; ++ch) {
+                    for (int32_t ch = 0; ch < info.channelCount; ++ch) {
                         inPtrs[i][ch] = silence;
                     }
                     inBufs[i].silenceFlags = (1ULL << info.channelCount) - 1;
@@ -433,12 +433,12 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     if (info.channelCount > 1) {
                         outPtrs[i][1] = (numChannels > 1) ? outR : silence;
                     }
-                    for (int ch = 2; ch < info.channelCount; ++ch) {
+                    for (int32_t ch = 2; ch < info.channelCount; ++ch) {
                         outPtrs[i][ch] = silence;
                     }
                 }
                 else {
-                    for (int ch = 0; ch < info.channelCount; ++ch) {
+                    for (int32_t ch = 0; ch < info.channelCount; ++ch) {
                         outPtrs[i][ch] = silence;
                     }
                 }
@@ -554,7 +554,7 @@ std::string VstHost::Impl::GetState() {
         if (cs < 0 || ts < 0 || cs > 200 * 1024 * 1024) return "";
 
         MemoryStream full;
-        int32 b;
+        int32_t b;
         full.write(&cs, sizeof(cs), &b);
         if (cs > 0) full.write(cStream.getData(), (int32_t)cs, &b);
         full.write(&ts, sizeof(ts), &b);
@@ -572,17 +572,17 @@ bool VstHost::Impl::SetState(const std::string& state_b64) {
     auto data = StringUtils::Base64Decode(state_b64.substr(10));
     if (data.empty() && !state_b64.empty()) return false;
     MemoryStream stream(data.data(), data.size());
-    int32 br;
+    int32_t br;
     int64 cs = 0, ts = 0;
     stream.read(&cs, sizeof(cs), &br);
     if (cs > 0 && component) {
-        std::vector<BYTE> d(cs); stream.read(d.data(), (int32)cs, &br);
+        std::vector<BYTE> d(cs); stream.read(d.data(), (int32_t)cs, &br);
         MemoryStream s(d.data(), cs); 
         if (component->setState(&s) != kResultOk) return false;
     }
     stream.read(&ts, sizeof(ts), &br);
     if (ts > 0 && controller) {
-        std::vector<BYTE> d(ts); stream.read(d.data(), (int32)ts, &br);
+        std::vector<BYTE> d(ts); stream.read(d.data(), (int32_t)ts, &br);
         MemoryStream s(d.data(), ts); 
         if (controller->setState(&s) != kResultOk) return false;
     }

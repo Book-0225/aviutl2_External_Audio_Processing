@@ -42,7 +42,7 @@ public:
 };
 
 struct PhaserState {
-    static const int STAGES = 6;
+    static const int32_t STAGES = 6;
     PhaserAPF filtersL[STAGES];
     PhaserAPF filtersR[STAGES];
 
@@ -54,13 +54,13 @@ struct PhaserState {
     int64_t last_sample_index = -1;
 
     void init() {
-        for (int i = 0; i < STAGES; ++i) { filtersL[i].clear(); filtersR[i].clear(); }
+        for (int32_t i = 0; i < STAGES; ++i) { filtersL[i].clear(); filtersR[i].clear(); }
         last_feedbackL = 0.0f; last_feedbackR = 0.0f;
         phase = 0.0; initialized = true;
     }
     void clear() {
         if (initialized) {
-            for (int i = 0; i < STAGES; ++i) { filtersL[i].clear(); filtersR[i].clear(); }
+            for (int32_t i = 0; i < STAGES; ++i) { filtersL[i].clear(); filtersR[i].clear(); }
             last_feedbackL = 0.0f; last_feedbackR = 0.0f;
             phase = 0.0;
         }
@@ -69,12 +69,12 @@ struct PhaserState {
 
 static std::mutex g_ph_state_mutex;
 static std::map<const void*, PhaserState> g_ph_states;
-const int BLOCK_SIZE = 64;
+const int32_t BLOCK_SIZE = 64;
 
 bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     float rate = static_cast<float>(ph_rate.value);
     float depth = static_cast<float>(ph_depth.value) / 100.0f;
@@ -117,12 +117,12 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_L[BLOCK_SIZE];
     alignas(32) float temp_wet_R[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* p_dry_L = bufL.data() + i;
         float* p_dry_R = bufR.data() + i;
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             float lfo = (float)(std::sin(current_phase) + 1.0f) * 0.5f;
             current_phase += lfo_inc;
             if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
@@ -133,7 +133,7 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
 
             float in_l = p_dry_L[k] + state->last_feedbackL * feedback;
             float out_l = in_l;
-            for (int s = 0; s < PhaserState::STAGES; ++s) {
+            for (int32_t s = 0; s < PhaserState::STAGES; ++s) {
                 out_l = state->filtersL[s].process(out_l, a);
             }
             state->last_feedbackL = out_l;
@@ -141,7 +141,7 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
 
             float in_r = p_dry_R[k] + state->last_feedbackR * feedback;
             float out_r = in_r;
-            for (int s = 0; s < PhaserState::STAGES; ++s) {
+            for (int32_t s = 0; s < PhaserState::STAGES; ++s) {
                 out_r = state->filtersR[s].process(out_r, a);
             }
             state->last_feedbackR = out_r;

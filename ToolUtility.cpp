@@ -32,9 +32,9 @@ void* filter_items_utility[] = {
 };
 
 bool func_proc_audio_utility(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     float gain_val = static_cast<float>(tool_gain.value);
     float pan_val = static_cast<float>(tool_pan.value);
@@ -42,7 +42,7 @@ bool func_proc_audio_utility(FILTER_PROC_AUDIO* audio) {
     bool do_inv_l = tool_inv_l.value;
     bool do_inv_r = tool_inv_r.value;
 
-    int mono_mode = tool_mono_mode.value;
+    int32_t mono_mode = tool_mono_mode.value;
 
     if (gain_val == 100.0f && pan_val == 0.0f && !do_swap && !do_inv_l && !do_inv_r && mono_mode == 0) {
         return true;

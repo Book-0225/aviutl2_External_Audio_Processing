@@ -7,7 +7,7 @@ namespace StringUtils {
 
     inline std::string WideToUtf8(LPCWSTR w) {
         if (!w || !w[0]) return "";
-        int size_needed = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
+        int32_t size_needed = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
         if (size_needed <= 0) return "";
 
         std::string result(size_needed, 0);
@@ -21,7 +21,7 @@ namespace StringUtils {
 
     inline std::wstring Utf8ToWide(const std::string& s) {
         if (s.empty()) return L"";
-        int size_needed = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+        int32_t size_needed = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
         if (size_needed <= 0) return L"";
 
         std::wstring result(size_needed, 0);

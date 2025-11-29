@@ -11,7 +11,7 @@ struct ChainData
 class ChainManager
 {
 public:
-	static const int MAX_CHAINS = 16;
+	static const int32_t MAX_CHAINS = 16;
 	static std::array<ChainData, MAX_CHAINS> chains;
 	static std::mutex chains_mutex;
 };

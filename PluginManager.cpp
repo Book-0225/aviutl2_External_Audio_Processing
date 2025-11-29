@@ -76,7 +76,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
         if (m_param_mappings.count(id)) {
             all_data_str += "|";
             const auto& mapping = m_param_mappings[id];
-            for (int i = 0; i < 4; ++i) {
+            for (int32_t i = 0; i < 4; ++i) {
                 if (mapping[i] != -1) {
                     all_data_str += std::to_string(i) + "=" + std::to_string(mapping[i]) + ",";
                 }
@@ -124,7 +124,7 @@ void PluginManager::LoadProjectState(const std::string& data) {
                         size_t eq = kv.find('=');
                         if (eq != std::string_view::npos) {
                             try {
-                                int idx = std::stoi(std::string(kv.substr(0, eq)));
+                                int32_t idx = std::stoi(std::string(kv.substr(0, eq)));
                                 int32_t pid = std::stol(std::string(kv.substr(eq + 1)));
                                 if (idx >= 0 && idx < 4) mapping[idx] = pid;
                             }
@@ -220,7 +220,7 @@ void PluginManager::SetPendingReinitialization(int64_t effect_id, bool pending) 
     m_pending_reinitialization[effect_id] = pending;
 }
 
-bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index, int current_sample_num) {
+bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index, int32_t current_sample_num) {
     std::lock_guard<std::mutex> lock(m_last_audio_state_mutex);
     auto it = m_last_audio_states.find(effect_id);
     bool needs_reset = false;
@@ -236,12 +236,12 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     return needs_reset;
 }
 
-void PluginManager::UpdateLastAudioState(int64_t effect_id, int64_t current_sample_index, int current_sample_num) {
+void PluginManager::UpdateLastAudioState(int64_t effect_id, int64_t current_sample_index, int32_t current_sample_num) {
     std::lock_guard<std::mutex> lock(m_last_audio_state_mutex);
     m_last_audio_states[effect_id] = { current_sample_index, current_sample_num };
 }
 
-void PluginManager::UpdateMapping(const std::string& instance_id, int sliderInfoIndex, int32_t vstParamID) {
+void PluginManager::UpdateMapping(const std::string& instance_id, int32_t sliderInfoIndex, int32_t vstParamID) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     if (m_param_mappings.find(instance_id) == m_param_mappings.end()) {
         m_param_mappings[instance_id] = { -1, -1, -1, -1 };
@@ -251,7 +251,7 @@ void PluginManager::UpdateMapping(const std::string& instance_id, int sliderInfo
     }
 }
 
-int32_t PluginManager::GetMappedParamID(const std::string& instance_id, int sliderInfoIndex) {
+int32_t PluginManager::GetMappedParamID(const std::string& instance_id, int32_t sliderInfoIndex) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     if (m_param_mappings.count(instance_id)) {
         if (sliderInfoIndex >= 0 && sliderInfoIndex < 4) {

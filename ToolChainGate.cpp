@@ -28,19 +28,19 @@ struct ChaingateState {
     double gate_envelope = 0.0;
     int64_t last_sample_index = -1;
     uint32_t last_update_count = 0;
-    int missed_count = 0;
+    int32_t missed_count = 0;
 };
 
 static std::mutex g_chain_state_mutex;
 static std::map<const void*, ChaingateState> g_chain_states;
-const int BLOCK_SIZE = 64;
+const int32_t BLOCK_SIZE = 64;
 
 bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    int bus_idx = static_cast<int>(chain_gate_id.value) - 1;
+    int32_t bus_idx = static_cast<int32_t>(chain_gate_id.value) - 1;
     double gate_th_db = chain_gate_thresh.value;
     double gate_ratio = chain_gate_ratio.value;
     double gate_att_ms = chain_gate_attack.value;
@@ -95,12 +95,12 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
 
     alignas(32) float temp_gain[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
-        for (int k = 0; k < block_count; ++k) {
+        for (int32_t k = 0; k < block_count; ++k) {
             if (trigger_abs > current_gate_env)
                 current_gate_env += gate_att_coef * (trigger_abs - current_gate_env);
             else

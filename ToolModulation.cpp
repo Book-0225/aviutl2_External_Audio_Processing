@@ -30,13 +30,13 @@ void* filter_items_modulation[] = {
     nullptr
 };
 
-const int MAX_BUFFER_SIZE = 48000 * 2;
-const int BLOCK_SIZE = 64;
+const int32_t MAX_BUFFER_SIZE = 48000 * 2;
+const int32_t BLOCK_SIZE = 64;
 
 struct ModulationState {
     std::vector<float> bufferL;
     std::vector<float> bufferR;
-    int write_pos = 0;
+    int32_t write_pos = 0;
     double phase = 0.0;
     bool initialized = false;
     int64_t last_sample_index = -1;
@@ -57,19 +57,19 @@ struct ModulationState {
 static std::mutex g_mod_state_mutex;
 static std::map<const void*, ModulationState> g_mod_states;
 
-inline float interpolate(const float* buffer, double index, int size) {
-    int i = static_cast<int>(index);
+inline float interpolate(const float* buffer, double index, int32_t size) {
+    int32_t i = static_cast<int32_t>(index);
     float frac = static_cast<float>(index - i);
     if (i >= size) i -= size;
-    int i_next = i + 1;
+    int32_t i_next = i + 1;
     if (i_next >= size) i_next = 0;
     return buffer[i] * (1.0f - frac) + buffer[i_next] * frac;
 }
 
 bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     bool is_chorus = mod_chorus.value;
     bool is_flanger = mod_flanger.value;
@@ -110,8 +110,8 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
     else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    int w_pos = state->write_pos;
-    const int buf_size = MAX_BUFFER_SIZE;
+    int32_t w_pos = state->write_pos;
+    const int32_t buf_size = MAX_BUFFER_SIZE;
     float* bL = state->bufferL.data();
     float* bR = state->bufferR.data();
     double current_phase = state->phase;
@@ -122,13 +122,13 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_R[BLOCK_SIZE];
     alignas(32) float temp_tremolo_mod[BLOCK_SIZE];
 
-    for (int i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* p_dry_L = bufL.data() + i;
         float* p_dry_R = bufR.data() + i;
 
         if (is_delay_mod) {
-            for (int k = 0; k < block_count; ++k) {
+            for (int32_t k = 0; k < block_count; ++k) {
                 float lfo = static_cast<float>(std::sin(current_phase));
                 if (!is_tremolo) {
                     current_phase += lfo_inc;
@@ -172,7 +172,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
 
         }
         else {
-            for (int k = 0; k < block_count; ++k) {
+            for (int32_t k = 0; k < block_count; ++k) {
                 bL[w_pos] = p_dry_L[k];
                 bR[w_pos] = p_dry_R[k];
 
