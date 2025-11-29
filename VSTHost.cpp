@@ -12,6 +12,7 @@
 #include "pluginterfaces/gui/iplugview.h"
 #include "public.sdk/source/common/memorystream.h"
 #include <windows.h>
+#include <chrono> 
 #include <vector>
 #include <string>
 #include <mutex>
@@ -474,6 +475,19 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 	ctx.tempo = bpm;
 	ctx.timeSigNumerator = tsNum;
 	ctx.timeSigDenominator = tsDenom;
+    if (bpm > 0.0) {
+        double samplesPerBeat = (currentSampleRate * 60.0) / bpm;
+        double ppq = (double)currentSampleIndex / samplesPerBeat;
+        ctx.projectTimeMusic = ppq;
+        if (tsNum > 0 && tsDenom > 0) {
+            double quarterNotesPerBar = (double)tsNum * 4.0 / (double)tsDenom;
+            int64_t currentBarIndex = (int64_t)(ppq / quarterNotesPerBar);
+            ctx.barPositionMusic = (double)currentBarIndex * quarterNotesPerBar;
+             ctx.cycleStartMusic = ctx.barPositionMusic;
+             ctx.cycleEndMusic = ctx.barPositionMusic + quarterNotesPerBar;
+        }
+    }
+    ctx.systemTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     data.processContext = &ctx;
     tresult result = kResultFalse;
     result = SafeProcessCall(processor, data);
