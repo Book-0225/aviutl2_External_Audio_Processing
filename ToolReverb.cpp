@@ -249,43 +249,49 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
         float* p_dry_l = bufL.data() + i;
         float* p_dry_r = bufR.data() + i;
 
-        ProcessPreDelayBlock(temp_wet_in, p_dry_l, state->pre_delay_bufL, state->pre_delay_write_pos, pre_delay_samples, block_size);
-        Avx2Utils::ScaleBufferAVX2(temp_wet_in, temp_wet_in, block_size, 0.2f);
-        Avx2Utils::FillBufferAVX2(temp_accum, block_size, 0.0f);
+        int32_t current_w_pos = state->pre_delay_write_pos;
+        int32_t next_w_pos = current_w_pos;
 
-        for (int32_t k = 0; k < ReverbState::NUM_COMBS; ++k) {
-            state->combsL[k].process_block(temp_comb_out, temp_wet_in, block_size);
-            Avx2Utils::AccumulateAVX2(temp_accum, temp_comb_out, block_size);
+        {
+            int32_t w_pos_l = current_w_pos;
+
+            ProcessPreDelayBlock(temp_wet_in, p_dry_l, state->pre_delay_bufL, w_pos_l, pre_delay_samples, block_size);
+
+            next_w_pos = w_pos_l;
+
+            Avx2Utils::ScaleBufferAVX2(temp_wet_in, temp_wet_in, block_size, 0.2f);
+            Avx2Utils::FillBufferAVX2(temp_accum, block_size, 0.0f);
+
+            for (int32_t k = 0; k < ReverbState::NUM_COMBS; ++k) {
+                state->combsL[k].process_block(temp_comb_out, temp_wet_in, block_size);
+                Avx2Utils::AccumulateAVX2(temp_accum, temp_comb_out, block_size);
+            }
+
+            for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k) {
+                state->allpassL[k].process_block(temp_accum, block_size);
+            }
+
+            Avx2Utils::MixAudioAVX2(temp_accum, p_dry_l, block_size, mix, 1.0f - mix, 1.0f);
+            std::copy(temp_accum, temp_accum + block_size, p_dry_l);
         }
+        {
+            int32_t w_pos_r = current_w_pos;
+            ProcessPreDelayBlock(temp_wet_in, p_dry_r, state->pre_delay_bufR, w_pos_r, pre_delay_samples, block_size);
+            Avx2Utils::ScaleBufferAVX2(temp_wet_in, temp_wet_in, block_size, 0.2f);
+            Avx2Utils::FillBufferAVX2(temp_accum, block_size, 0.0f);
 
-        for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k) {
-            state->allpassL[k].process_block(temp_accum, block_size);
+            for (int32_t k = 0; k < ReverbState::NUM_COMBS; ++k) {
+                state->combsR[k].process_block(temp_comb_out, temp_wet_in, block_size);
+                Avx2Utils::AccumulateAVX2(temp_accum, temp_comb_out, block_size);
+            }
+
+            for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k) {
+                state->allpassR[k].process_block(temp_accum, block_size);
+            }
+
+            Avx2Utils::MixAudioAVX2(temp_accum, p_dry_r, block_size, mix, 1.0f - mix, 1.0f);
+            std::copy(temp_accum, temp_accum + block_size, p_dry_r);
         }
-
-        Avx2Utils::MixAudioAVX2(temp_accum, p_dry_l, block_size, mix, 1.0f - mix, 1.0f);
-        std::copy(temp_accum, temp_accum + block_size, p_dry_l);
-        int32_t saved_w_pos = state->pre_delay_write_pos;
-        int32_t next_w_pos = -1;
-        int32_t w_pos_for_L = saved_w_pos;
-        ProcessPreDelayBlock(temp_wet_in, p_dry_l, state->pre_delay_bufL, w_pos_for_L, pre_delay_samples, block_size);
-        next_w_pos = w_pos_for_L;
-
-        int32_t w_pos_for_R = saved_w_pos;
-        ProcessPreDelayBlock(temp_wet_in, p_dry_r, state->pre_delay_bufR, w_pos_for_R, pre_delay_samples, block_size);
-        Avx2Utils::ScaleBufferAVX2(temp_wet_in, temp_wet_in, block_size, 0.2f);
-
-        Avx2Utils::FillBufferAVX2(temp_accum, block_size, 0.0f);
-        for (int32_t k = 0; k < ReverbState::NUM_COMBS; ++k) {
-            state->combsR[k].process_block(temp_comb_out, temp_wet_in, block_size);
-            Avx2Utils::AccumulateAVX2(temp_accum, temp_comb_out, block_size);
-        }
-
-        for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k) {
-            state->allpassR[k].process_block(temp_accum, block_size);
-        }
-
-        Avx2Utils::MixAudioAVX2(temp_accum, p_dry_r, block_size, mix, 1.0f - mix, 1.0f);
-        std::copy(temp_accum, temp_accum + block_size, p_dry_r);
         state->pre_delay_write_pos = next_w_pos;
     }
 
