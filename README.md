@@ -87,7 +87,7 @@ VST3プラグインをお持ちでない場合や、AviUtl ExEdit2内でより�
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta21以降
+- AviUtl ExEdit2 version 2.00 beta22以降
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
@@ -110,43 +110,47 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
 
 #### External Audio Processing 2 (Host)
 
-- `プラグイン`:
+##### General Settings
+
+- `プラグイン`:  
   ファイル選択ボタンをクリックして、使用したいオーディオプラグインファイル(.vst3 または .clap) を選択します。  
   プラグインの適用をやめたい場合は、このパスを空欄にしてください。
 
-- `Wet`(v0.0.10で追加)(フィルタとして利用する場合のみ):
+- `Wet`(v0.0.10で追加)(フィルタとして利用する場合のみ):  
   オーディオプラグインの出力音声と、元の音声の比率を調整します。  
   プラグインの出力音声に対してのみ適用されます。  
   MIDIファイルを用いたVSTiプラグインの場合、この値を100にすると原音が消えると思うので、その場合は値を下げて調整してください。
 
-- `Gain`(v0.0.10で追加)(フィルタとして利用する場合のみ):
+- `Gain`(v0.0.10で追加)(フィルタとして利用する場合のみ):  
   オーディオプラグインの出力音声のゲインを調整します。  
   プラグインの出力音声に対してのみ適用されます。
 
-- `BPM`(v0.0.11で追加):
+- `BPM`(v0.0.11で追加):  
   VST3プラグインに対して送信するBPMを指定します。  
   また、MIDIファイルの再生速度を指定する際にも使用されます。
 
-- `分子`(v0.0.11で追加):
+- `分子`(v0.0.11で追加):  
   VST3プラグインに対して送信する拍子の分子を指定します。
 
-- `分母`(v0.0.11で追加):
+- `分母`(v0.0.11で追加):  
   VST3プラグインに対して送信する拍子の分母を指定します。
 
-- `Apply to L`(v0.0.10で追加)(フィルタとして利用する場合のみ):
-  出力音声の左チャンネルに対して適用します。
+- `Apply to L`(v0.0.10で追加)(フィルタとして利用する場合のみ):  
+  出力音声の左チャンネルに対して適用します。  
   プラグインの出力音声に対してのみ適用されます。
 
-- `Apply to R`(v0.0.10で追加)(フィルタとして利用する場合のみ):
+- `Apply to R`(v0.0.10で追加)(フィルタとして利用する場合のみ):  
   出力音声の右チャンネルに対して適用します。  
   プラグインの出力音声に対してのみ適用されます。
 
-- `プラグインGUIを表示`:
+- `プラグインGUIを表示`:  
   チェックボックスをONにすると、選択したプラグイン専用の設定ウィンドウが表示されます。  
   パラメータを調整し終えたら、チェックをOFFにしてください。  
   (ウィンドウを閉じる際に、現在の設定状態が自動的にプロジェクトへ保存されます)
 
-- `Learn Param`(alpha版):
+##### Parameter Settings
+
+- `Learn Param`(alpha版):  
   VST3プラグインのパラメータと下記`Param 1 ~ 4`の値を紐づけます。  
   このチェックボックスにチェックを入れた後、紐づけたい`Param`の値を変更してから、  
   VST3プラグインのパラメータを変更して、再度紐づけたい`Param`の値を変更してください。  
@@ -154,29 +158,47 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
   そうすると、`Param 1 ~ 4`の値がVST3プラグインのパラメータに反映されます。  
   この設定方法はわかりずらい上、うまくいかないこともあるので変更を予定しています。
 
-- `Reset Mapping`(alpha版):
+- `Reset Mapping`(alpha版):  
   `Learn Param`で紐づけた`Param 1 ~ 4`の紐づけを全て解除します。
 
-- `Param 1 ~ 4`(alpha版):
+- `Param 1 ~ 4`(alpha版):  
   VST3プラグインのパラメータと紐づけることができるパラメータです。  
   `Learn Param`の説明に従って紐づけた後、移動などを設定してください。
 
-- `MIDI File`(alpha版):
+##### MIDI Settings
+
+- `MIDI File`(alpha版):  
   VSTiプラグインに対して送信するMIDIファイルを指定します。  
   MIDIファイルを指定することで、VSTiプラグインに対してMIDIイベントを送信することができます。
 
-- `MIDIにBPMを同期`(alpha版):
+- `MIDIにBPMを同期`(alpha版):  
   MIDIファイルのテンポ情報をBPMに同期します。
   トラックバーのBPMを無視します。
 
-- `__INSTANCE_ID__`（フィルタとして利用する場合のみ）:
+##### Legacy Settings
+
+- `__INSTANCE_ID__`（フィルタとして利用する場合のみ）:  
   プラグインの状態をプロジェクト内で一意に管理するためのIDです。  
   この値は自動的に割り当てられるため、ユーザーが編集する必要はありません。  
   v0.0.5にてAviUtl ExEdit2 Plugin SDKの更新に伴い廃止しましたが互換性のため残してあります。  
-  v0.0.5以降のバージョンで一度プレビューすると、データが移行されこの項目は空になります。
-  v0.0.13で追加されたメディアオブジェクト版には最初からこの項目がありません。
-  フィルタの場合も廃止予定のためこの項目が空でない場合は、最新版を用いて一度プレビューし、
+  v0.0.5以降のバージョンで一度プレビューすると、データが移行されこの項目は空になります。  
+  v0.0.13で追加されたメディアオブジェクト版には最初からこの項目がありません。  
+  フィルタの場合も廃止予定のためこの項目が空でない場合は、最新版を用いて一度プレビューし、  
   データを移行して保存しなおすことをおすすめします。
+
+### 内蔵メディアオブジェクト
+
+#### 内蔵メディアオブジェクトについての注意
+
+私は音声編集に詳しくありませんので、内蔵メディアオブジェクトの正確な動作を保証することはできません。  
+また、内蔵メディアオブジェクトは試験的であり、安定性や正確性を保証することはできません。
+
+#### External Audio Processing 2 Generator
+
+- `Waveform`:  
+  `Sine`,`Square`,`Triangle`,`Saw`,`White Noise`,`Pink Noise`のいずれかを指定します。
+- `Frequency`:  
+  生成する波形の周波数を指定します。
 
 ### 内蔵フィルタ (alpha版)
 
@@ -187,183 +209,398 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
 
 #### External Audio Processing 2 Utility
 
-- `Gain`:
+- `Gain`:  
   出力音声のゲインを調整します。
 
-- `Pan(L-R)`:
+- `Pan(L-R)`:  
   出力音声のパンを調整します。
 
-- `Swap(L/R)`:
+- `Swap(L/R)`:  
   出力音声の左右を反転します。
 
-- `Invert L`:
+- `Invert L`:  
   出力音声の左チャンネルを位相反転します。
 
-- `Invert R`:
+- `Invert R`:  
   出力音声の右チャンネルを位相反転します。
 
-- `Mono Mix`:
-  出力音声をモノラル化します。
+- `Mono Mode`(v0.0.14で変更):  
+  `Stereo (Off)`,`Mix (L+R)`,`Left to Stereo`,`Right to Stereo`のいずれかを指定します。
 
-### External Audio Processing 2 EQ
+#### External Audio Processing 2 EQ
 
-- `Low Cut`:
+##### Cut Filters
+
+- `Low Cut`:  
   出力音声をローパスフィルタでカットする周波数を指定します。
 
-- `High Cut`:
+- `High Cut`:  
   出力音声をハイパスフィルタでカットする周波数を指定します。
 
-- `Low Gain`:
+##### EQ Bands
+
+- `Low Gain`:  
   出力音声の低域のゲインを調整します。
 
-- `M-Low Gain`:
+- `M-Low Gain`:  
   出力音声の中低域のゲインを調整します。
 
-- `Mid Gain`:
+- `Mid Gain`:  
   出力音声の中域のゲインを調整します。
 
-- `M-High Gain`:
+- `M-High Gain`:  
   出力音声の中高域のゲインを調整します。
 
-- `High Gain`:
+- `High Gain`:  
   出力音声の高域のゲインを調整します。
 
-- `Low Freq`:
+- `Low Freq`:  
   出力音声の低域の周波数を指定します。
 
-- `M-Low Freq`:
+- `M-Low Freq`:  
   出力音声の中低域の周波数を指定します。
 
-- `Mid Freq`:
+- `Mid Freq`:  
   出力音声の中域の周波数を指定します。
 
-- `M-High Freq`:
+- `M-High Freq`:  
   出力音声の中高域の周波数を指定します。
 
-- `High Freq`:
+- `High Freq`:  
   出力音声の高域の周波数を指定します。
 
-### External Audio Processing 2 Stereo
+#### External Audio Processing 2 Stereo
 
-- `Width`:
+- `Width`:  
   出力音声の広がりを調整します。
 
-- `Mid Level`:
+- `Mid Level`:  
   出力音声の中域のゲインを調整します。
 
-- `Side Level`:
+- `Side Level`:  
   出力音声の周域のゲインを調整します。
 
-### External Audio Processing 2 Dynamics
+#### External Audio Processing 2 Dynamics
 
-- `Gate Threshold`:
+##### Gate Settings
+
+- `Gate Threshold`:  
   出力音声のノイズゲートの閾値を調整します。
 
-- `Gate Release`:
+- `Gate Release`:  
   出力音声のノイズゲートのリリース時間を調整します。
 
-- `Comp Threshold`:
+##### Compressor Settings
+
+- `Comp Threshold`:  
   出力音声のコンプレッサーの閾値を調整します。
 
-- `Comp Ratio`:
+- `Comp Ratio`:  
   出力音声のコンプレッサーの比率を調整します。
 
-- `Comp Attack`:
+- `Comp Attack`:  
   出力音声のコンプレッサーのアタック時間を調整します。
 
-- `Comp Release`:
+- `Comp Release`:  
   出力音声のコンプレッサーのリリース時間を調整します。
 
-- `Makeup Gain`:
+- `Makeup Gain`:  
   出力音声のコンプレッサーの補正ゲインを調整します。
 
-- `Limiter`:
+- `Limiter`:  
   出力音声のリミッター閾値を調整します。
 
-### External Audio Processing 2 Spatial
+#### External Audio Processing 2 Spatial
 
-- `Delay Time`:
+- `Delay Time`:  
   出力音声のディレイ時間を調整します。
 
-- `Feedback`:
+- `Feedback`:  
   出力音声のディレイのフィードバックを調整します。
 
-- `Delay Mix`:
+- `Delay Mix`:  
   出力音声のディレイの割合を調整します。
 
-- `Pseudo Width`:
+- `Pseudo Width`:  
   出力音声を疑似ステレオ化する割合を調整します。
 
-### External Audio Processing 2 Modulation
+#### External Audio Processing 2 Modulation
 
-- `Chorus`:
+- `Chorus`:  
   出力音声のコーラスを設定します。
 
-- `Flanger`:
+- `Flanger`:  
   出力音声のフランジャーを設定します。
 
-- `Tremolo`:
+- `Tremolo`:  
   出力音声のトレモロを設定します。
 
-- `Rate`:
+- `Rate`:  
   出力音声のモジュレーションの周波数を調整します。
 
-- `Depth`:
+- `Depth`:  
   出力音声のモジュレーションの深さを調整します。
 
-- `Feedback`:
+- `Feedback`:  
   出力音声のモジュレーションのフィードバックを調整します。
 
-- `Delay`:
+- `Delay`:  
   出力音声のモジュレーションのディレイ時間を調整します。
 
-- `Mix`:
+- `Mix`:  
   出力音声のモジュレーションの割合を調整します。
 
-### External Audio Processing 2 Distortion
+#### External Audio Processing 2 Distortion
 
-- `Overdrive`:
+- `Overdrive`:  
   出力音声のオーバードライブを設定します。
 
-- `Fuzz`:
+- `Fuzz`:  
   出力音声のファズを設定します。
 
-- `Bitcrush`:
+- `Bitcrush`:  
   出力音声のビットクラッシャーを設定します。
 
-- `Drive`:
+- `Drive`:  
   出力音声のドライブを調整します。
 
-- `Tone`:
+- `Tone`:  
   出力音声のトーンを調整します。
 
-- `Bits`:
+- `Bits`:  
   出力音声のビット数を調整します。
 
-- `Downsample`:
+- `Downsample`:  
   出力音声のダウンサンプリングを設定します。
 
-- `Mix`:
+- `Mix`:  
   出力音声の割合を調整します。
 
-- `Output`:
+- `Output`:  
   出力音声のゲインを調整します。
 
-### External Audio Processing 2 Maximizer
+#### External Audio Processing 2 Maximizer
 
-- `Threshold`:
+- `Threshold`:  
   出力音声のマキシマイザーの閾値を調整します。
 
-- `Ceiling`:
+- `Ceiling`:  
   出力音声のマキシマイザーの最大値を調整します。
 
-- `Release`:
+- `Release`:  
   出力音声のマキシマイザーのリリース時間を調整します。
 
-- `Lookahead`:
+- `Lookahead`:  
   出力音声のマキシマイザーの先読み時間を調整します。
 
+#### External Audio Processing 2 Reverb
+
+- `Room Size`:  
+  出力音声のリバーブの部屋サイズを調整します。
+
+- `Damping`:  
+  出力音声のリバーブのダンピングを調整します。
+
+- `Wet`:  
+  出力音声のリバーブのゲインを調整します。
+
+- `Mix`:  
+  出力音声のリバーブの割合を調整します。
+
+#### External Audio Processing 2 Phaser
+
+- `Rate`:  
+  出力音声のフェイザーの周波数を調整します。
+
+- `Depth`:  
+  出力音声のフェイザーの深さを調整します。
+
+- `Feedback`:  
+  出力音声のフェイザーのフィードバックを調整します。
+
+- `Mix`:  
+  出力音声のフェイザーの割合を調整します。
+
+#### External Audio Processing 2 Pitch Shift
+
+- `Pitch`:  
+  出力音声のピッチを調整します。
+
+- `Mix`:  
+  出力音声のピッチシフトの割合を調整します。
+
+#### External Audio Processing 2 De-esser
+
+- `Frequency`:  
+  検知・抑制する周波数帯域の中心を指定します。
+
+- `Threshold`:  
+  抑制を開始する閾値を調整します。
+
+- `Amount`:  
+  抑制する最大量を調整します。
+
+- `Width(Q)`:  
+  抑制する帯域の広さを調整します。
+
+#### External Audio Processing 2 Auto Wah
+
+- `Sensitivity`:  
+  入力音声に対する感度を調整します。
+
+- `Base Freq`:  
+  フィルタの基準となる周波数を指定します。
+
+- `Range`:  
+  フィルタが動く範囲を指定します。
+
+- `Resonance`:  
+  フィルタのレゾナンスを調整します。
+
+- `Mix`:  
+  原音とエフェクトの割合を調整します。
+
+### チェインフィルタ
+
+SendとCompの両方が同じIDを指定することでチェインフィルタとして動作します。  
+同じIDでSendを複数作成することはできませんが、複数のオブジェクトで受信することは可能です。
+
+#### External Audio Processing 2 Chain Send
+
+- `ID`:  
+  チェイン送信のIDを設定します。
+
+- `Send Gain`:  
+  チェイン送信のゲインを調整します。
+
+#### External Audio Processing 2 Chain Comp
+
+- `ID`:  
+  受信するチェインIDを設定します。
+
+- `Threshold`:  
+  コンプレッサーの閾値を調整します。
+
+- `Ratio`:  
+  コンプレッサーの比率を調整します。
+
+- `Attack`:  
+  効果が掛かり始めるまでの時間を調整します。
+
+- `Release`:  
+  効果が切れるまでの時間を調整します。
+
+- `Makeup Gain`:  
+  補正ゲインを調整します。
+
+#### External Audio Processing 2 Chain Gate
+
+- `ID`:  
+  受信するチェインIDを設定します。
+
+- `Threshold`:  
+  ゲートの閾値を調整します。
+
+- `Ratio`:  
+  ゲートの比率を調整します。
+
+- `Attack`:  
+  効果が掛かり始めるまでの時間を調整します。
+
+- `Release`:  
+  効果が切れるまでの時間を調整します。
+
+#### External Audio Processing 2 Chain Dynamic EQ
+
+- `ID`:  
+  受信するチェインIDを設定します。
+
+- `Frequency`:  
+  ゲインを下げる中心周波数を指定します。
+
+- `Q`:  
+  影響を与える帯域幅を調整します。
+
+- `Reduction`:  
+  最大で何dB下げるかを指定します。
+
+- `Threshold`:  
+  効果が掛かり始める音量を指定します。
+
+- `Attack`:  
+  効果が掛かり始めるまでの時間を調整します。
+
+- `Release`:  
+  効果が切れるまでの時間を調整します。
+
+#### External Audio Processing 2 Chain Filter
+
+Chain Sendから送られてきた音量に応じて、ローパスフィルタのカットオフ周波数を動かします。
+ドラムのキックに合わせてベースの音色を変えるなどの演出に使用できます。
+
+- `ID`:  
+  受信するチェインIDを設定します。
+
+- `Base Freq`:  
+  基準となるカットオフ周波数を指定します。
+
+- `Mod Depth`:  
+  音量に応じて周波数をどれくらい動かすかを指定します。
+
+- `Resonance`:  
+  フィルタのレゾナンス（癖の強さ）を調整します。
+
+- `Attack`:  
+  フィルタが動き始めるまでの時間を調整します。
+
+- `Release`:  
+  フィルタが元の位置に戻るまでの時間を調整します。
+
 ## 改版履歴
+
+- **v0.0.14**
+  - 一部処理にAVX2を導入  
+    これにより一部のコンピューターで動作しない可能性があります  
+    AviUtl ExEdit2本体がAVX2を要求するため  
+    このプラグインの有無による問題は起こらないはずですが、  
+    それでも問題が発生した場合は、報告してください
+  - チェインフィルタプラグインを仮追加(alpha版)  
+    これらのプラグインはまだ破壊的変更を伴うアップデートの可能性があります
+    - External Audio Processing 2 Chain Send
+      - 音量情報を送るだけのプラグイン(音声に変更は加えません)
+    - External Audio Processing 2 Chain Comp
+      - 送られてきた音量情報を元に動作するコンプレッサー
+    - External Audio Processing 2 Chain Gate
+      - 送られてきた音量情報を元に動作するゲート
+    - External Audio Processing 2 Chain Dynamic EQ
+      - 送られてきた音量情報を元に動作するEQ
+    - External Audio Processing 2 Chain Filter
+      - 送られてきた音量情報を元に動作するローパスフィルタ
+  - メディアオブジェクトを仮追加(alpha版)
+    - External Audio Processing 2 Generator
+      - 波形ジェネレータ
+  - フィルタを仮追加(alpha版)
+    - External Audio Processing 2 Reverb
+      - リバーブ
+    - External Audio Processing 2 Phaser
+      - フェイザー
+    - External Audio Processing 2 Pitch Shift
+      - ピッチシフター
+    - External Audio Processing 2 Auto Wah
+      - ワウ
+    - External Audio Processing 2 DeEsser
+      - ディエッサー
+  - External Audio Processing 2 UtilityのMonoMixをMonoModeに変更  
+    (v0.0.13までとは互換性がありません)
+  - フィルタが増えてきたため、ラベルを音声効果からEAP2に変更  
+    これはすでに一度インストール済みの環境には自動適用されないので、  
+    オブジェクト追加メニューの設定より手動で変更してください
+  - CLAPを1.2.7に更新(コード自体のメンテナンスはしていないので、動作は保証できません)
+  - VST3プラグインのGUI更新に関する問題の修正
+  - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta22以降に変更
+  - 一部プラグインの項目をグループ化
+  - Distortionのクラッシュ問題を修正
+  - EQのノイズ問題を修正
 
 - **v0.0.13**
   - メディアオブジェクトとして利用できるように変更(VSTiを使う場合を想定した機能です)
