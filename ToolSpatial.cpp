@@ -128,6 +128,7 @@ bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_next_L[BLOCK_SIZE];
     alignas(32) float temp_next_R[BLOCK_SIZE];
     alignas(32) float temp_mono[BLOCK_SIZE];
+    alignas(32) float temp_dummy[BLOCK_SIZE];
 
     int32_t current_w_pos = state->write_pos;
     const int32_t buf_size = MAX_BUFFER_SIZE;
@@ -138,11 +139,13 @@ bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
         float* pR = bufR.data() + i;
 
         if (pseudo_samples > 0) {
-            Avx2Utils::MatrixMixStereoAVX2(temp_mono, temp_mono, pL, pR, block_count, 0.5f, 0.5f, 0.0f, 0.0f);
+            Avx2Utils::MatrixMixStereoAVX2(temp_mono, temp_dummy, pL, pR, block_count, 0.5f, 0.5f, 0.0f, 0.0f);
+
             Avx2Utils::CopyBufferAVX2(temp_in_L, temp_mono, block_count);
+
             ReadRingBufferBlock(temp_delay_L, state->bufferL, current_w_pos, pseudo_samples, block_count);
             ReadRingBufferBlock(temp_delay_R, state->bufferR, current_w_pos, pseudo_samples, block_count);
-            Avx2Utils::MatrixMixStereoAVX2(temp_in_R, temp_in_R, temp_delay_L, temp_delay_R, block_count, 0.5f, 0.5f, 0.0f, 0.0f);
+            Avx2Utils::MatrixMixStereoAVX2(temp_in_R, temp_dummy, temp_delay_L, temp_delay_R, block_count, 0.5f, 0.5f, 0.0f, 0.0f);
         }
         else {
             Avx2Utils::CopyBufferAVX2(temp_in_L, pL, block_count);
