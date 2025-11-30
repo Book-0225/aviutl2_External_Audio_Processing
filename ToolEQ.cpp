@@ -61,6 +61,14 @@ struct Biquad {
         return static_cast<float>(out);
     }
 
+    void copyCoeffsFrom(const Biquad& other) {
+        b0 = other.b0;
+        b1 = other.b1;
+        b2 = other.b2;
+        a1 = other.a1;
+        a2 = other.a2;
+    }
+
     void calcHPF(double Fs, double f0) {
         if (f0 <= 0.0) { setPassThrough(); return; }
         double w0 = 2.0 * M_PI * f0 / Fs;
@@ -183,19 +191,19 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
     state->filtersL[0].calcHPF(Fs, val_hpf);
-    state->filtersR[0] = state->filtersL[0];
+    state->filtersR[0].copyCoeffsFrom(state->filtersL[0]);
     state->filtersL[1].calcLPF(Fs, val_lpf);
-    state->filtersR[1] = state->filtersL[1];
+    state->filtersR[1].copyCoeffsFrom(state->filtersL[1]);
     state->filtersL[2].calcLowShelf(Fs, val_low_freq, val_low);
-    state->filtersR[2] = state->filtersL[2];
+    state->filtersR[2].copyCoeffsFrom(state->filtersL[2]);
     state->filtersL[3].calcPeaking(Fs, val_ml_freq, val_ml, 1.0);
-    state->filtersR[3] = state->filtersL[3];
+    state->filtersR[3].copyCoeffsFrom(state->filtersL[3]);
     state->filtersL[4].calcPeaking(Fs, val_mid_freq, val_mid, 1.0);
-    state->filtersR[4] = state->filtersL[4];
+    state->filtersR[4].copyCoeffsFrom(state->filtersL[4]);
     state->filtersL[5].calcPeaking(Fs, val_mh_freq, val_mh, 1.0);
-    state->filtersR[5] = state->filtersL[5];
+    state->filtersR[5].copyCoeffsFrom(state->filtersL[5]);
     state->filtersL[6].calcHighShelf(Fs, val_high_freq, val_high);
-    state->filtersR[6] = state->filtersL[6];
+    state->filtersR[6].copyCoeffsFrom(state->filtersL[6]);
 
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
