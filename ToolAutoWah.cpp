@@ -2,6 +2,7 @@
 #include "Eap2Common.h"
 #include <cmath>
 #include <map>
+#include <algorithm>
 #include "Avx2Utils.h"
 
 #define TOOL_NAME L"Auto Wah"
@@ -36,7 +37,7 @@ struct AutoWahState {
     AutoWahBiquad filterL, filterR;
     float envelope = 0.0f;
     bool initialized = false;
-    int64_t last_sample_index = -1;
+    int64_t last_sample_end = -1;
     float c_b0 = 0.0f, c_b1 = 0.0f, c_b2 = 0.0f, c_a1 = 0.0f, c_a2 = 0.0f;
 };
 
@@ -64,12 +65,13 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     {
         std::lock_guard<std::mutex> lock(g_wah_mutex);
         state = &g_wah_states[audio->object];
-        if (state->last_sample_index != -1 && state->last_sample_index + total_samples != audio->object->sample_index) {
+
+        if (state->last_sample_end != -1 && state->last_sample_end != audio->object->sample_index) {
             state->filterL = AutoWahBiquad();
             state->filterR = AutoWahBiquad();
             state->envelope = 0.0f;
+            state->initialized = false;
         }
-        state->last_sample_index = audio->object->sample_index;
         state->initialized = true;
     }
 
@@ -80,13 +82,14 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
         bufR.resize(total_samples);
     }
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
-    if (channels >= 2) audio->get_sample_data(bufR.data(), 1); else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
+    if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
+    else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     float current_env = state->envelope;
     float c_b0 = state->c_b0, c_b1 = state->c_b1, c_b2 = state->c_b2;
     float c_a1 = state->c_a1, c_a2 = state->c_a2;
 
-    if (!state->initialized || state->c_b0 == 0.0f) {
+    if (c_b0 == 0.0f) {
         float target_freq = base_f + (current_env * range_f);
         if (target_freq > (float)sr * 0.45f) target_freq = (float)sr * 0.45f;
         float omega = 2.0f * (float)M_PI * target_freq / (float)sr;
@@ -147,9 +150,13 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
         Avx2Utils::MixAudioAVX2(pR, temp_wet_R, block_count, 1.0f - mix, mix, 1.0f);
     }
 
-    state->envelope = current_env;
-    state->c_b0 = c_b0; state->c_b1 = c_b1; state->c_b2 = c_b2;
-    state->c_a1 = c_a1; state->c_a2 = c_a2;
+    {
+        std::lock_guard<std::mutex> lock(g_wah_mutex);
+        state->envelope = current_env;
+        state->c_b0 = c_b0; state->c_b1 = c_b1; state->c_b2 = c_b2;
+        state->c_a1 = c_a1; state->c_a2 = c_a2;
+        state->last_sample_end = audio->object->sample_index + total_samples;
+    }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);
