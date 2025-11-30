@@ -1,12 +1,11 @@
 ﻿#define _USE_MATH_DEFINES
-
 #include "Eap2Common.h"
 #include <cmath>
 #include <vector>
 #include <map>
 #include <mutex>
 #include <algorithm>
-#include <regex>
+#include "Avx2Utils.h"
 
 #define TOOL_NAME L"Modulation"
 
@@ -31,30 +30,26 @@ void* filter_items_modulation[] = {
     nullptr
 };
 
-const int MAX_BUFFER_SIZE = 48000 * 2;
+const int32_t MAX_BUFFER_SIZE = 48000 * 2;
+const int32_t BLOCK_SIZE = 64;
 
 struct ModulationState {
     std::vector<float> bufferL;
     std::vector<float> bufferR;
-    int write_pos = 0;
+    int32_t write_pos = 0;
     double phase = 0.0;
     bool initialized = false;
     int64_t last_sample_index = -1;
 
     void init() {
-        bufferL.assign(MAX_BUFFER_SIZE, 0.0f);
-        bufferR.assign(MAX_BUFFER_SIZE, 0.0f);
-        write_pos = 0;
-        phase = 0.0;
-        initialized = true;
+        bufferL.assign(MAX_BUFFER_SIZE, 0.0f); bufferR.assign(MAX_BUFFER_SIZE, 0.0f);
+        write_pos = 0; phase = 0.0; initialized = true;
     }
-
     void clear() {
         if (initialized) {
             std::fill(bufferL.begin(), bufferL.end(), 0.0f);
             std::fill(bufferR.begin(), bufferR.end(), 0.0f);
-            write_pos = 0;
-            phase = 0.0;
+            write_pos = 0; phase = 0.0;
         }
     }
 };
@@ -62,20 +57,19 @@ struct ModulationState {
 static std::mutex g_mod_state_mutex;
 static std::map<const void*, ModulationState> g_mod_states;
 
-inline float interpolate(const std::vector<float>& buffer, double index, int size) {
-    int i = static_cast<int>(index);
+inline float interpolate(const float* buffer, double index, int32_t size) {
+    int32_t i = static_cast<int32_t>(index);
     float frac = static_cast<float>(index - i);
-    if (i < 0) i += size;
     if (i >= size) i -= size;
-    int i_next = i + 1;
+    int32_t i_next = i + 1;
     if (i_next >= size) i_next = 0;
     return buffer[i] * (1.0f - frac) + buffer[i_next] * frac;
 }
 
 bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     bool is_chorus = mod_chorus.value;
     bool is_flanger = mod_flanger.value;
@@ -86,7 +80,8 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     float depth = static_cast<float>(mod_depth.value) / 100.0f;
     float feedback = static_cast<float>(mod_feedback.value) / 100.0f;
     float base_delay_ms = static_cast<float>(mod_delay.value);
-    float mix = static_cast<float>(mod_mix.value) / 100.0f;
+    float mix_val = static_cast<float>(mod_mix.value);
+    float mix = mix_val / 100.0f;
 
     if (!is_delay_mod && !is_tremolo) return true;
 
@@ -94,14 +89,10 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     {
         std::lock_guard<std::mutex> lock(g_mod_state_mutex);
         state = &g_mod_states[audio->object];
-
-        if (!state->initialized) {
-            state->init();
-        }
-
+        if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             state->last_sample_index + total_samples != audio->object->sample_index) {
-             state->clear();
+            state->clear();
         }
         state->last_sample_index = audio->object->sample_index;
     }
@@ -110,69 +101,97 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     double lfo_inc = (2.0 * M_PI * rate) / Fs;
 
     thread_local std::vector<float> bufL, bufR;
-    if (bufL.size() < total_samples) { bufL.resize(total_samples); bufR.resize(total_samples); }
+    if (bufL.size() < static_cast<size_t>(total_samples)) {
+        bufL.resize(total_samples);
+        bufR.resize(total_samples);
+    }
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) bufR = bufL;
+    else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    int w_pos = state->write_pos;
-    const int buf_size = MAX_BUFFER_SIZE;
-    std::vector<float>& bL = state->bufferL;
-    std::vector<float>& bR = state->bufferR;
+    int32_t w_pos = state->write_pos;
+    const int32_t buf_size = MAX_BUFFER_SIZE;
+    float* bL = state->bufferL.data();
+    float* bR = state->bufferR.data();
     double current_phase = state->phase;
 
     float base_delay_samples = static_cast<float>(base_delay_ms * 0.001 * Fs);
 
-    for (int i = 0; i < total_samples; ++i) {
-        float l = bufL[i];
-        float r = bufR[i];
-        
-        float out_l = l;
-        float out_r = r;
+    alignas(32) float temp_wet_L[BLOCK_SIZE];
+    alignas(32) float temp_wet_R[BLOCK_SIZE];
+    alignas(32) float temp_tremolo_mod[BLOCK_SIZE];
 
-        float lfo = static_cast<float>(std::sin(current_phase));
-        current_phase += lfo_inc;
-        if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        float* p_dry_L = bufL.data() + i;
+        float* p_dry_R = bufR.data() + i;
 
         if (is_delay_mod) {
-            float mod_delay_samples = base_delay_samples * (1.0f + lfo * depth * 0.5f);
-            if (mod_delay_samples < 1.0f) mod_delay_samples = 1.0f;
-            if (mod_delay_samples > MAX_BUFFER_SIZE - 100) mod_delay_samples = MAX_BUFFER_SIZE - 100;
+            for (int32_t k = 0; k < block_count; ++k) {
+                float lfo = static_cast<float>(std::sin(current_phase));
+                if (!is_tremolo) {
+                    current_phase += lfo_inc;
+                    if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                }
 
-            double read_pos = w_pos - mod_delay_samples;
-            if (read_pos < 0) read_pos += buf_size;
+                float mod_delay_samples = base_delay_samples * (1.0f + lfo * depth * 0.5f);
+                if (mod_delay_samples < 1.0f) mod_delay_samples = 1.0f;
+                if (mod_delay_samples > MAX_BUFFER_SIZE - 100) mod_delay_samples = MAX_BUFFER_SIZE - 100;
 
-            float delayed_l = interpolate(bL, read_pos, buf_size);
-            float delayed_r = interpolate(bR, read_pos, buf_size);
+                double read_pos = w_pos - mod_delay_samples;
+                if (read_pos < 0) read_pos += buf_size;
 
-            float next_l = l + delayed_l * feedback;
-            float next_r = r + delayed_r * feedback;
-            
-            if (next_l > 2.0f) next_l = 2.0f; else if (next_l < -2.0f) next_l = -2.0f;
-            if (next_r > 2.0f) next_r = 2.0f; else if (next_r < -2.0f) next_r = -2.0f;
+                float delayed_l = interpolate(bL, read_pos, buf_size);
+                float delayed_r = interpolate(bR, read_pos, buf_size);
 
-            bL[w_pos] = next_l;
-            bR[w_pos] = next_r;
+                float next_l = p_dry_L[k] + delayed_l * feedback;
+                float next_r = p_dry_R[k] + delayed_r * feedback;
+                if (next_l > 2.0f) next_l = 2.0f; else if (next_l < -2.0f) next_l = -2.0f;
+                if (next_r > 2.0f) next_r = 2.0f; else if (next_r < -2.0f) next_r = -2.0f;
 
-            out_l = l * (1.0f - mix) + delayed_l * mix;
-            out_r = r * (1.0f - mix) + delayed_r * mix;
-        } else {
-            bL[w_pos] = l;
-            bR[w_pos] = r;
+                bL[w_pos] = next_l;
+                bR[w_pos] = next_r;
+
+                temp_wet_L[k] = delayed_l;
+                temp_wet_R[k] = delayed_r;
+
+                if (is_tremolo) {
+                    temp_tremolo_mod[k] = 1.0f - depth * (0.5f * (lfo + 1.0f));
+
+                    current_phase += lfo_inc;
+                    if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                }
+
+                w_pos++;
+                if (w_pos >= buf_size) w_pos = 0;
+            }
+
+            Avx2Utils::MixAudioAVX2(p_dry_L, temp_wet_L, block_count, 1.0f - mix, mix, 1.0f);
+            Avx2Utils::MixAudioAVX2(p_dry_R, temp_wet_R, block_count, 1.0f - mix, mix, 1.0f);
+
+        }
+        else {
+            for (int32_t k = 0; k < block_count; ++k) {
+                bL[w_pos] = p_dry_L[k];
+                bR[w_pos] = p_dry_R[k];
+
+                if (is_tremolo) {
+                    float lfo = static_cast<float>(std::sin(current_phase));
+                    temp_tremolo_mod[k] = 1.0f - depth * (0.5f * (lfo + 1.0f));
+                    current_phase += lfo_inc;
+                    if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                }
+
+                w_pos++;
+                if (w_pos >= buf_size) w_pos = 0;
+            }
         }
 
         if (is_tremolo) {
-            float mod = 1.0f - depth * (0.5f * (lfo + 1.0f));
-            out_l = out_l * mod;
-            out_r = out_r * mod;
+            Avx2Utils::MultiplyBufferAVX2(p_dry_L, temp_tremolo_mod, block_count);
+            Avx2Utils::MultiplyBufferAVX2(p_dry_R, temp_tremolo_mod, block_count);
         }
-
-        w_pos++;
-        if (w_pos >= buf_size) w_pos = 0;
-
-        bufL[i] = out_l;
-        bufR[i] = out_r;
     }
 
     state->write_pos = w_pos;
@@ -186,15 +205,9 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
 
 FILTER_PLUGIN_TABLE filter_plugin_table_modulation = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
-    []() {
-        static std::wstring s = std::regex_replace(tool_name, std::wregex(regex_tool_name), TOOL_NAME);
-        return s.c_str();
-    }(),
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), TOOL_NAME);
-        return s.c_str();
-    }(),
+    GEN_TOOL_NAME(TOOL_NAME),
+    label,
+    GEN_FILTER_INFO(TOOL_NAME),
     filter_items_modulation,
     nullptr,
     func_proc_audio_modulation

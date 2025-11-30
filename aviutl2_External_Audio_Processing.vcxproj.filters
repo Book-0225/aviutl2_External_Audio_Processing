@@ -19,6 +19,18 @@
     <ClCompile Include="ToolMaximizer.cpp" />
     <ClCompile Include="PluginManager.cpp" />
     <ClCompile Include="MidiParser.cpp" />
+    <ClCompile Include="ChainManager.cpp" />
+    <ClCompile Include="ToolChainSend.cpp" />
+    <ClCompile Include="ToolChainComp.cpp" />
+    <ClCompile Include="ToolChainGate.cpp" />
+    <ClCompile Include="ToolGenerator.cpp" />
+    <ClCompile Include="ToolPitchShift.cpp" />
+    <ClCompile Include="ToolReverb.cpp" />
+    <ClCompile Include="ToolPhaser.cpp" />
+    <ClCompile Include="ToolChainDynamicEQ.cpp" />
+    <ClCompile Include="ToolChainFilter.cpp" />
+    <ClCompile Include="ToolDeEsser.cpp" />
+    <ClCompile Include="ToolAutoWah.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />
@@ -30,5 +42,7 @@
     <ClInclude Include="PluginManager.h" />
     <ClInclude Include="StringUtils.h" />
     <ClInclude Include="MidiParser.h" />
+    <ClInclude Include="ChainManager.h" />
+    <ClInclude Include="AVX2Utils.h" />
   </ItemGroup>
 </Project>

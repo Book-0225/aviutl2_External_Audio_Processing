@@ -5,6 +5,7 @@
 #include <vector>
 #include <functional>
 #include <tchar.h>
+#include <regex>
 #include "filter2.h"
 #include "plugin2.h"
 #include "logger2.h"
@@ -20,6 +21,14 @@
 #else
 #define VS_VERSION -1
 #endif
+
+#define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() { \
+    static std::wstring s = std::regex_replace(SRC_STR, std::wregex(REGEX_PATTERN), REPLACEMENT); \
+    return s.c_str(); \
+}()
+
+#define GEN_TOOL_NAME(NAME) GENERATE_STR_REPLACE(tool_name, regex_tool_name, NAME)
+#define GEN_FILTER_INFO(NAME) GENERATE_STR_REPLACE(filter_info, regex_info_name, NAME)
 
 extern LOG_HANDLE* g_logger;
 
@@ -51,6 +60,7 @@ extern const wchar_t filter_name[];
 extern const wchar_t filter_info[];
 extern const wchar_t filter_name_media[];
 extern const wchar_t tool_name[];
+extern const wchar_t label[];
 
 extern std::mutex g_task_queue_mutex;
 extern std::vector<std::function<void()>> g_main_thread_tasks;
@@ -65,6 +75,17 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_spatial;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_modulation;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_distortion;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_maximizer;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_chain_send;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_chain_comp;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_chain_gate;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_chain_dyn_eq;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_chain_filter;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_reverb;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_phaser;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_generator;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_pitch_shift;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_autowah;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_deesser;
 
 void CleanupMainFilterResources();
 void func_project_save(PROJECT_FILE* pf);

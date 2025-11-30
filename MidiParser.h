@@ -1,7 +1,6 @@
 ﻿#pragma once
 #include <string>
 #include <vector>
-#include <cstdint>
 
 struct RawMidiEvent {
     uint32_t absoluteTick;

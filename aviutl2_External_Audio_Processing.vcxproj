@@ -12,9 +12,17 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AudioPluginFactory.cpp" />
+    <ClCompile Include="ChainManager.cpp" />
     <ClCompile Include="CLAPHost.cpp" />
+    <ClCompile Include="ToolAutoWah.cpp" />
+    <ClCompile Include="ToolChainComp.cpp" />
+    <ClCompile Include="ToolChainDynamicEQ.cpp" />
+    <ClCompile Include="ToolChainFilter.cpp" />
+    <ClCompile Include="ToolChainGate.cpp" />
+    <ClCompile Include="ToolDeEsser.cpp" />
     <ClCompile Include="ToolDynamics.cpp" />
     <ClCompile Include="ToolEQ.cpp" />
+    <ClCompile Include="ToolChainSend.cpp" />
     <ClCompile Include="ToolSpatial.cpp" />
     <ClCompile Include="ToolStereo.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\common\memorystream.cpp" />
@@ -29,9 +37,14 @@
     <ClCompile Include="ToolMaximizer.cpp" />
     <ClCompile Include="PluginManager.cpp" />
     <ClCompile Include="MidiParser.cpp" />
+    <ClCompile Include="ToolGenerator.cpp" />
+    <ClCompile Include="ToolPitchShift.cpp" />
+    <ClCompile Include="ToolReverb.cpp" />
+    <ClCompile Include="ToolPhaser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPluginFactory.h" />
+    <ClInclude Include="ChainManager.h" />
     <ClInclude Include="ClapHost.h" />
     <ClInclude Include="IAudioPluginHost.h" />
     <ClInclude Include="PluginType.h" />
@@ -40,6 +53,7 @@
     <ClInclude Include="PluginManager.h" />
     <ClInclude Include="StringUtils.h" />
     <ClInclude Include="MidiParser.h" />
+    <ClInclude Include="AVX2Utils.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
@@ -95,6 +109,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -115,6 +130,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

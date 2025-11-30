@@ -4,12 +4,14 @@
 #include <vector>
 #include <map>
 #include <mutex>
-#include <regex>
+#include "Avx2Utils.h"
 
 #define TOOL_NAME L"EQ"
 
+FILTER_ITEM_GROUP cut_group(L"Cut Filters", false);
 FILTER_ITEM_TRACK eq_hpf(L"Low Cut", 0.0, 0.0, 2000.0, 1.0);
 FILTER_ITEM_TRACK eq_lpf(L"High Cut", 20000.0, 500.0, 20000.0, 1.0);
+FILTER_ITEM_GROUP eq_group(L"EQ Bands", true);
 FILTER_ITEM_TRACK eq_low(L"Low Gain", 0.0, -20.0, 20.0, 0.1);
 FILTER_ITEM_TRACK eq_ml(L"M-Low Gain", 0.0, -20.0, 20.0, 0.1);
 FILTER_ITEM_TRACK eq_mid(L"Mid Gain", 0.0, -20.0, 20.0, 0.1);
@@ -22,8 +24,10 @@ FILTER_ITEM_TRACK eq_mh_freq(L"M-High Freq", 3500.0, 1000.0, 20000.0, 1.0);
 FILTER_ITEM_TRACK eq_high_freq(L"High Freq", 10000.0, 2000.0, 20000.0, 1.0);
 
 void* filter_items_eq[] = {
+	&cut_group,
     &eq_hpf,
     &eq_lpf,
+	&eq_group,
     &eq_low,
     &eq_ml,
     &eq_mid,
@@ -55,6 +59,14 @@ struct Biquad {
         x2 = x1; x1 = in;
         y2 = y1; y1 = out;
         return static_cast<float>(out);
+    }
+
+    void copyCoeffsFrom(const Biquad& other) {
+        b0 = other.b0;
+        b1 = other.b1;
+        b2 = other.b2;
+        a1 = other.a1;
+        a2 = other.a2;
     }
 
     void calcHPF(double Fs, double f0) {
@@ -126,7 +138,7 @@ struct Biquad {
     }
 };
 
-static const int FILTER_STAGES = 7;
+static const int32_t FILTER_STAGES = 7;
 
 struct EQState {
     Biquad filtersL[FILTER_STAGES];
@@ -136,11 +148,12 @@ struct EQState {
 
 static std::mutex g_eq_state_mutex;
 static std::map<const void*, EQState> g_eq_states;
+const int32_t BLOCK_SIZE = 256;
 
 bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     double val_hpf = eq_hpf.value;
     double val_lpf = eq_lpf.value;
@@ -149,7 +162,6 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     double val_mid = eq_mid.value;
     double val_mh = eq_mh.value;
     double val_high = eq_high.value;
-
     double val_low_freq = eq_low_freq.value;
     double val_ml_freq = eq_ml_freq.value;
     double val_mid_freq = eq_mid_freq.value;
@@ -168,7 +180,7 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
         state = &g_eq_states[audio->object];
         if (state->last_sample_index != -1 &&
             state->last_sample_index + total_samples != audio->object->sample_index) {
-            for (int i = 0; i < FILTER_STAGES; ++i) {
+            for (int32_t i = 0; i < FILTER_STAGES; ++i) {
                 state->filtersL[i].resetState();
                 state->filtersR[i].resetState();
             }
@@ -179,40 +191,46 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
     state->filtersL[0].calcHPF(Fs, val_hpf);
-    state->filtersR[0] = state->filtersL[0];
+    state->filtersR[0].copyCoeffsFrom(state->filtersL[0]);
     state->filtersL[1].calcLPF(Fs, val_lpf);
-    state->filtersR[1] = state->filtersL[1];
+    state->filtersR[1].copyCoeffsFrom(state->filtersL[1]);
     state->filtersL[2].calcLowShelf(Fs, val_low_freq, val_low);
-    state->filtersR[2] = state->filtersL[2];
+    state->filtersR[2].copyCoeffsFrom(state->filtersL[2]);
     state->filtersL[3].calcPeaking(Fs, val_ml_freq, val_ml, 1.0);
-    state->filtersR[3] = state->filtersL[3];
+    state->filtersR[3].copyCoeffsFrom(state->filtersL[3]);
     state->filtersL[4].calcPeaking(Fs, val_mid_freq, val_mid, 1.0);
-    state->filtersR[4] = state->filtersL[4];
+    state->filtersR[4].copyCoeffsFrom(state->filtersL[4]);
     state->filtersL[5].calcPeaking(Fs, val_mh_freq, val_mh, 1.0);
-    state->filtersR[5] = state->filtersL[5];
+    state->filtersR[5].copyCoeffsFrom(state->filtersL[5]);
     state->filtersL[6].calcHighShelf(Fs, val_high_freq, val_high);
-    state->filtersR[6] = state->filtersL[6];
+    state->filtersR[6].copyCoeffsFrom(state->filtersL[6]);
 
     thread_local std::vector<float> bufL, bufR;
-    if (bufL.size() < total_samples) { bufL.resize(total_samples); bufR.resize(total_samples); }
+    if (bufL.size() < static_cast<size_t>(total_samples)) {
+        bufL.resize(total_samples);
+        bufR.resize(total_samples);
+    }
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) bufR = bufL;
+    else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    for (int i = 0; i < total_samples; ++i) {
-        float l = bufL[i];
-        float r = bufR[i];
+    for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
+        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        float* pL = bufL.data() + i;
+        float* pR = bufR.data() + i;
 
-        for (int stage = 0; stage < FILTER_STAGES; ++stage) {
-            l = state->filtersL[stage].process(l);
-            if (channels >= 2) {
-                r = state->filtersR[stage].process(r);
+        for (int32_t k = 0; k < block_count; ++k) {
+            float l = pL[k];
+            float r = pR[k];
+
+            for (int32_t s = 0; s < FILTER_STAGES; ++s) {
+                l = state->filtersL[s].process(l);
+                r = state->filtersR[s].process(r);
             }
+            pL[k] = l;
+            pR[k] = r;
         }
-
-        bufL[i] = l;
-        bufR[i] = r;
     }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
@@ -223,15 +241,9 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
 
 FILTER_PLUGIN_TABLE filter_plugin_table_eq = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
-    []() {
-        static std::wstring s = std::regex_replace(tool_name, std::wregex(regex_tool_name), TOOL_NAME);
-        return s.c_str();
-    }(),
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), TOOL_NAME);
-        return s.c_str();
-    }(),
+    GEN_TOOL_NAME(TOOL_NAME),
+    label,
+    GEN_FILTER_INFO(TOOL_NAME),
     filter_items_eq,
     nullptr,
     func_proc_audio_eq

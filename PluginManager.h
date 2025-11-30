@@ -1,5 +1,4 @@
 ﻿#pragma once
-
 #include "Eap2Common.h"
 #include "IAudioPluginHost.h"
 #include <map>
@@ -24,10 +23,10 @@ public:
     void SaveState(const std::string& instance_id, const std::string& state);
     bool IsPendingReinitialization(int64_t effect_id);
     void SetPendingReinitialization(int64_t effect_id, bool pending);
-    bool ShouldReset(int64_t effect_id, int64_t current_sample_index, int current_sample_num);
-    void UpdateLastAudioState(int64_t effect_id, int64_t current_sample_index, int current_sample_num);
-    void UpdateMapping(const std::string& instance_id, int sliderInfoIndex, int32_t vstParamID);
-    int32_t GetMappedParamID(const std::string& instance_id, int sliderInfoIndex);
+    bool ShouldReset(int64_t effect_id, int64_t current_sample_index, int32_t current_sample_num);
+    void UpdateLastAudioState(int64_t effect_id, int64_t current_sample_index, int32_t current_sample_num);
+    void UpdateMapping(const std::string& instance_id, int32_t sliderInfoIndex, int32_t vstParamID);
+    int32_t GetMappedParamID(const std::string& instance_id, int32_t sliderInfoIndex);
     void ClearMapping(const std::string& instance_id);
 
 private:
@@ -38,7 +37,7 @@ private:
 
     struct LastAudioState {
         int64_t sample_index;
-        int sample_num;
+        int32_t sample_num;
     };
 
     std::mutex m_states_mutex;

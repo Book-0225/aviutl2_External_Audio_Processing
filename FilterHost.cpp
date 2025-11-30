@@ -1,11 +1,8 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
-#include "Eap2Common.h"
+﻿#include "Eap2Common.h"
 #include <map>
 #include <set>
 #include <filesystem>
-#include <random>
 #include <string>
-#include <regex>
 
 #include "IAudioPluginHost.h"
 #include "PluginType.h"
@@ -13,11 +10,12 @@
 #include "PluginManager.h"
 #include "StringUtils.h"
 #include "MidiParser.h"
+#include "Avx2Utils.h"
 
 #define FILTER_NAME L"Host"
 #define FILTER_NAME_MEDIA L"Host (Media)"
 
-const int MAX_BLOCK_SIZE = 2048;
+const int32_t MAX_BLOCK_SIZE = 2048;
 
 static std::mutex g_cleanup_mutex;
 static std::string g_legacy_id_to_clear;
@@ -44,6 +42,7 @@ L"VST3 Plugins (*.vst3)\0*.vst3\0"
 L"CLAP Plugins (*.clap)\0*.clap\0"
 L"All Files (*.*)\0*.*\0\0";
 
+FILTER_ITEM_GROUP general_group(L"General Settings", false);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
 FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1);
@@ -53,14 +52,17 @@ FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0);
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
+FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
 FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
 FILTER_ITEM_CHECK check_map_reset(L"Reset Mapping", false);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
 FILTER_ITEM_CHECK check_bpm_sync_midi(L"MIDIにBPMを同期", false);
+FILTER_ITEM_GROUP legacy_group(L"Legacy Settings (非推奨)", false);
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 struct InstanceData {
     char uuid[40] = { 0 };
@@ -68,6 +70,7 @@ struct InstanceData {
 FILTER_ITEM_DATA<InstanceData> instance_data_param(L"INSTANCE_ID");
 
 void* filter_items_host[] = {
+    &general_group,
     &plugin_path_param,
     &track_wet,
     &track_volume,
@@ -77,31 +80,37 @@ void* filter_items_host[] = {
     &check_apply_l,
     &check_apply_r,
     &toggle_gui_check,
+	&param_group,
     &check_param_learn,
     &check_map_reset,
     &track_param1,
     &track_param2,
     &track_param3,
     &track_param4,
+	&midi_group,
     &midi_path_param,
     &check_bpm_sync_midi,
+	&legacy_group,
     &instance_id_param,
     &instance_data_param,
     nullptr
 };
 
 void* filter_items_host_media[] = {
+    &general_group,
     &plugin_path_param,
     &track_bpm,
     &track_ts_num,
     &track_ts_denom,
     &toggle_gui_check,
+	&param_group,
     &check_param_learn,
     &check_map_reset,
     &track_param1,
     &track_param2,
     &track_param3,
     &track_param4,
+    &midi_group,
     &midi_path_param,
     &check_bpm_sync_midi,
     &instance_data_param,
@@ -117,12 +126,12 @@ static std::set<std::string>* g_active_ids_collector = nullptr;
 void collect_active_ids_proc(EDIT_SECTION* edit) {
     if (!g_active_ids_collector) return;
 
-    int max_layer = edit->info->layer_max;
-    for (int layer = 0; layer <= max_layer; ++layer) {
+    int32_t max_layer = edit->info->layer_max;
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE obj = edit->find_object(layer, 0);
         while (obj != nullptr) {
-            int effect_count = edit->count_object_effect(obj, filter_name);
-            for (int i = 0; i < effect_count; ++i) {
+            int32_t effect_count = edit->count_object_effect(obj, filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
                 std::wstring indexed_filter_name = std::wstring(filter_name);
                 if (i > 0) {
                     indexed_filter_name += L":" + std::to_wstring(i);
@@ -140,7 +149,7 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
                     }
                 }
             }
-            int end_frame = edit->get_object_layer_frame(obj).end;
+            int32_t end_frame = edit->get_object_layer_frame(obj).end;
             obj = edit->find_object(layer, end_frame + 1);
         }
     }
@@ -149,13 +158,13 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
 void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
     if (g_legacy_id_to_clear.empty()) return;
 
-    int max_layer = edit->info->layer_max;
+    int32_t max_layer = edit->info->layer_max;
 
-    for (int layer = 0; layer <= max_layer; ++layer) {
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE obj = edit->find_object(layer, 0);
         while (obj != nullptr) {
-            int effect_count = edit->count_object_effect(obj, filter_name);
-            for (int i = 0; i < effect_count; ++i) {
+            int32_t effect_count = edit->count_object_effect(obj, filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
                 std::wstring indexed_filter_name_w = std::wstring(filter_name);
                 if (i > 0) {
                     indexed_filter_name_w += L":" + std::to_wstring(i);
@@ -173,7 +182,7 @@ void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
                     }
                 }
             }
-            int current_end_frame = edit->get_object_layer_frame(obj).end;
+            int32_t current_end_frame = edit->get_object_layer_frame(obj).end;
             obj = edit->find_object(layer, current_end_frame + 1);
         }
     }
@@ -209,7 +218,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
     }
 }
 
-int ProjectSaveExceptionFilter(unsigned int code, struct _EXCEPTION_POINTERS* ep) {
+int32_t ProjectSaveExceptionFilter(uint32_t code, struct _EXCEPTION_POINTERS* ep) {
     if (code == EXCEPTION_ACCESS_VIOLATION) {
         DbgPrint("[EAP2 Critical] Access Violation at %p", ep->ExceptionRecord->ExceptionAddress);
         return EXCEPTION_EXECUTE_HANDLER;
@@ -249,16 +258,16 @@ void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
     auto* ctx = static_cast<ResetGUIContext*>(param);
     if (!ctx) return;
 
-    int max_layer = edit->info->layer_max;
+    int32_t max_layer = edit->info->layer_max;
 
-    for (int layer = 0; layer <= max_layer; ++layer) {
-        int current_frame = 0;
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
+        int32_t current_frame = 0;
         while (true) {
             OBJECT_HANDLE obj = edit->find_object(layer, current_frame);
             if (obj == nullptr) break;
 
-            int effect_count = edit->count_object_effect(obj, filter_name);
-            for (int i = 0; i < effect_count; ++i) {
+            int32_t effect_count = edit->count_object_effect(obj, filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
                 std::wstring indexed_filter_name = std::wstring(filter_name);
                 if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
 
@@ -356,7 +365,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         return true;
     }
 
-    auto host = PluginManager::GetInstance().GetHost(effect_id);
+    std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHost(effect_id);
     if (plugin_path_w.empty()) {
         if (host) needs_reinitialization = true;
     }
@@ -448,7 +457,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         ParamCache& cache = g_param_cache[instance_id];
 
         if (is_learning && lastTouched != -1) {
-            for (int i = 0; i < 4; ++i) {
+            for (int32_t i = 0; i < 4; ++i) {
                 if (cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
                     PluginManager::GetInstance().UpdateMapping(instance_id, i, lastTouched);
                     DbgPrint("Mapped Slider %d to ParamID %d", i + 1, lastTouched);
@@ -457,7 +466,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             }
         }
 
-        for (int i = 0; i < 4; ++i) {
+        for (int32_t i = 0; i < 4; ++i) {
             int32_t mapID = PluginManager::GetInstance().GetMappedParamID(instance_id, i);
             if (mapID != -1) {
 
@@ -471,28 +480,23 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
     }
 
-    int total_samples = audio->object->sample_num;
+    int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = (std::min)(2, audio->object->channel_num);
 
     thread_local std::vector<float> inL, inR, outL, outR;
     if (inL.size() < total_samples) {
         inL.resize(total_samples); outL.resize(total_samples);
         inR.resize(total_samples); outR.resize(total_samples);
     }
-    
-    std::fill(inL.begin(), inL.begin() + total_samples, 0.0f);
-    if (channels >= 2) std::fill(inR.begin(), inR.begin() + total_samples, 0.0f);
-    std::fill(outL.begin(), outL.begin() + total_samples, 0.0f);
-    if (channels >= 2) std::fill(outR.begin(), outR.begin() + total_samples, 0.0f);
 
     if (!is_object) {
         if (channels >= 1) audio->get_sample_data(inL.data(), 0);
         if (channels >= 2) audio->get_sample_data(inR.data(), 1);
-        else if (channels == 1) std::copy(inL.begin(), inL.begin() + total_samples, inR.begin());
+        else if (channels == 1) Avx2Utils::CopyBufferAVX2(inR.data(), inL.data(), total_samples);
     }
 
-    std::shared_ptr<IAudioPluginHost> host_for_audio = PluginManager::GetInstance().GetHost(effect_id);
+    std::shared_ptr<IAudioPluginHost> host_for_audio = host;
 
     if (host_for_audio) {
         bool gui_should_show = toggle_gui_check.value;
@@ -519,25 +523,24 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (effective_bypass) {
         float vol_ratio = vol_val / 100.0f;
         if (vol_ratio == 0.0f) {
-            std::fill(outL.begin(), outL.begin() + total_samples, 0.0f);
-            if (channels >= 2) std::fill(outR.begin(), outR.begin() + total_samples, 0.0f);
+            Avx2Utils::FillBufferAVX2(outL.data(), total_samples, 0.0f);
+            if (channels >= 2) Avx2Utils::FillBufferAVX2(outR.data(), total_samples, 0.0f);
         }
         else {
-            for (int i = 0; i < total_samples; ++i) {
-                outL[i] = inL[i] * vol_ratio;
-                if (channels >= 2) outR[i] = inR[i] * vol_ratio;
-            }
+            Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
+            if (channels >= 2) Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
         }
         if (channels >= 1) audio->set_sample_data(outL.data(), 0);
         if (channels >= 2) audio->set_sample_data(outR.data(), 1);
         return true;
     }
 
-    int64_t current_pos = (int64_t)(audio->object->time * audio->scene->sample_rate + 0.5);
+    int64_t current_pos = (int64_t)(audio->object->sample_index + 0.5);
     double bpm;
     bool sync_bpm = check_bpm_sync_midi.value;
     int32_t ts_num = (int32_t)track_ts_num.value;
     int32_t ts_denom = (int32_t)track_ts_denom.value;
+    bool processed_by_host = false;
 
     if (host_for_audio) {
         if (PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num)) {
@@ -560,9 +563,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             bpm = track_bpm.value;
         }
 
-        int processed = 0;
+        int32_t processed = 0;
         while (processed < total_samples) {
-            int block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
+            int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
 
             double time_start = (double)current_block_pos / audio->scene->sample_rate;
@@ -627,31 +630,38 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
             processed += block_size;
         }
-    }
-    else {
-        std::copy(inL.begin(), inL.begin() + total_samples, outL.begin());
-        if (channels >= 2) std::copy(inR.begin(), inR.begin() + total_samples, outR.begin());
+        processed_by_host = true;
     }
 
     float wet_ratio = wet_val / 100.0f;
     float dry_ratio = 1.0f - wet_ratio;
     float vol_ratio = vol_val / 100.0f;
 
-    for (int i = 0; i < total_samples; ++i) {
+    if (processed_by_host) {
         if (apply_l) {
-            outL[i] = (outL[i] * wet_ratio + inL[i] * dry_ratio) * vol_ratio;
+            Avx2Utils::MixAudioAVX2(outL.data(), inL.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
         }
         else {
-            outL[i] = inL[i] * vol_ratio;
+            Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
         }
 
         if (channels >= 2) {
             if (apply_r) {
-                outR[i] = (outR[i] * wet_ratio + inR[i] * dry_ratio) * vol_ratio;
+                Avx2Utils::MixAudioAVX2(outR.data(), inR.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
             }
             else {
-                outR[i] = inR[i] * vol_ratio;
+                Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
             }
+        }
+    }
+    else {
+
+        float combined_scale = (apply_l ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
+        Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, combined_scale);
+
+        if (channels >= 2) {
+            combined_scale = (apply_r ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
+            Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, combined_scale);
         }
     }
 
@@ -672,11 +682,8 @@ bool func_proc_audio_host_media(FILTER_PROC_AUDIO* audio) {
 FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     filter_name,
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), FILTER_NAME);
-        return s.c_str();
-    }(),
+    label,
+	GEN_FILTER_INFO(FILTER_NAME),
     filter_items_host,
     nullptr,
     func_proc_audio_host
@@ -686,11 +693,8 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
 FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
     filter_name_media,
-    L"音声効果",
-    []() {
-        static std::wstring s = std::regex_replace(filter_info, std::wregex(regex_info_name), FILTER_NAME_MEDIA);
-        return s.c_str();
-    }(),
+    label,
+	GEN_FILTER_INFO(FILTER_NAME_MEDIA),
     filter_items_host_media,
     nullptr,
     func_proc_audio_host_media
