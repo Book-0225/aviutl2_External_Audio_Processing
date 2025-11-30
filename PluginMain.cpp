@@ -15,7 +15,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2002100
+#define MINIMUM_VERSION 2002200
 #define RECOMMENDED_VS_VERSION 2022
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")

@@ -42,6 +42,7 @@ L"VST3 Plugins (*.vst3)\0*.vst3\0"
 L"CLAP Plugins (*.clap)\0*.clap\0"
 L"All Files (*.*)\0*.*\0\0";
 
+FILTER_ITEM_GROUP general_group(L"General Settings", false);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
 FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1);
@@ -51,14 +52,17 @@ FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0);
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
+FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
 FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
 FILTER_ITEM_CHECK check_map_reset(L"Reset Mapping", false);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
 FILTER_ITEM_CHECK check_bpm_sync_midi(L"MIDIにBPMを同期", false);
+FILTER_ITEM_GROUP legacy_group(L"Legacy Settings (非推奨)", false);
 FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 struct InstanceData {
     char uuid[40] = { 0 };
@@ -66,6 +70,7 @@ struct InstanceData {
 FILTER_ITEM_DATA<InstanceData> instance_data_param(L"INSTANCE_ID");
 
 void* filter_items_host[] = {
+    &general_group,
     &plugin_path_param,
     &track_wet,
     &track_volume,
@@ -75,31 +80,37 @@ void* filter_items_host[] = {
     &check_apply_l,
     &check_apply_r,
     &toggle_gui_check,
+	&param_group,
     &check_param_learn,
     &check_map_reset,
     &track_param1,
     &track_param2,
     &track_param3,
     &track_param4,
+	&midi_group,
     &midi_path_param,
     &check_bpm_sync_midi,
+	&legacy_group,
     &instance_id_param,
     &instance_data_param,
     nullptr
 };
 
 void* filter_items_host_media[] = {
+    &general_group,
     &plugin_path_param,
     &track_bpm,
     &track_ts_num,
     &track_ts_denom,
     &toggle_gui_check,
+	&param_group,
     &check_param_learn,
     &check_map_reset,
     &track_param1,
     &track_param2,
     &track_param3,
     &track_param4,
+    &midi_group,
     &midi_path_param,
     &check_bpm_sync_midi,
     &instance_data_param,

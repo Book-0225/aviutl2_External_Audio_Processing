@@ -8,8 +8,10 @@
 
 #define TOOL_NAME L"EQ"
 
+FILTER_ITEM_GROUP cut_group(L"Cut Filters", false);
 FILTER_ITEM_TRACK eq_hpf(L"Low Cut", 0.0, 0.0, 2000.0, 1.0);
 FILTER_ITEM_TRACK eq_lpf(L"High Cut", 20000.0, 500.0, 20000.0, 1.0);
+FILTER_ITEM_GROUP eq_group(L"EQ Bands", true);
 FILTER_ITEM_TRACK eq_low(L"Low Gain", 0.0, -20.0, 20.0, 0.1);
 FILTER_ITEM_TRACK eq_ml(L"M-Low Gain", 0.0, -20.0, 20.0, 0.1);
 FILTER_ITEM_TRACK eq_mid(L"Mid Gain", 0.0, -20.0, 20.0, 0.1);
@@ -22,8 +24,10 @@ FILTER_ITEM_TRACK eq_mh_freq(L"M-High Freq", 3500.0, 1000.0, 20000.0, 1.0);
 FILTER_ITEM_TRACK eq_high_freq(L"High Freq", 10000.0, 2000.0, 20000.0, 1.0);
 
 void* filter_items_eq[] = {
+	&cut_group,
     &eq_hpf,
     &eq_lpf,
+	&eq_group,
     &eq_low,
     &eq_ml,
     &eq_mid,
