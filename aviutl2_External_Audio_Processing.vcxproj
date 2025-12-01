@@ -22,6 +22,7 @@
     <ClCompile Include="ToolDynamics.cpp" />
     <ClCompile Include="ToolEQ.cpp" />
     <ClCompile Include="ToolChainSend.cpp" />
+    <ClCompile Include="ToolNotesSend.cpp" />
     <ClCompile Include="ToolSpatial.cpp" />
     <ClCompile Include="ToolStereo.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\common\memorystream.cpp" />
@@ -46,6 +47,7 @@
     <ClInclude Include="ChainManager.h" />
     <ClInclude Include="ClapHost.h" />
     <ClInclude Include="IAudioPluginHost.h" />
+    <ClInclude Include="NotesManager.h" />
     <ClInclude Include="PluginType.h" />
     <ClInclude Include="VstHost.h" />
     <ClInclude Include="Eap2Common.h" />

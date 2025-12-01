@@ -30,6 +30,7 @@
     <ClCompile Include="ToolChainFilter.cpp" />
     <ClCompile Include="ToolDeEsser.cpp" />
     <ClCompile Include="ToolAutoWah.cpp" />
+    <ClCompile Include="ToolNotesSend.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />
@@ -43,5 +44,6 @@
     <ClInclude Include="MidiParser.h" />
     <ClInclude Include="ChainManager.h" />
     <ClInclude Include="AVX2Utils.h" />
+    <ClInclude Include="NotesManager.h" />
   </ItemGroup>
 </Project>

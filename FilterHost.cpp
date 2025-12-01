@@ -10,13 +10,14 @@
 #include "PluginManager.h"
 #include "StringUtils.h"
 #include "MidiParser.h"
+#include "NotesManager.h"
 #include "Avx2Utils.h"
 
 #define FILTER_NAME L"Host"
 #define FILTER_NAME_MEDIA L"Host (Media)"
 
 const int32_t MAX_BLOCK_SIZE = 2048;
-
+static const wchar_t* TARGET_FILTER_NAMES[] = { filter_name, filter_name_media };
 static std::mutex g_cleanup_mutex;
 static std::string g_legacy_id_to_clear;
 static std::string g_plugin_path_for_clear;
@@ -28,6 +29,7 @@ static std::map<std::string, ParamCache> g_param_cache;
 struct MidiState {
     std::string prev_path;
     MidiParser parser;
+    std::set<uint8_t> last_active_notes;
 };
 static std::map<std::string, MidiState> g_midi_state;
 
@@ -60,6 +62,7 @@ FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
+FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
 FILTER_ITEM_CHECK check_bpm_sync_midi(L"MIDIにBPMを同期", false);
 FILTER_ITEM_GROUP legacy_group(L"Legacy Settings (非推奨)", false);
@@ -88,6 +91,7 @@ void* filter_items_host[] = {
     &track_param3,
     &track_param4,
 	&midi_group,
+	&track_recv_id,
     &midi_path_param,
     &check_bpm_sync_midi,
 	&legacy_group,
@@ -111,10 +115,16 @@ void* filter_items_host_media[] = {
     &track_param3,
     &track_param4,
     &midi_group,
+	&track_recv_id,
     &midi_path_param,
     &check_bpm_sync_midi,
     &instance_data_param,
     nullptr
+};
+
+struct NotesState {
+    std::array<uint32_t, NotesManager::MAX_PER_ID> last_update_count = { 0 };
+    std::array<int32_t, NotesManager::MAX_PER_ID> missed_count = { 0 };
 };
 
 void CleanupMainFilterResources() {
@@ -122,6 +132,8 @@ void CleanupMainFilterResources() {
 }
 
 static std::set<std::string>* g_active_ids_collector = nullptr;
+static std::mutex g_notes_state_mutex;
+static std::map<const void*, NotesState> g_notes_states;
 
 void collect_active_ids_proc(EDIT_SECTION* edit) {
     if (!g_active_ids_collector) return;
@@ -130,22 +142,28 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
     for (int32_t layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE obj = edit->find_object(layer, 0);
         while (obj != nullptr) {
-            int32_t effect_count = edit->count_object_effect(obj, filter_name);
-            for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(filter_name);
-                if (i > 0) {
-                    indexed_filter_name += L":" + std::to_wstring(i);
-                }
 
-                LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
-                if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
-                    std::string decoded_id_with_padding = StringUtils::HexToString(hex_encoded_id_str);
-                    g_active_ids_collector->insert(std::string(decoded_id_with_padding.c_str()));
-                }
-                else {
-                    LPCWSTR legacy_id_w = reinterpret_cast<LPCWSTR>(edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name));
-                    if (legacy_id_w && legacy_id_w[0] != L'\0') {
-                        g_active_ids_collector->insert(StringUtils::WideToUtf8(legacy_id_w));
+            for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
+                int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
+
+                for (int32_t i = 0; i < effect_count; ++i) {
+                    std::wstring indexed_filter_name = std::wstring(current_filter_name);
+                    if (i > 0) {
+                        indexed_filter_name += L":" + std::to_wstring(i);
+                    }
+                    
+                    LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+                    if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
+                        std::string decoded_id_with_padding = StringUtils::HexToString(hex_encoded_id_str);
+                        g_active_ids_collector->insert(std::string(decoded_id_with_padding.c_str()));
+                    }
+                    else {
+                        if (wcscmp(current_filter_name, FILTER_NAME) == 0) {
+                            LPCWSTR legacy_id_w = reinterpret_cast<LPCWSTR>(edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name));
+                            if (legacy_id_w && legacy_id_w[0] != L'\0') {
+                                g_active_ids_collector->insert(StringUtils::WideToUtf8(legacy_id_w));
+                            }
+                        }
                     }
                 }
             }
@@ -214,7 +232,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
         }
     }
     else {
-        pf->set_param_string("AudioHostStateDB", nullptr);
+        pf->set_param_string("AudioHostStateDB", "");
     }
 }
 
@@ -265,22 +283,23 @@ void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
         while (true) {
             OBJECT_HANDLE obj = edit->find_object(layer, current_frame);
             if (obj == nullptr) break;
+            for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
+                int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
+                for (int32_t i = 0; i < effect_count; ++i) {
+                    std::wstring indexed_filter_name = std::wstring(current_filter_name);
+                    if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
 
-            int32_t effect_count = edit->count_object_effect(obj, filter_name);
-            for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(filter_name);
-                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                    LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
 
-                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+                    if (hex_id) {
+                        std::string raw_data = StringUtils::HexToString(hex_id);
+                        if (raw_data.size() >= 36) {
+                            std::string obj_uuid = std::string(raw_data.c_str());
 
-                if (hex_id) {
-                    std::string raw_data = StringUtils::HexToString(hex_id);
-                    if (raw_data.size() >= 36) {
-                        std::string obj_uuid = std::string(raw_data.c_str());
-
-                        if (obj_uuid == ctx->target_instance_id) {
-                            bool result = edit->set_object_item_value(obj, indexed_filter_name.c_str(), ctx->param_name, "0");
-                            return;
+                            if (obj_uuid == ctx->target_instance_id) {
+                                bool result = edit->set_object_item_value(obj, indexed_filter_name.c_str(), ctx->param_name, "0");
+                                return;
+                            }
                         }
                     }
                 }
@@ -294,6 +313,11 @@ void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
 bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     std::string instance_id;
     bool is_migrated = false;
+    NotesState* state = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_notes_state_mutex);
+        state = &g_notes_states[audio->object];
+    }
 
     if (instance_data_param.value->uuid[0] != '\0') {
         instance_id = instance_data_param.value->uuid;
@@ -511,6 +535,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     else {
                         host->HideGui();
                         std::string state = host->GetState();
+                        DbgPrint("Plugin GUI hidden, saving state for %hs, (Size: %zu, Data: %.120hs...)", instance_id.c_str(), state.size(), state.c_str());
                         if (!state.empty()) {
                             PluginManager::GetInstance().SaveState(instance_id, state);
                         }
@@ -545,6 +570,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (host_for_audio) {
         if (PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num)) {
             host_for_audio->Reset();
+            g_midi_state[instance_id].last_active_notes.clear();
         }
         PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
@@ -553,6 +579,52 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         if (ms.prev_path != midi_path_u8) {
             ms.parser.Load(midi_path_u8);
             ms.prev_path = midi_path_u8;
+        }
+
+        std::vector<IAudioPluginHost::MidiEvent> realtime_midi_events;
+        int32_t recv_id_val = static_cast<int32_t>(track_recv_id.value);
+
+        if (recv_id_val > 0) {
+            int32_t id_idx = std::clamp(recv_id_val - 1, 0, NotesManager::MAX_ID - 1);
+            std::set<uint8_t> current_active_notes;
+
+            {
+                std::lock_guard<std::mutex> lock(NotesManager::notes_mutexes[id_idx]);
+                auto& note_data = NotesManager::notes[id_idx];
+                for (int32_t i = 0; i < NotesManager::MAX_PER_ID; i++) {
+                    if (note_data.effect_id[i] != -1) {
+                        if (note_data.update_count[i] != state->last_update_count[i]) {
+                            current_active_notes.insert(std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127));
+							state->last_update_count[i] = note_data.update_count[i];
+                            state->missed_count[i] = 0;
+                        }
+                        else {
+                            if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
+                            if (state->missed_count[i] >= 10) note_data.effect_id[i] = -1;
+                            if (state->missed_count[i] <= 1) current_active_notes.insert(std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127));
+                        }
+                    }
+                }
+            }
+            for (uint8_t note : current_active_notes) {
+                if (ms.last_active_notes.find(note) == ms.last_active_notes.end()) {
+                    realtime_midi_events.push_back({ 0, 0x90, note, 100 });
+                }
+            }
+            for (uint8_t note : ms.last_active_notes) {
+                if (current_active_notes.find(note) == current_active_notes.end()) {
+                    realtime_midi_events.push_back({ 0, 0x80, note, 0 });
+                }
+            }
+            ms.last_active_notes = current_active_notes;
+        }
+        else {
+            if (!ms.last_active_notes.empty()) {
+                for (uint8_t note : ms.last_active_notes) {
+                    realtime_midi_events.push_back({ 0, 0x80, note, 0 });
+                }
+                ms.last_active_notes.clear();
+            }
         }
 
         if (sync_bpm) {
@@ -564,6 +636,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
 
         int32_t processed = 0;
+        bool realtime_events_sent = false;
         while (processed < total_samples) {
             int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
@@ -572,6 +645,13 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             double time_end = (double)(current_block_pos + block_size) / audio->scene->sample_rate;
 
             std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
+            if (!realtime_events_sent && !realtime_midi_events.empty()) {
+                for (auto& evt : realtime_midi_events) {
+                    evt.deltaFrames = 0;
+                    midi_events_for_block.push_back(evt);
+                }
+                realtime_events_sent = true;
+            }
             int64_t start_tick = 0;
             int64_t end_tick = 0;
 

@@ -183,6 +183,7 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->register_filter_plugin(&filter_plugin_table_pitch_shift);
 	host->register_filter_plugin(&filter_plugin_table_autowah);
 	host->register_filter_plugin(&filter_plugin_table_deesser);
+	host->register_filter_plugin(&filter_plugin_table_notes_send_media);
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     g_edit_handle = host->create_edit_handle();
