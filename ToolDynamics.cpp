@@ -23,6 +23,7 @@ FILTER_ITEM_TRACK dyn_limiter(L"Limiter", 0.0, -20.0, 0.0, 0.1);
 void* filter_items_dynamics[] = {
 	&gate_group,
     &dyn_gate_thresh,
+	& dyn_gate_att,
     &dyn_gate_rel,
 	&comp_group,
     &dyn_comp_thresh,
