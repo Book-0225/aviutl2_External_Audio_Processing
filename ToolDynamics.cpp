@@ -11,7 +11,7 @@
 FILTER_ITEM_GROUP gate_group(L"Gate Settings", true);
 FILTER_ITEM_TRACK dyn_gate_thresh(L"Gate Threshold", -60.0, -90.0, 0.0, 0.1);
 FILTER_ITEM_TRACK dyn_gate_att(L"Gate Attack", 10.0, 0.1, 100.0, 0.1);
-FILTER_ITEM_TRACK dyn_gate_rel(L"Gate Release", 200.0, 10.0, 2000.0, 10.0);
+FILTER_ITEM_TRACK dyn_gate_rel(L"Gate Release", 200.0, 10.0, 2000.0, 1.0);
 FILTER_ITEM_GROUP comp_group(L"Compressor Settings", true);
 FILTER_ITEM_TRACK dyn_comp_thresh(L"Comp Threshold", 0.0, -60.0, 0.0, 0.1);
 FILTER_ITEM_TRACK dyn_comp_ratio(L"Comp Ratio", 1.0, 1.0, 20.0, 0.1);
