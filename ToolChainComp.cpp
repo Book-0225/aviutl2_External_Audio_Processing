@@ -64,8 +64,8 @@ bool func_proc_audio_chain_comp(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double comp_att_coef = std::exp(-1.0 / (comp_att_ms * 0.001 * Fs));
-    double comp_rel_coef = std::exp(-1.0 / (comp_rel_ms * 0.001 * Fs));
+    double comp_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_att_ms) * 0.001 * Fs));
+    double comp_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_rel_ms) * 0.001 * Fs));
     double makeup_lin = std::pow(10.0, comp_makeup_db / 20.0);
 
     thread_local std::vector<float> bufL, bufR;

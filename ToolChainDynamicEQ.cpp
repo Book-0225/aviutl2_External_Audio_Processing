@@ -72,8 +72,8 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double att_coef = std::exp(-1.0 / (att_ms * 0.001 * Fs));
-    double rel_coef = std::exp(-1.0 / (rel_ms * 0.001 * Fs));
+    double att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, att_ms) * 0.001 * Fs));
+    double rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, rel_ms) * 0.001 * Fs));
     double omega = 2.0 * M_PI * freq / Fs;
     double sn = std::sin(omega);
     double cs = std::cos(omega);

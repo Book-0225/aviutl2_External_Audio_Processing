@@ -62,8 +62,8 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double gate_att_coef = std::exp(-1.0 / (gate_att_ms * 0.001 * Fs));
-    double gate_rel_coef = std::exp(-1.0 / (gate_rel_ms * 0.001 * Fs));
+    double gate_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_att_ms) * 0.001 * Fs));
+    double gate_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_rel_ms) * 0.001 * Fs));
 
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {

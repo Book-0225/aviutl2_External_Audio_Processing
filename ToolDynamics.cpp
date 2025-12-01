@@ -10,6 +10,7 @@
 
 FILTER_ITEM_GROUP gate_group(L"Gate Settings", true);
 FILTER_ITEM_TRACK dyn_gate_thresh(L"Gate Threshold", -60.0, -90.0, 0.0, 0.1);
+FILTER_ITEM_TRACK dyn_gate_att(L"Gate Attack", 10.0, 0.1, 100.0, 0.1);
 FILTER_ITEM_TRACK dyn_gate_rel(L"Gate Release", 200.0, 10.0, 2000.0, 10.0);
 FILTER_ITEM_GROUP comp_group(L"Compressor Settings", true);
 FILTER_ITEM_TRACK dyn_comp_thresh(L"Comp Threshold", 0.0, -60.0, 0.0, 0.1);
@@ -49,6 +50,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     int32_t channels = (std::min)(2, audio->object->channel_num);
 
     double gate_th_db = dyn_gate_thresh.value;
+	double gate_att_ms = dyn_gate_att.value;
     double gate_rel_ms = dyn_gate_rel.value;
     double comp_th_db = dyn_comp_thresh.value;
     double comp_ratio = dyn_comp_ratio.value;
@@ -75,11 +77,11 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
     double gate_th_lin = std::pow(10.0, gate_th_db / 20.0);
-    double gate_rel_coef = std::exp(-1.0 / (gate_rel_ms * 0.001 * Fs));
-    double gate_atk_coef = std::exp(-1.0 / (10.0 * 0.001 * Fs));
+    double gate_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_rel_ms) * 0.001 * Fs));
+    double gate_atk_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_att_ms) * 0.001 * Fs));
 
-    double comp_att_coef = std::exp(-1.0 / (comp_att_ms * 0.001 * Fs));
-    double comp_rel_coef = std::exp(-1.0 / (comp_rel_ms * 0.001 * Fs));
+    double comp_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_att_ms) * 0.001 * Fs));
+    double comp_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_rel_ms) * 0.001 * Fs));
 
     double makeup_lin = std::pow(10.0, comp_makeup_db / 20.0);
     bool use_comp = (comp_ratio > 1.0 || comp_makeup_db > 0.0);
