@@ -19,7 +19,6 @@
     <ClCompile Include="ToolMaximizer.cpp" />
     <ClCompile Include="PluginManager.cpp" />
     <ClCompile Include="MidiParser.cpp" />
-    <ClCompile Include="ChainManager.cpp" />
     <ClCompile Include="ToolChainSend.cpp" />
     <ClCompile Include="ToolChainComp.cpp" />
     <ClCompile Include="ToolChainGate.cpp" />

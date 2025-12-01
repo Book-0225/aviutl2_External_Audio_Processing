@@ -12,7 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AudioPluginFactory.cpp" />
-    <ClCompile Include="ChainManager.cpp" />
     <ClCompile Include="CLAPHost.cpp" />
     <ClCompile Include="ToolAutoWah.cpp" />
     <ClCompile Include="ToolChainComp.cpp" />

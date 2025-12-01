@@ -6,10 +6,10 @@
 
 #define TOOL_NAME L"Chain Send"
 
-FILTER_ITEM_TRACK send_id(L"ID", 1.0, 1.0, ChainManager::MAX_CHAINS, 1.0);
+FILTER_ITEM_TRACK send_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK send_gain(L"Send Gain", 100.0, 0.0, 200.0, 0.1);
 
-void* filter_items_send[] = {
+void* filter_items_chain_send[] = {
     &send_id,
     &send_gain,
     nullptr
@@ -20,8 +20,8 @@ bool func_proc_audio_chain_send(FILTER_PROC_AUDIO* audio) {
     if (total_samples <= 0) return true;
     int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    int32_t bus_idx = static_cast<int32_t>(send_id.value) - 1;
-    if (bus_idx < 0 || bus_idx >= ChainManager::MAX_CHAINS) return true;
+    int32_t id_idx = static_cast<int32_t>(send_id.value) - 1;
+    if (id_idx < 0 || id_idx >= ChainManager::MAX_ID) return true;
 
     double gain_val = send_gain.value / 100.0f;
 
@@ -44,9 +44,26 @@ bool func_proc_audio_chain_send(FILTER_PROC_AUDIO* audio) {
     max_peak *= (float)gain_val;
 
     {
-        std::lock_guard<std::mutex> lock(ChainManager::chains_mutex);
-        ChainManager::chains[bus_idx].level = max_peak;
-        ChainManager::chains[bus_idx].update_count++;
+        std::lock_guard<std::mutex> lock(ChainManager::chains_mutexes[id_idx]);
+        auto& chain = ChainManager::chains[id_idx];
+        const auto& ids = chain.effect_id;
+        auto it = std::find(ids.begin(), ids.end(), audio->object->effect_id);
+        if (it != ids.end())
+        {
+            auto data_idx = std::distance(ids.begin(), it);
+            chain.level[data_idx] = max_peak;
+            chain.update_count[data_idx]++;
+        }
+        else {
+            auto free_it = std::find(ids.begin(), ids.end(), -1);
+            if (free_it != ids.end())
+            {
+                auto free_idx = std::distance(ids.begin(), free_it);
+                chain.effect_id[free_idx] = audio->object->effect_id;
+                chain.level[free_idx] = max_peak;
+                chain.update_count[free_idx] = 1;
+            }
+        }
     }
 
     return true;
@@ -57,7 +74,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_send = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_send,
+    filter_items_chain_send,
     nullptr,
     func_proc_audio_chain_send
 };

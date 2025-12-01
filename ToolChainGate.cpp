@@ -9,7 +9,7 @@
 
 #define TOOL_NAME L"Chain Gate"
 
-FILTER_ITEM_TRACK chain_gate_id(L"ID", 1.0, 1.0, ChainManager::MAX_CHAINS, 1.0);
+FILTER_ITEM_TRACK chain_gate_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK chain_gate_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);
 FILTER_ITEM_TRACK chain_gate_ratio(L"Ratio", 4.0, 1.0, 20.0, 0.1);
 FILTER_ITEM_TRACK chain_gate_attack(L"Attack", 5.0, 0.1, 100.0, 0.1);
@@ -27,8 +27,8 @@ void* filter_items_chain_gate[] = {
 struct ChaingateState {
     double gate_envelope = 0.0;
     int64_t last_sample_index = -1;
-    uint32_t last_update_count = 0;
-    int32_t missed_count = 0;
+    std::array<uint32_t, ChainManager::MAX_PER_ID> last_update_count = { 0 };
+    std::array<int32_t, ChainManager::MAX_PER_ID> missed_count = { 0 };
 };
 
 static std::mutex g_chain_state_mutex;
@@ -40,13 +40,13 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
     if (total_samples <= 0) return true;
     int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    int32_t bus_idx = static_cast<int32_t>(chain_gate_id.value) - 1;
+    int32_t id_idx = static_cast<int32_t>(chain_gate_id.value) - 1;
     double gate_th_db = chain_gate_thresh.value;
     double gate_ratio = chain_gate_ratio.value;
     double gate_att_ms = chain_gate_attack.value;
     double gate_rel_ms = chain_gate_release.value;
 
-    if (bus_idx < 0 || bus_idx >= ChainManager::MAX_CHAINS) return true;
+    if (id_idx < 0 || id_idx >= ChainManager::MAX_ID) return true;
     if (gate_ratio == 1.0) return true;
 
     ChaingateState* state = nullptr;
@@ -56,7 +56,7 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
         if (state->last_sample_index != -1 &&
             state->last_sample_index + total_samples != audio->object->sample_index) {
             state->gate_envelope = 0.0;
-            state->missed_count = 0;
+            state->missed_count.fill(0);
         }
         state->last_sample_index = audio->object->sample_index;
     }
@@ -77,17 +77,29 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
 
     double sidechain_input = 0.0;
     {
-        std::lock_guard<std::mutex> lock(ChainManager::chains_mutex);
-        if (ChainManager::chains[bus_idx].update_count != state->last_update_count) {
-            sidechain_input = (double)ChainManager::chains[bus_idx].level;
-            state->last_update_count = ChainManager::chains[bus_idx].update_count;
-            state->missed_count = 0;
+        std::lock_guard<std::mutex> lock(ChainManager::chains_mutexes[id_idx]);
+        std::array<double, ChainManager::MAX_PER_ID> levels;
+        auto& chain = ChainManager::chains[id_idx];
+        for (int32_t i = 0; i < ChainManager::MAX_PER_ID; i++) {
+            if (chain.effect_id[i] != -1) {
+                if (chain.update_count[i] != state->last_update_count[i]) {
+                    levels[i] = (double)chain.level[i];
+                    state->last_update_count[i] = chain.update_count[i];
+                    state->missed_count[i] = 0;
+                }
+                else {
+                    if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
+                    if (state->missed_count[i] >= 10) chain.effect_id[i] = -1;
+                    if (state->missed_count[i] <= 1) levels[i] = (double)chain.level[i];
+                    else levels[i] = 0.0;
+                }
+            }
+            else {
+                levels[i] = 0.0;
+                state->missed_count[i] = 0;
+            }
         }
-        else {
-            if (state->missed_count <= 2) state->missed_count++;
-            if (state->missed_count <= 1) sidechain_input = (double)ChainManager::chains[bus_idx].level;
-            else sidechain_input = 0.0;
-        }
+        sidechain_input = *std::max_element(levels.begin(), levels.end());
     }
 
     double current_gate_env = state->gate_envelope;
@@ -119,7 +131,10 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
         Avx2Utils::MultiplyBufferAVX2(pR, temp_gain, block_count);
     }
 
-    state->gate_envelope = current_gate_env;
+    {
+        std::lock_guard<std::mutex> lock(g_chain_state_mutex);
+        state->gate_envelope = current_gate_env;
+    }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);

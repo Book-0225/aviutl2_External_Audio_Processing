@@ -7,7 +7,7 @@
 
 #define TOOL_NAME L"Chain Dynamic EQ"
 
-FILTER_ITEM_TRACK deq_id(L"ID", 1.0, 1.0, ChainManager::MAX_CHAINS, 1.0);
+FILTER_ITEM_TRACK deq_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK deq_freq(L"Frequency", 1000.0, 20.0, 20000.0, 1.0);
 FILTER_ITEM_TRACK deq_q(L"Q", 1.0, 0.1, 20.0, 0.1);
 FILTER_ITEM_TRACK deq_gain(L"Reduction", 6.0, 0.0, 24.0, 0.1);
@@ -35,8 +35,8 @@ struct DynEqState {
     DynEqBiquad filterL, filterR;
     double envelope = 0.0;
     int64_t last_sample_index = -1;
-    uint32_t last_update_count = 0;
-    int32_t missed_count = 0;
+    std::array<uint32_t, ChainManager::MAX_PER_ID> last_update_count = { 0 };
+    std::array<int32_t, ChainManager::MAX_PER_ID> missed_count = { 0 };
     float c_b0 = 1.0f, c_b1 = 0.0f, c_b2 = 0.0f, c_a1 = 0.0f, c_a2 = 0.0f;
 };
 
@@ -50,8 +50,8 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
-    int32_t bus_idx = static_cast<int32_t>(deq_id.value) - 1;
-    if (bus_idx < 0 || bus_idx >= ChainManager::MAX_CHAINS) return true;
+    int32_t id_idx = static_cast<int32_t>(deq_id.value) - 1;
+    if (id_idx < 0 || id_idx >= ChainManager::MAX_ID) return true;
 
     double freq = deq_freq.value;
     double q = deq_q.value;
@@ -81,17 +81,29 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
 
     double sidechain_input = 0.0;
     {
-        std::lock_guard<std::mutex> lock(ChainManager::chains_mutex);
-        if (ChainManager::chains[bus_idx].update_count != state->last_update_count) {
-            sidechain_input = (double)ChainManager::chains[bus_idx].level;
-            state->last_update_count = ChainManager::chains[bus_idx].update_count;
-            state->missed_count = 0;
+        std::lock_guard<std::mutex> lock(ChainManager::chains_mutexes[id_idx]);
+        std::array<double, ChainManager::MAX_PER_ID> levels;
+        auto& chain = ChainManager::chains[id_idx];
+        for (int32_t i = 0; i < ChainManager::MAX_PER_ID; i++) {
+            if (chain.effect_id[i] != -1) {
+                if (chain.update_count[i] != state->last_update_count[i]) {
+                    levels[i] = (double)chain.level[i];
+                    state->last_update_count[i] = chain.update_count[i];
+                    state->missed_count[i] = 0;
+                }
+                else {
+                    if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
+                    if (state->missed_count[i] >= 10) chain.effect_id[i] = -1;
+                    if (state->missed_count[i] <= 1) levels[i] = (double)chain.level[i];
+                    else levels[i] = 0.0;
+                }
+            }
+            else {
+                levels[i] = 0.0;
+                state->missed_count[i] = 0;
+            }
         }
-        else {
-            if (state->missed_count <= 2) state->missed_count++;
-            if (state->missed_count <= 1) sidechain_input = (double)ChainManager::chains[bus_idx].level;
-            else sidechain_input = 0.0;
-        }
+        sidechain_input = *std::max_element(levels.begin(), levels.end());
     }
 
     int32_t channels = (std::min)(2, audio->object->channel_num);
@@ -146,9 +158,12 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
         }
     }
 
-    state->envelope = current_env;
-    state->c_b0 = c_b0; state->c_b1 = c_b1; state->c_b2 = c_b2;
-    state->c_a1 = c_a1; state->c_a2 = c_a2;
+    {
+        std::lock_guard<std::mutex> lock(g_dyneq_mutex);
+        state->envelope = current_env;
+        state->c_b0 = c_b0; state->c_b1 = c_b1; state->c_b2 = c_b2;
+        state->c_a1 = c_a1; state->c_a2 = c_a2;
+    }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);
