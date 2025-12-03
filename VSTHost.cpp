@@ -516,12 +516,14 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 }
 
 void VstHost::Impl::Reset() {
-    if (!isReady || !component) {
+    if (!isReady || !component || !processor) {
         return;
     }
 	pendingStopNotes = true;
+    processor->setProcessing(false);
     component->setActive(false);
     component->setActive(true);
+    processor->setProcessing(true);
 }
 
 void VstHost::Impl::ShowGui() {
