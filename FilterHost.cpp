@@ -29,7 +29,7 @@ static std::map<std::string, ParamCache> g_param_cache;
 struct MidiState {
     std::string prev_path;
     MidiParser parser;
-    std::set<uint8_t> last_active_notes;
+    std::map<uint8_t, int64_t> last_active_note_owners;
 };
 static std::map<std::string, MidiState> g_midi_state;
 
@@ -125,6 +125,11 @@ void* filter_items_host_media[] = {
 struct NotesState {
     std::array<uint32_t, NotesManager::MAX_PER_ID> last_update_count = { 0 };
     std::array<int32_t, NotesManager::MAX_PER_ID> missed_count = { 0 };
+    std::array<bool, NotesManager::MAX_PER_ID> waiting_for_update;
+
+    NotesState() {
+        waiting_for_update.fill(true);
+    }
 };
 
 void CleanupMainFilterResources() {
@@ -365,7 +370,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
 
     std::wstring plugin_path_w = plugin_path_param.value;
-	float wet_val = 100.0f;
+    float wet_val = 100.0f;
     float vol_val = 100.0f;
     bool apply_l = true;
     bool apply_r = true;
@@ -566,11 +571,34 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     int32_t ts_num = (int32_t)track_ts_num.value;
     int32_t ts_denom = (int32_t)track_ts_denom.value;
     bool processed_by_host = false;
+	bool should_reset = false;
 
     if (host_for_audio) {
-        if (PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num)) {
+        should_reset = PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num);
+        if (should_reset) {
             host_for_audio->Reset();
-            g_midi_state[instance_id].last_active_notes.clear();
+            g_midi_state[instance_id].last_active_note_owners.clear();
+
+            {
+                std::lock_guard<std::mutex> lock(g_notes_state_mutex);
+                state = &g_notes_states[audio->object];
+
+                int32_t recv_id_val_reset = static_cast<int32_t>(track_recv_id.value);
+                if (recv_id_val_reset > 0) {
+                    int32_t id_idx = std::clamp(recv_id_val_reset - 1, 0, NotesManager::MAX_ID - 1);
+                    std::lock_guard<std::mutex> note_lock(NotesManager::notes_mutexes[id_idx]);
+                    const auto& note_data = NotesManager::notes[id_idx];
+
+                    for (int32_t i = 0; i < NotesManager::MAX_PER_ID; i++) {
+                        state->last_update_count[i] = note_data.update_count[i];
+                        state->missed_count[i] = 0;
+                        state->waiting_for_update[i] = true;
+                    }
+                }
+                else {
+                    *state = NotesState();
+                }
+            }
         }
         PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
@@ -584,47 +612,67 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         std::vector<IAudioPluginHost::MidiEvent> realtime_midi_events;
         int32_t recv_id_val = static_cast<int32_t>(track_recv_id.value);
 
-        if (recv_id_val > 0) {
+        if (recv_id_val > 0 && !should_reset) {
             int32_t id_idx = std::clamp(recv_id_val - 1, 0, NotesManager::MAX_ID - 1);
-            std::set<uint8_t> current_active_notes;
+            std::map<uint8_t, int64_t> current_note_owners;
+            std::set<uint8_t> retrigger_notes;
+            const int32_t ACTIVE_THRESHOLD = 2;
+            const int32_t REMOVE_THRESHOLD = 4;
 
             {
                 std::lock_guard<std::mutex> lock(NotesManager::notes_mutexes[id_idx]);
                 auto& note_data = NotesManager::notes[id_idx];
                 for (int32_t i = 0; i < NotesManager::MAX_PER_ID; i++) {
                     if (note_data.effect_id[i] != -1) {
-                        if (note_data.update_count[i] != state->last_update_count[i]) {
-                            current_active_notes.insert(std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127));
-							state->last_update_count[i] = note_data.update_count[i];
+                        bool updated = (note_data.update_count[i] != state->last_update_count[i]);
+                        if (updated) {
+                            state->last_update_count[i] = note_data.update_count[i];
                             state->missed_count[i] = 0;
+                            state->waiting_for_update[i] = false;
+                            uint8_t note_num = std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127);
+                            current_note_owners[note_num] = note_data.effect_id[i];
                         }
                         else {
+                            if (state->waiting_for_update[i]) continue;
                             if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
-                            if (state->missed_count[i] >= 10) note_data.effect_id[i] = -1;
-                            if (state->missed_count[i] <= 1) current_active_notes.insert(std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127));
+                            if (state->missed_count[i] >= REMOVE_THRESHOLD) {
+                                note_data.effect_id[i] = -1;
+                            }
+                            if (state->missed_count[i] <= ACTIVE_THRESHOLD) {
+                                uint8_t note_num = std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127);
+                                current_note_owners[note_num] = note_data.effect_id[i];
+                            }
                         }
+                    }
+                    else {
+                        state->missed_count[i] = 0;
+                        state->waiting_for_update[i] = false;
                     }
                 }
             }
-            for (uint8_t note : current_active_notes) {
-                if (ms.last_active_notes.find(note) == ms.last_active_notes.end()) {
+            for (auto it = ms.last_active_note_owners.begin(); it != ms.last_active_note_owners.end(); ++it) {
+                uint8_t note = it->first;
+                int64_t old_id = it->second;
+                auto curr_it = current_note_owners.find(note);
+                if (curr_it == current_note_owners.end() || curr_it->second != old_id) {
+                    realtime_midi_events.push_back({ 0, 0x80, note, 0 });
+                    if (curr_it != current_note_owners.end() && curr_it->second != old_id) {
+                        retrigger_notes.insert(note);
+                    }
+                }
+            }
+            for (const auto& pair : current_note_owners) {
+                uint8_t note = pair.first;
+                bool is_fresh = (ms.last_active_note_owners.find(note) == ms.last_active_note_owners.end());
+                bool is_retrigger = (retrigger_notes.count(note) > 0);
+                if (is_fresh) {
                     realtime_midi_events.push_back({ 0, 0x90, note, 100 });
                 }
-            }
-            for (uint8_t note : ms.last_active_notes) {
-                if (current_active_notes.find(note) == current_active_notes.end()) {
-                    realtime_midi_events.push_back({ 0, 0x80, note, 0 });
+                else if (is_retrigger) {
+                    realtime_midi_events.push_back({ 1, 0x90, note, 100 });
                 }
             }
-            ms.last_active_notes = current_active_notes;
-        }
-        else {
-            if (!ms.last_active_notes.empty()) {
-                for (uint8_t note : ms.last_active_notes) {
-                    realtime_midi_events.push_back({ 0, 0x80, note, 0 });
-                }
-                ms.last_active_notes.clear();
-            }
+            ms.last_active_note_owners = current_note_owners;
         }
 
         if (sync_bpm) {
@@ -647,7 +695,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
             if (!realtime_events_sent && !realtime_midi_events.empty()) {
                 for (auto& evt : realtime_midi_events) {
-                    evt.deltaFrames = 0;
                     midi_events_for_block.push_back(evt);
                 }
                 realtime_events_sent = true;
