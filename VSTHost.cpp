@@ -90,6 +90,8 @@ private:
 static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
     if (!processor) return kResultFalse;
 
+    _mm256_zeroupper();
+
     __try {
         return processor->process(data);
     }
