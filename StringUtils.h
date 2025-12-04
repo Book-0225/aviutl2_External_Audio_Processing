@@ -1,6 +1,8 @@
 ﻿#pragma once
+#include "Eap2Common.h"
 #include <string>
 #include <vector>
+#include <charconv>
 #include <windows.h>
 
 namespace StringUtils {
@@ -45,13 +47,21 @@ namespace StringUtils {
     }
 
     inline std::string HexToString(const std::string& hex) {
+        if (hex.empty()) return {};
+        if (hex.size() % 2 != 0) {
+			DbgPrint("[EAP2 Warning] HexToString: input hex string has odd length");
+        }
+
         std::string res;
-        if (hex.empty()) return res;
-        res.reserve(hex.length() / 2);
-        for (size_t i = 0; i + 1 < hex.length(); i += 2) {
-            char byteString[3] = { hex[i], hex[i + 1], '\0' };
-            char byte = static_cast<char>(strtol(byteString, nullptr, 16));
-            res.push_back(byte);
+        res.reserve(hex.size() / 2);
+
+        for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+            uint8_t byte;
+            auto result = std::from_chars(hex.data() + i, hex.data() + i + 2, byte, 16);
+            if (result.ec != std::errc{}) {
+                continue;
+            }
+            res.push_back(static_cast<char>(byte));
         }
         return res;
     }
