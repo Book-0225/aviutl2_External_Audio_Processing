@@ -65,8 +65,6 @@ FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
 FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
 FILTER_ITEM_CHECK check_bpm_sync_midi(L"MIDIにBPMを同期", false);
-FILTER_ITEM_GROUP legacy_group(L"Legacy Settings (非推奨)", false);
-FILTER_ITEM_FILE instance_id_param(L"__INSTANCE_ID__", L"", L"");
 struct InstanceData {
     char uuid[40] = { 0 };
 };
@@ -94,8 +92,6 @@ void* filter_items_host[] = {
 	&track_recv_id,
     &midi_path_param,
     &check_bpm_sync_midi,
-	&legacy_group,
-    &instance_id_param,
     &instance_data_param,
     nullptr
 };
@@ -162,51 +158,10 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
                         std::string decoded_id_with_padding = StringUtils::HexToString(hex_encoded_id_str);
                         g_active_ids_collector->insert(std::string(decoded_id_with_padding.c_str()));
                     }
-                    else {
-                        if (wcscmp(current_filter_name, FILTER_NAME) == 0) {
-                            LPCWSTR legacy_id_w = reinterpret_cast<LPCWSTR>(edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_id_param.name));
-                            if (legacy_id_w && legacy_id_w[0] != L'\0') {
-                                g_active_ids_collector->insert(StringUtils::WideToUtf8(legacy_id_w));
-                            }
-                        }
-                    }
                 }
             }
             int32_t end_frame = edit->get_object_layer_frame(obj).end;
             obj = edit->find_object(layer, end_frame + 1);
-        }
-    }
-}
-
-void find_and_clear_legacy_id_proc(EDIT_SECTION* edit) {
-    if (g_legacy_id_to_clear.empty()) return;
-
-    int32_t max_layer = edit->info->layer_max;
-
-    for (int32_t layer = 0; layer <= max_layer; ++layer) {
-        OBJECT_HANDLE obj = edit->find_object(layer, 0);
-        while (obj != nullptr) {
-            int32_t effect_count = edit->count_object_effect(obj, filter_name);
-            for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name_w = std::wstring(filter_name);
-                if (i > 0) {
-                    indexed_filter_name_w += L":" + std::to_wstring(i);
-                }
-
-                LPCSTR val_ptr = edit->get_object_item_value(obj, indexed_filter_name_w.c_str(), instance_id_param.name);
-
-                if (val_ptr != nullptr) {
-                    std::string legacy_id_str = std::string(val_ptr);
-                    if (legacy_id_str == g_legacy_id_to_clear) {
-                        edit->set_object_item_value(obj, indexed_filter_name_w.c_str(), instance_id_param.name, "");
-
-                        DbgPrint("Legacy ID cleared: %hs", legacy_id_str.c_str());
-                        return;
-                    }
-                }
-            }
-            int32_t current_end_frame = edit->get_object_layer_frame(obj).end;
-            obj = edit->find_object(layer, current_end_frame + 1);
         }
     }
 }
@@ -257,7 +212,7 @@ void func_project_save(PROJECT_FILE* pf) {
     }
     __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
         DbgPrint("[EAP2 Critical] Save aborted. Clearing project data.");
-        pf->set_param_string("AudioHostStateDB", nullptr);
+        pf->set_param_string("AudioHostStateDB", "");
     }
 }
 
@@ -317,7 +272,6 @@ void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
 
 bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     std::string instance_id;
-    bool is_migrated = false;
     NotesState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_notes_state_mutex);
@@ -328,17 +282,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         instance_id = instance_data_param.value->uuid;
     }
     else {
-        LPCWSTR legacy_id_w = nullptr;
-        if (!is_object) legacy_id_w = instance_id_param.value;
-        if (legacy_id_w && legacy_id_w[0] != L'\0') {
-            instance_id = StringUtils::WideToUtf8(legacy_id_w);
-            strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
-            is_migrated = true;
-        }
-        else {
             instance_id = StringUtils::GenerateUUID();
             strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
-        }
     }
 
     if (instance_id.empty()) return true;
@@ -350,23 +295,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (is_copy) {
         DbgPrint("Copy detected! New instance_id: %hs", instance_id.c_str());
         strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
-    }
-
-    if (is_migrated) {
-        std::string plugin_path = StringUtils::WideToUtf8(plugin_path_param.value);
-
-        std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-        g_main_thread_tasks.push_back([id_to_clear = instance_id, path_to_clear = plugin_path]() {
-            std::lock_guard<std::mutex> lock(g_cleanup_mutex);
-            g_legacy_id_to_clear = id_to_clear;
-            g_plugin_path_for_clear = path_to_clear;
-
-            if (g_edit_handle) {
-                g_edit_handle->call_edit_section(find_and_clear_legacy_id_proc);
-            }
-            });
-
-        return true;
     }
 
     std::wstring plugin_path_w = plugin_path_param.value;

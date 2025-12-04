@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.16a"
+#define PLUGIN_VERSION L"v2-0.0.17"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
