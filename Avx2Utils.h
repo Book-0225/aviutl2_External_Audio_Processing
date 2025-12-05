@@ -233,7 +233,7 @@ namespace Avx2Utils {
         __m256 v_cLR = _mm256_set1_ps(cLR), v_cRR = _mm256_set1_ps(cRR);
 
         for (; i < aligned_count; i += 32) {
-            auto mix_chunk = [&](int offset) {
+            auto mix_chunk = [&](int32_t offset) {
                 __m256 l = _mm256_loadu_ps(inL + i + offset);
                 __m256 r = _mm256_loadu_ps(inR + i + offset);
                 _mm256_storeu_ps(outL + i + offset, _mm256_fmadd_ps(l, v_cLL, _mm256_mul_ps(r, v_cRL)));
@@ -282,7 +282,7 @@ namespace Avx2Utils {
         __m256 v_neg0 = _mm256_set1_ps(-0.0f);
 
         for (; i < aligned_count; i += 32) {
-            auto process_chunk = [&](int offset) {
+            auto process_chunk = [&](int32_t offset) {
                 __m256 x = _mm256_loadu_ps(buf + i + offset);
                 x = _mm256_mul_ps(x, v_gain);
                 x = _mm256_max_ps(x, v_neg3);
@@ -325,7 +325,7 @@ namespace Avx2Utils {
         __m256 v_min = _mm256_set1_ps(-0.8f);
 
         for (; i < aligned_count; i += 32) {
-            auto process_chunk = [&](int offset) {
+            auto process_chunk = [&](int32_t offset) {
                 __m256 x = _mm256_loadu_ps(buf + i + offset);
                 x = _mm256_mul_ps(x, v_drive_scale);
                 x = _mm256_min_ps(x, v_max);
@@ -357,7 +357,7 @@ namespace Avx2Utils {
         __m256 v_inv_step = _mm256_set1_ps(1.0f / step_size);
 
         for (; i < aligned_count; i += 32) {
-            auto process_chunk = [&](int offset) {
+            auto process_chunk = [&](int32_t offset) {
                 __m256 x = _mm256_loadu_ps(buf + i + offset);
                 x = _mm256_mul_ps(x, v_inv_step);
                 x = _mm256_floor_ps(x);
@@ -413,5 +413,135 @@ namespace Avx2Utils {
         }
         _mm256_zeroupper();
         return max_val;
+    }
+
+    inline void EnvelopeFollowerAVX2(float* envelope, const float* input, size_t count, float attack_coeff, float release_coeff) {
+        size_t i = 0;
+        size_t aligned_count = count - (count % 8);
+        __m256 v_attack = _mm256_set1_ps(attack_coeff);
+        __m256 v_release = _mm256_set1_ps(release_coeff);
+        __m256 v_one = _mm256_set1_ps(1.0f);
+        __m256 v_one_m_attack = _mm256_set1_ps(1.0f - attack_coeff);
+        __m256 v_one_m_release = _mm256_set1_ps(1.0f - release_coeff);
+
+        for (; i < aligned_count; i += 8) {
+            __m256 v_env = _mm256_loadu_ps(envelope + i);
+            __m256 v_in = _mm256_loadu_ps(input + i);
+            __m256 v_cmp = _mm256_cmp_ps(v_in, v_env, _CMP_GT_OS);
+            __m256 v_attack_result = _mm256_fmadd_ps(v_env, v_attack, _mm256_mul_ps(v_in, v_one_m_attack));
+            __m256 v_release_result = _mm256_fmadd_ps(v_env, v_release, _mm256_mul_ps(v_in, v_one_m_release));
+            __m256 v_result = _mm256_blendv_ps(v_release_result, v_attack_result, v_cmp);
+            _mm256_storeu_ps(envelope + i, v_result);
+        }
+        
+        for (; i < count; ++i) {
+            if (input[i] > envelope[i]) {
+                envelope[i] = attack_coeff * envelope[i] + (1.0f - attack_coeff) * input[i];
+            } else {
+                envelope[i] = release_coeff * envelope[i] + (1.0f - release_coeff) * input[i];
+            }
+        }
+        _mm256_zeroupper();
+    }
+
+    inline void AbsAVX2(float* out, const float* in, size_t count) {
+        size_t i = 0;
+        size_t aligned_count = count - (count % 32);
+        __m256 v_mask = _mm256_set1_ps(-0.0f);
+
+        for (; i < aligned_count; i += 32) {
+            __m256 v0 = _mm256_loadu_ps(in + i);
+            __m256 v1 = _mm256_loadu_ps(in + i + 8);
+            __m256 v2 = _mm256_loadu_ps(in + i + 16);
+            __m256 v3 = _mm256_loadu_ps(in + i + 24);
+            _mm256_storeu_ps(out + i, _mm256_andnot_ps(v_mask, v0));
+            _mm256_storeu_ps(out + i + 8, _mm256_andnot_ps(v_mask, v1));
+            _mm256_storeu_ps(out + i + 16, _mm256_andnot_ps(v_mask, v2));
+            _mm256_storeu_ps(out + i + 24, _mm256_andnot_ps(v_mask, v3));
+        }
+
+        for (; i < (count - (count % 8)); i += 8) {
+            __m256 v = _mm256_loadu_ps(in + i);
+            _mm256_storeu_ps(out + i, _mm256_andnot_ps(v_mask, v));
+        }
+
+        for (; i < count; ++i) out[i] = std::abs(in[i]);
+        _mm256_zeroupper();
+    }
+
+    inline void MaxBufferAVX2(float* out, const float* src1, const float* src2, size_t count) {
+        size_t i = 0;
+        size_t aligned_count = count - (count % 32);
+
+        for (; i < aligned_count; i += 32) {
+            __m256 v0_a = _mm256_loadu_ps(src1 + i), v0_b = _mm256_loadu_ps(src2 + i);
+            __m256 v1_a = _mm256_loadu_ps(src1 + i + 8), v1_b = _mm256_loadu_ps(src2 + i + 8);
+            __m256 v2_a = _mm256_loadu_ps(src1 + i + 16), v2_b = _mm256_loadu_ps(src2 + i + 16);
+            __m256 v3_a = _mm256_loadu_ps(src1 + i + 24), v3_b = _mm256_loadu_ps(src2 + i + 24);
+            _mm256_storeu_ps(out + i, _mm256_max_ps(v0_a, v0_b));
+            _mm256_storeu_ps(out + i + 8, _mm256_max_ps(v1_a, v1_b));
+            _mm256_storeu_ps(out + i + 16, _mm256_max_ps(v2_a, v2_b));
+            _mm256_storeu_ps(out + i + 24, _mm256_max_ps(v3_a, v3_b));
+        }
+
+        for (; i < (count - (count % 8)); i += 8) {
+            __m256 va = _mm256_loadu_ps(src1 + i);
+            __m256 vb = _mm256_loadu_ps(src2 + i);
+            _mm256_storeu_ps(out + i, _mm256_max_ps(va, vb));
+        }
+
+        for (; i < count; ++i) out[i] = (std::max)(src1[i], src2[i]);
+        _mm256_zeroupper();
+    }
+
+    inline void ThresholdAVX2(float* out, const float* in, size_t count, float threshold) {
+        size_t i = 0;
+        size_t aligned_count = count - (count % 32);
+        __m256 v_threshold = _mm256_set1_ps(threshold);
+        __m256 v_one = _mm256_set1_ps(1.0f);
+        __m256 v_zero = _mm256_set1_ps(0.0f);
+
+        for (; i < aligned_count; i += 32) {
+            __m256 v0 = _mm256_loadu_ps(in + i);
+            __m256 v1 = _mm256_loadu_ps(in + i + 8);
+            __m256 v2 = _mm256_loadu_ps(in + i + 16);
+            __m256 v3 = _mm256_loadu_ps(in + i + 24);
+            __m256 cmp0 = _mm256_cmp_ps(v0, v_threshold, _CMP_GT_OS);
+            __m256 cmp1 = _mm256_cmp_ps(v1, v_threshold, _CMP_GT_OS);
+            __m256 cmp2 = _mm256_cmp_ps(v2, v_threshold, _CMP_GT_OS);
+            __m256 cmp3 = _mm256_cmp_ps(v3, v_threshold, _CMP_GT_OS);
+            _mm256_storeu_ps(out + i, _mm256_blendv_ps(v_zero, v_one, cmp0));
+            _mm256_storeu_ps(out + i + 8, _mm256_blendv_ps(v_zero, v_one, cmp1));
+            _mm256_storeu_ps(out + i + 16, _mm256_blendv_ps(v_zero, v_one, cmp2));
+            _mm256_storeu_ps(out + i + 24, _mm256_blendv_ps(v_zero, v_one, cmp3));
+        }
+
+        for (; i < (count - (count % 8)); i += 8) {
+            __m256 v = _mm256_loadu_ps(in + i);
+            __m256 cmp = _mm256_cmp_ps(v, v_threshold, _CMP_GT_OS);
+            _mm256_storeu_ps(out + i, _mm256_blendv_ps(v_zero, v_one, cmp));
+        }
+
+        for (; i < count; ++i) out[i] = in[i] > threshold ? 1.0f : 0.0f;
+        _mm256_zeroupper();
+    }
+
+    inline void PeakDetectStereoAVX2(float* out_peak, const float* inL, const float* inR, size_t count) {
+        size_t i = 0;
+        size_t aligned_count = count - (count % 8);
+        __m256 v_sign_mask = _mm256_set1_ps(-0.0f);
+
+        for (; i < aligned_count; i += 8) {
+            __m256 vL = _mm256_loadu_ps(inL + i);
+            __m256 vR = _mm256_loadu_ps(inR + i);
+            vL = _mm256_andnot_ps(v_sign_mask, vL);
+            vR = _mm256_andnot_ps(v_sign_mask, vR);
+            _mm256_storeu_ps(out_peak + i, _mm256_max_ps(vL, vR));
+        }
+
+        for (; i < count; ++i) {
+            out_peak[i] = (std::max)(std::abs(inL[i]), std::abs(inR[i]));
+        }
+        _mm256_zeroupper();
     }
 }

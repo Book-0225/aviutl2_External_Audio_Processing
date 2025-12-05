@@ -90,9 +90,13 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     float lim_lin = static_cast<float>(std::pow(10.0, lim_db / 20.0));
 
     thread_local std::vector<float> bufL, bufR;
+    thread_local std::vector<float> peak_buf, gate_target_buf, comp_gain_buf;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
         bufR.resize(total_samples);
+        peak_buf.resize(total_samples);
+        gate_target_buf.resize(total_samples);
+        comp_gain_buf.resize(total_samples);
     }
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
@@ -101,6 +105,8 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
 
     double current_gate_gain = state->gate_gain;
     double current_comp_env = state->comp_envelope;
+    Avx2Utils::PeakDetectStereoAVX2(peak_buf.data(), bufL.data(), bufR.data(), total_samples);
+    Avx2Utils::ThresholdAVX2(gate_target_buf.data(), peak_buf.data(), total_samples, (float)gate_th_lin);
 
     alignas(32) float temp_gain[BLOCK_SIZE];
 
@@ -108,20 +114,17 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
         int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
+        float* p_peak = peak_buf.data() + i;
+        float* p_gate_target = gate_target_buf.data() + i;
 
         for (int32_t k = 0; k < block_count; ++k) {
-            float l = pL[k];
-            float r = pR[k];
-            double in_abs = std::abs(l);
-            if (channels >= 2) in_abs = (std::max)(in_abs, (double)std::abs(r));
-
-            double gate_target = (in_abs > gate_th_lin) ? 1.0 : 0.0;
+            double gate_target = p_gate_target[k] > 0.5f ? 1.0 : 0.0;
             if (gate_target > current_gate_gain)
                 current_gate_gain += gate_atk_coef * (gate_target - current_gate_gain);
             else
                 current_gate_gain += gate_rel_coef * (gate_target - current_gate_gain);
 
-            double gated_abs = in_abs * current_gate_gain;
+            double gated_abs = (double)p_peak[k] * current_gate_gain;
 
             double comp_gain = 1.0;
             if (use_comp) {

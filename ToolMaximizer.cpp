@@ -94,27 +94,30 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     double current_env = state->envelope;
     const int32_t buf_size = MAX_LOOKAHEAD_BUFFER;
 
-    alignas(32) float temp_gain[BLOCK_SIZE];
+    thread_local std::vector<float> peak_buf, gain_buf;
+    if (peak_buf.size() < static_cast<size_t>(total_samples)) {
+        peak_buf.resize(total_samples);
+        gain_buf.resize(total_samples);
+    }
+
     alignas(32) float temp_out_L[BLOCK_SIZE];
     alignas(32) float temp_out_R[BLOCK_SIZE];
+
+    Avx2Utils::ScaleBufferAVX2(bufL.data(), bufL.data(), total_samples, makeup_gain);
+    Avx2Utils::ScaleBufferAVX2(bufR.data(), bufR.data(), total_samples, makeup_gain);
+    Avx2Utils::PeakDetectStereoAVX2(peak_buf.data(), bufL.data(), bufR.data(), total_samples);
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
         int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
-
-        Avx2Utils::ScaleBufferAVX2(pL, pL, block_count, makeup_gain);
-        Avx2Utils::ScaleBufferAVX2(pR, pR, block_count, makeup_gain);
+        float* p_peak = peak_buf.data() + i;
 
         Avx2Utils::WriteRingBufferAVX2(state->bufferL, pL, buf_size, w_pos, block_count);
         Avx2Utils::WriteRingBufferAVX2(state->bufferR, pR, buf_size, w_pos, block_count);
 
         for (int32_t k = 0; k < block_count; ++k) {
-            float l = pL[k];
-            float r = pR[k];
-            double in_peak = std::abs(l);
-            double r_peak = std::abs(r);
-            if (r_peak > in_peak) in_peak = r_peak;
+            double in_peak = (double)p_peak[k];
 
             if (in_peak > current_env) {
                 current_env = in_peak;
@@ -127,7 +130,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
             if (current_env > ceiling_lin) {
                 gain = ceiling_lin / current_env;
             }
-            temp_gain[k] = static_cast<float>(gain);
+            gain_buf[i + k] = static_cast<float>(gain);
         }
 
         int32_t r_pos = w_pos - lookahead_samples;
@@ -135,9 +138,8 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
 
         Avx2Utils::ReadRingBufferAVX2(temp_out_L, state->bufferL, buf_size, r_pos, block_count);
         Avx2Utils::ReadRingBufferAVX2(temp_out_R, state->bufferR, buf_size, r_pos, block_count);
-        Avx2Utils::MultiplyBufferAVX2(pL, temp_out_L, temp_gain, block_count);
-        Avx2Utils::MultiplyBufferAVX2(pR, temp_out_R, temp_gain, block_count);
-
+        Avx2Utils::MultiplyBufferAVX2(pL, temp_out_L, gain_buf.data() + i, block_count);
+        Avx2Utils::MultiplyBufferAVX2(pR, temp_out_R, gain_buf.data() + i, block_count);
         w_pos += block_count;
         if (w_pos >= buf_size) w_pos -= buf_size;
     }

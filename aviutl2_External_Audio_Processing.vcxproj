@@ -41,6 +41,7 @@
     <ClCompile Include="ToolPitchShift.cpp" />
     <ClCompile Include="ToolReverb.cpp" />
     <ClCompile Include="ToolPhaser.cpp" />
+    <ClCompile Include="ToolSpectralGate.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPluginFactory.h" />

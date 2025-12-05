@@ -86,6 +86,7 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_generator;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_pitch_shift;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_autowah;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_deesser;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
 
 void CleanupMainFilterResources();
