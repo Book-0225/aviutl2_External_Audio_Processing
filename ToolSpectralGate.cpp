@@ -99,7 +99,7 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     }
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) std::fill(bufR.begin(), bufR.end(), 0.0f);
+    else if (channels == 1) Avx2Utils::FillBufferAVX2(bufR.data(), bufR.size(), 0.0f);
 
     {
         std::lock_guard<std::mutex> lock(g_spectral_gate_mutex);

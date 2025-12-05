@@ -63,7 +63,7 @@ public:
     }
 
     void clear() {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        Avx2Utils::FillBufferAVX2(buffer.data(), buffer.size(), 0.0f);
         filter_store = 0.0f;
         write_pos = 0;
     }
@@ -102,7 +102,7 @@ public:
     }
 
     void clear() {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        Avx2Utils::FillBufferAVX2(buffer.data(), buffer.size(), 0.0f);
         write_pos = 0;
     }
 };
@@ -164,8 +164,8 @@ struct ReverbState {
         if (!initialized) return;
         for (int32_t i = 0; i < NUM_COMBS; ++i) { combsL[i].clear(); combsR[i].clear(); }
         for (int32_t i = 0; i < NUM_ALLPASS; ++i) { allpassL[i].clear(); allpassR[i].clear(); }
-        std::fill(pre_delay_bufL.begin(), pre_delay_bufL.end(), 0.0f);
-        std::fill(pre_delay_bufR.begin(), pre_delay_bufR.end(), 0.0f);
+        Avx2Utils::FillBufferAVX2(pre_delay_bufL.data(), pre_delay_bufL.size(), 0.0f);
+        Avx2Utils::FillBufferAVX2(pre_delay_bufR.data(), pre_delay_bufR.size(), 0.0f);
         pre_delay_write_pos = 0;
     }
 };
@@ -237,7 +237,7 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
 
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
-    else if (channels == 1) std::copy(bufL.begin(), bufL.begin() + total_samples, bufR.begin());
+    else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     alignas(32) float temp_wet_in[PROCESS_BLOCK_SIZE];
     alignas(32) float temp_comb_out[PROCESS_BLOCK_SIZE];
@@ -272,7 +272,7 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
             }
 
             Avx2Utils::MixAudioAVX2(temp_accum, p_dry_l, block_size, mix, 1.0f - mix, 1.0f);
-            std::copy(temp_accum, temp_accum + block_size, p_dry_l);
+            Avx2Utils::CopyBufferAVX2(p_dry_l, temp_accum, block_size);
         }
         {
             int32_t w_pos_r = current_w_pos;
@@ -290,7 +290,7 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
             }
 
             Avx2Utils::MixAudioAVX2(temp_accum, p_dry_r, block_size, mix, 1.0f - mix, 1.0f);
-            std::copy(temp_accum, temp_accum + block_size, p_dry_r);
+            Avx2Utils::CopyBufferAVX2(p_dry_r, temp_accum, block_size);
         }
         state->pre_delay_write_pos = next_w_pos;
     }

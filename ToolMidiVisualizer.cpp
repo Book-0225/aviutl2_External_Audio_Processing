@@ -214,7 +214,7 @@ FILTER_ITEM_SELECT::ITEM list_scroll[] = {
     {L"下から上", 3},
     {nullptr}
 };
-FILTER_ITEM_SELECT select_scroll = {L"方向", 0, list_scroll};
+FILTER_ITEM_SELECT select_scroll = {L"方向", 2, list_scroll};
 FILTER_ITEM_SELECT::ITEM list_reaction[] = {
     {L"通過", 0},
     {L"消失+変色", 1},
@@ -223,8 +223,8 @@ FILTER_ITEM_SELECT::ITEM list_reaction[] = {
     {nullptr}
 };
 FILTER_ITEM_SELECT select_reaction = {L"挙動", 0, list_reaction};
-FILTER_ITEM_TRACK track_zoom_time = {L"拡大率", 1.0, 0.01, 20.0, 0.01};
-FILTER_ITEM_TRACK track_scroll_pos = {L"位置", 0.0, 0.0, 2000.0, 1.0};
+FILTER_ITEM_TRACK track_zoom_time = {L"拡大率", 100.0, 1.0, 2000.0, 1.0};
+FILTER_ITEM_TRACK track_scroll_pos = {L"位置", 0.0, 0.0, 4000.0, 1.0};
 FILTER_ITEM_GROUP group_keys = {L"キーの範囲とサイズ"};
 FILTER_ITEM_TRACK track_key_min = {L"最小キー", 0, 0, 127, 1};
 FILTER_ITEM_TRACK track_key_max = {L"最大キー", 127, 0, 127, 1};
@@ -257,10 +257,10 @@ FILTER_ITEM_GROUP group_border = {L"縁", false};
 FILTER_ITEM_CHECK check_border = {L"縁を描画", false};
 FILTER_ITEM_TRACK track_border_w = {L"縁幅", 1.0, 0.0, 10.0, 1.0};
 FILTER_ITEM_COLOR color_border = {L"縁色", 0xFFFFFF};
-FILTER_ITEM_TRACK track_note_alpha = {L"ノートの不透明度", 255.0, 0.0, 255.0, 1.0};
+FILTER_ITEM_TRACK track_note_alpha = {L"ノートの不透明度", 100.0, 0.0, 100.0, 1.0};
 FILTER_ITEM_GROUP group_kb = {L"装飾"};
 FILTER_ITEM_CHECK check_draw_kb = {L"キーボード", true};
-FILTER_ITEM_TRACK track_kb_width = {L"幅", 40.0, 0.0, 2000.0, 1.0};
+FILTER_ITEM_TRACK track_kb_width = {L"キーボード幅", 40.0, 0.0, 2000.0, 1.0};
 FILTER_ITEM_TRACK track_kb_black_ratio = {L"黒鍵割合", 0.65, 0.1, 1.0, 0.01};
 FILTER_ITEM_TRACK track_kb_led_pos = {L"LED位置", 85.0, 0.0, 100.0, 1.0};
 FILTER_ITEM_TRACK track_kb_led_size = {L"LEDサイズ", 60.0, 1.0, 100.0, 1.0};
@@ -271,8 +271,10 @@ FILTER_ITEM_CHECK check_grid_h = {L"キーグリッド", true};
 FILTER_ITEM_CHECK check_grid_v = {L"ビートグリッド", false};
 FILTER_ITEM_GROUP group_effect = {L"エフェクト"};
 FILTER_ITEM_TRACK track_sink_depth = {L"沈み込み", 0.0, 0.0, 10.0, 1.0};
-FILTER_ITEM_TRACK track_ripple_size = {L"波紋", 0.0, 0.0, 500.0, 1.0};
-FILTER_ITEM_TRACK track_particle_amt = {L"パーティクル", 10.0, 0.0, 1000.0, 1.0};
+FILTER_ITEM_TRACK track_ripple_size = {L"波紋サイズ", 0.0, 0.0, 1000.0, 1.0};
+FILTER_ITEM_TRACK track_ripple_time = {L"波紋時間", 1.0, 0.0, 10.0, 0.01};
+FILTER_ITEM_TRACK track_particle_amt = {L"パーティクル量", 10.0, 0.0, 5000.0, 1.0};
+FILTER_ITEM_TRACK track_particle_time = {L"パーティクル時間", 0.5, 0.0, 50.0, 0.01};
 
 void *filter_items_midi_visualizer[] = {
     &track_file,
@@ -326,7 +328,9 @@ void *filter_items_midi_visualizer[] = {
     &group_effect,
     &track_sink_depth,
     &track_ripple_size,
+    &track_ripple_time,
     &track_particle_amt,
+    &track_particle_time,
     nullptr
 };
 
@@ -353,13 +357,9 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     if (w <= 0 || h <= 0) return true;
     std::vector<PIXEL_RGBA> imgBuf(w * h);
     uint8_t bgAlpha = (uint8_t)track_bg_alpha.value;
-    if (bgAlpha == 0) {
-        std::fill(imgBuf.begin(), imgBuf.end(), PIXEL_RGBA{0, 0, 0, 0});
-    }
-    else {
-        PIXEL_RGBA bgCol = {(uint8_t)color_bg.value.b, (uint8_t)color_bg.value.g, (uint8_t)color_bg.value.r, bgAlpha};
-        std::fill(imgBuf.begin(), imgBuf.end(), bgCol);
-    }
+    PIXEL_RGBA bgCol = {(uint8_t)color_bg.value.b, (uint8_t)color_bg.value.g, (uint8_t)color_bg.value.r, bgAlpha};
+    // Use AVX2-accelerated fill for large buffers
+    Avx2Utils::FillBufferRGBAx8(imgBuf.data(), w * h, bgCol);
     double currentTime = video->object->time + track_offset.value;
     double speedMul = track_speed_mul.value;
     int64_t currentTick = 0;
@@ -386,7 +386,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     if (ticksPerSec <= 0) ticksPerSec = 1;
     int32_t scrollMode = select_scroll.value;
     int32_t reactionMode = select_reaction.value;
-    double zoomT = track_zoom_time.value;
+    double zoomT = track_zoom_time.value / 100.0;
     double scrollPos = track_scroll_pos.value;
     int32_t minKey = (int32_t)track_key_min.value;
     int32_t maxKey = (int32_t)track_key_max.value;
@@ -409,7 +409,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     bool border = check_border.value;
     int32_t borderW = (int32_t)track_border_w.value;
     PIXEL_RGBA borderColor = {color_border.value.r, color_border.value.g, color_border.value.b, 255};
-    uint8_t noteAlpha = (uint8_t)track_note_alpha.value;
+    uint8_t noteAlpha = (uint8_t)((track_note_alpha.value * UINT8_MAX) / 100.0);
     bool drawKb = check_draw_kb.value;
     bool drawNotes = check_draw_notes.value;
     double kbWidth = track_kb_width.value;
@@ -421,11 +421,11 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     int32_t range = maxKey - minKey + 1;
     int32_t sinkDepth = (int32_t)track_sink_depth.value;
     double rippleMaxR = track_ripple_size.value;
+    double rippleLife = track_ripple_time.value;
     int32_t particleAmt = (int32_t)track_particle_amt.value;
-    bool enableRipple = (rippleMaxR > 0);
-    bool enableParticle = (particleAmt > 0);
-    double rippleLife = 1.5;
-    double particleLife = 0.5;
+    double particleLife = track_particle_time.value;
+    bool enableRipple = (rippleMaxR > 0 && rippleLife > 0);
+    bool enableParticle = (particleAmt > 0 && particleLife > 0);
     auto GetNoteColor = [&](const ProcessedNote &note) -> PIXEL_RGBA {
         PIXEL_RGBA col = baseColor;
         if (colMode == 1) col = HsvToRgb(fmod(note.pitch * 30.0, 360.0), 0.7, 1.0);
@@ -535,7 +535,40 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
         double alphaFactor = 1.0 - progress;
         col.a = (uint8_t)(col.a * alphaFactor);
         float thick = 8.0f + 12.0f * (float)progress;
-        DrawRing(imgBuf.data(), w, h, cx, cy, (float)radius, thick, col);
+        int32_t rOut = (int32_t)ceil(radius + thick);
+        int32_t bx0 = cx - rOut;
+        int32_t by0 = cy - rOut;
+        int32_t bx1 = cx + rOut;
+        int32_t by1 = cy + rOut;
+        if (bx1 < 0 || by1 < 0 || bx0 >= w || by0 >= h) return;
+        if (bx0 < 0) bx0 = 0;
+        if (by0 < 0) by0 = 0;
+        if (bx1 >= w) bx1 = w - 1;
+        if (by1 >= h) by1 = h - 1;
+        int32_t rectW = bx1 - bx0 + 1;
+        int32_t rectH = by1 - by0 + 1;
+        thread_local std::vector<float> rippleMask;
+        rippleMask.assign(rectW * rectH, 0.0f);
+        Avx2Utils::ComputeRingAlphaMaskAVX2(rippleMask.data(), bx0, by0, rectW, rectH, w, h, (float)cx, (float)cy, (float)radius, (float)thick);
+        for (int32_t yy = 0; yy < rectH; ++yy) {
+            int32_t img_y = by0 + yy;
+            PIXEL_RGBA* line = imgBuf.data() + img_y * w;
+            for (int32_t xx = 0; xx < rectW; ++xx) {
+                float a = rippleMask[yy * rectW + xx];
+                if (a <= 0.0f) continue;
+                int32_t img_x = bx0 + xx;
+                int32_t idx = img_y * w + img_x;
+                PIXEL_RGBA src = imgBuf[idx];
+                float alphaNorm = (col.a / 255.0f) * a;
+                float invA = 1.0f - alphaNorm;
+                PIXEL_RGBA out;
+                out.r = (uint8_t)(col.r * alphaNorm + src.r * invA);
+                out.g = (uint8_t)(col.g * alphaNorm + src.g * invA);
+                out.b = (uint8_t)(col.b * alphaNorm + src.b * invA);
+                out.a = (uint8_t)std::min<int>(255, (int32_t)(src.a + col.a * a));
+                imgBuf[idx] = out;
+            }
+        }
     };
     for (int32_t i = 0; i < range; i++) {
         int32_t noteNum = minKey + i;
@@ -560,7 +593,13 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             kx = (scrollMode == 0) ? 0 : w - kw;
             if (check_grid_h.value) {
                 int32_t gy = ky + kh;
-                if (gy < h && gy >= 0) DrawBox(imgBuf.data(), w, h, 0, gy, w, grid_width, gridColH, {}, 0, 0, false);
+                if (gy < h && gy >= 0) {
+                    // Use SIMD-accelerated line blending for grid
+                    for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
+                        int32_t y = gy + gwid;
+                        if (y < h && y >= 0) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), 0, y, w, w, h, gridColH);
+                    }
+                }
             }
             if (drawKb && kw > 0) {
                 PIXEL_RGBA bgCol = colorWhiteKey;
@@ -572,7 +611,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 if (currentIsBlack) {
                     DrawBox(imgBuf.data(), w, h, kx, ky, kw, kh, colorWhiteKey, {}, 0, 0, false);
                     int32_t cy = ky + kh / 2;
-                    DrawBox(imgBuf.data(), w, h, kx, cy, kw, 1, keyBorderCol, {}, 0, 0, false);
+                    if (cy >= 0 && cy < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), kx, cy, kw, w, h, keyBorderCol);
                     double shortKw = (double)kw * blackKeyRatio;
                     int32_t diff = kw - (int32_t)shortKw;
                     int32_t blackKw = (int32_t)shortKw;
@@ -583,7 +622,10 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 } else {
                     DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, bgCol, {}, 0, 0, false);
                     if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, activeCol);
-                    if (n == 0 || n == 5) DrawBox(imgBuf.data(), w, h, kx, ky + kh - 1, kw, 1, keyBorderCol, {}, 0, 0, false);
+                    if (n == 0 || n == 5) {
+                        int32_t by = ky + kh - 1;
+                        if (by >= 0 && by < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), kx, by, kw, w, h, keyBorderCol);
+                    }
                 }
             }
         }
@@ -594,7 +636,12 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             ky = (scrollMode == 2) ? h - kh : 0;
             if (check_grid_h.value) {
                 int32_t gx = kx;
-                if (gx < w && gx >= 0) DrawBox(imgBuf.data(), w, h, gx, 0, grid_width, h, gridColV, {}, 0, 0, false);
+                if (gx < w && gx >= 0) {
+                    for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
+                        int32_t x = gx + gwid;
+                        if (x >= 0 && x < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), x, 0, h, w, h, gridColV);
+                    }
+                }
             }
             if (drawKb && kh > 0) {
                 PIXEL_RGBA bgCol = colorWhiteKey;
@@ -606,7 +653,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 if (currentIsBlack) {
                     DrawBox(imgBuf.data(), w, h, kx, ky, kw, kh, colorWhiteKey, {}, 0, 0, false);
                     int32_t cx = kx + kw / 2;
-                    DrawBox(imgBuf.data(), w, h, cx, ky, 1, kh, keyBorderCol, {}, 0, 0, false);
+                    if (cx >= 0 && cx < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), cx, ky, kh, w, h, keyBorderCol);
                     double shortKh = (double)kh * blackKeyRatio;
                     int32_t diff = kh - (int32_t)shortKh;
                     int32_t blackKh = (int32_t)shortKh;
@@ -618,7 +665,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                     DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, bgCol, {}, 0, 0, false);
                     if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, activeCol);
                     if (n == 0 || n == 5) {
-                        DrawBox(imgBuf.data(), w, h, kx, ky, 1, kh, keyBorderCol, {}, 0, 0, false);
+                        if (kx >= 0 && kx < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), kx, ky, kh, w, h, keyBorderCol);
                     }
                 }
             }
@@ -670,8 +717,20 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 else if (scrollMode == 3) pos = (int32_t)(scrollPos + diff * zoomT);
                 if (pos < -2 || pos > maxDim + 2) continue;
                 PIXEL_RGBA col = isMeasure ? measureCol : beatCol;
-                if (scrollMode == 0 || scrollMode == 1) DrawBox(imgBuf.data(), w, h, pos, 0, grid_width, h, col, {}, 0, 0, false);
-                else DrawBox(imgBuf.data(), w, h, 0, pos, w, grid_width, col, {}, 0, 0, false);
+                if (scrollMode == 0 || scrollMode == 1) {
+                    // Use SIMD-accelerated vertical line blending for beat grid
+                    for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
+                        int32_t x = pos + gwid;
+                        if (x >= 0 && x < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), x, 0, h, w, h, col);
+                    }
+                }
+                else {
+                    // Use SIMD-accelerated horizontal line blending for horizontal scroll
+                    for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
+                        int32_t y = pos + gwid;
+                        if (y >= 0 && y < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), 0, y, w, w, h, col);
+                    }
+                }
             }
         }
     }
@@ -733,7 +792,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
         }
     }
     if (enableParticle && reactionMode > 0) {
-        float emissionInterval = 0.03f;
+        float emissionInterval = 0.01f;
         for (const auto &note : data.notes) {
             if (filterCh != 0 && note.channel != (filterCh - 1)) continue;
             if (hidePerc && note.channel == 9) continue;
@@ -779,18 +838,9 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 params.start_idx = idx;
                 float px[8], py[8], ages[8];
                 int32_t mask = Avx2Utils::ComputeParticleBatchAVX2(params, px, py, ages);
-                for (int32_t m = 0; m < 8; ++m) {
-                    if (idx + m >= total_particles) break;
-                    if ((mask >> m) & 1) {
-                        if (px[m] >= 0 && px[m] < w && py[m] >= 0 && py[m] < h) {
-                            float lifeRatio = ages[m] / (float)particleLife;
-                            PIXEL_RGBA col = noteColor;
-                            col.a = (uint8_t)(255 * (1.0f - lifeRatio));
-                            int32_t pSize = (int32_t)(3.0f * (1.0f - lifeRatio) + 1.0f);
-                            DrawBox(imgBuf.data(), w, h, (int32_t)px[m], (int32_t)py[m], pSize, pSize, col, {}, 0, 0, false);
-                        }
-                    }
-                }
+                int32_t block = (std::min)(8, total_particles - idx);
+                // BlendPointsAVX2 will check validity (age range) and bounds internally
+                Avx2Utils::BlendPointsAVX2(imgBuf.data(), w, h, px, py, ages, block, noteColor, (float)particleLife);
             }
         }
     }

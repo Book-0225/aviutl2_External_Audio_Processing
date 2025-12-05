@@ -18,9 +18,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(dst + i + 16, r2);
             _mm256_storeu_ps(dst + i + 24, r3);
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_loadu_ps(src + i));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(dst + i, _mm256_loadu_ps(src + i));
         for (; i < count; ++i) dst[i] = src[i];
         _mm256_zeroupper();
     }
@@ -35,9 +33,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(out + i + 16, v_val);
             _mm256_storeu_ps(out + i + 24, v_val);
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(out + i, v_val);
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(out + i, v_val);
         for (; i < count; ++i) out[i] = value;
         _mm256_zeroupper();
     }
@@ -52,9 +48,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(out + i + 16, _mm256_mul_ps(_mm256_loadu_ps(in + i + 16), v_scale));
             _mm256_storeu_ps(out + i + 24, _mm256_mul_ps(_mm256_loadu_ps(in + i + 24), v_scale));
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(out + i, _mm256_mul_ps(_mm256_loadu_ps(in + i), v_scale));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(out + i, _mm256_mul_ps(_mm256_loadu_ps(in + i), v_scale));
         for (; i < count; ++i) out[i] = in[i] * scale;
         _mm256_zeroupper();
     }
@@ -68,9 +62,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(dst + i + 16, _mm256_add_ps(_mm256_loadu_ps(dst + i + 16), _mm256_loadu_ps(src + i + 16)));
             _mm256_storeu_ps(dst + i + 24, _mm256_add_ps(_mm256_loadu_ps(dst + i + 24), _mm256_loadu_ps(src + i + 24)));
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i), _mm256_loadu_ps(src + i)));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(dst + i, _mm256_add_ps(_mm256_loadu_ps(dst + i), _mm256_loadu_ps(src + i)));
         for (; i < count; ++i) dst[i] += src[i];
         _mm256_zeroupper();
     }
@@ -85,9 +77,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(dst + i + 16, _mm256_fmadd_ps(_mm256_loadu_ps(src + i + 16), v_scale, _mm256_loadu_ps(dst + i + 16)));
             _mm256_storeu_ps(dst + i + 24, _mm256_fmadd_ps(_mm256_loadu_ps(src + i + 24), v_scale, _mm256_loadu_ps(dst + i + 24)));
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_fmadd_ps(_mm256_loadu_ps(src + i), v_scale, _mm256_loadu_ps(dst + i)));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(dst + i, _mm256_fmadd_ps(_mm256_loadu_ps(src + i), v_scale, _mm256_loadu_ps(dst + i)));
         for (; i < count; ++i) dst[i] += src[i] * scale;
         _mm256_zeroupper();
     }
@@ -101,9 +91,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(dst + i + 16, _mm256_mul_ps(_mm256_loadu_ps(dst + i + 16), _mm256_loadu_ps(src + i + 16)));
             _mm256_storeu_ps(dst + i + 24, _mm256_mul_ps(_mm256_loadu_ps(dst + i + 24), _mm256_loadu_ps(src + i + 24)));
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(dst + i, _mm256_mul_ps(_mm256_loadu_ps(dst + i), _mm256_loadu_ps(src + i)));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(dst + i, _mm256_mul_ps(_mm256_loadu_ps(dst + i), _mm256_loadu_ps(src + i)));
         for (; i < count; ++i) dst[i] *= src[i];
         _mm256_zeroupper();
     }
@@ -117,9 +105,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(out + i + 16, _mm256_mul_ps(_mm256_loadu_ps(src1 + i + 16), _mm256_loadu_ps(src2 + i + 16)));
             _mm256_storeu_ps(out + i + 24, _mm256_mul_ps(_mm256_loadu_ps(src1 + i + 24), _mm256_loadu_ps(src2 + i + 24)));
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(out + i, _mm256_mul_ps(_mm256_loadu_ps(src1 + i), _mm256_loadu_ps(src2 + i)));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(out + i, _mm256_mul_ps(_mm256_loadu_ps(src1 + i), _mm256_loadu_ps(src2 + i)));
         for (; i < count; ++i) out[i] = src1[i] * src2[i];
         _mm256_zeroupper();
     }
@@ -218,15 +204,12 @@ namespace Avx2Utils {
             _mm256_storeu_ps(buf + i + 16, _mm256_mul_ps(_mm256_loadu_ps(buf + i + 16), v_neg));
             _mm256_storeu_ps(buf + i + 24, _mm256_mul_ps(_mm256_loadu_ps(buf + i + 24), v_neg));
         }
-        for (; i < (count - (count % 8)); i += 8) {
-            _mm256_storeu_ps(buf + i, _mm256_mul_ps(_mm256_loadu_ps(buf + i), v_neg));
-        }
+        for (; i < (count - (count % 8)); i += 8) _mm256_storeu_ps(buf + i, _mm256_mul_ps(_mm256_loadu_ps(buf + i), v_neg));
         for (; i < count; ++i) buf[i] = -buf[i];
         _mm256_zeroupper();
     }
 
-    inline void MatrixMixStereoAVX2(float* outL, float* outR, const float* inL, const float* inR, size_t count, float cLL, float cRL, float cLR, float cRR)
-    {
+    inline void MatrixMixStereoAVX2(float* outL, float* outR, const float* inL, const float* inR, size_t count, float cLL, float cRL, float cLR, float cRR) {
         size_t i = 0;
         size_t aligned_count = count - (count % 32);
         __m256 v_cLL = _mm256_set1_ps(cLL), v_cRL = _mm256_set1_ps(cRL);
@@ -373,9 +356,7 @@ namespace Avx2Utils {
             x = _mm256_mul_ps(x, v_step);
             _mm256_storeu_ps(buf + i, x);
         }
-        for (; i < count; ++i) {
-            buf[i] = std::floor(buf[i] / step_size) * step_size;
-        }
+        for (; i < count; ++i) buf[i] = std::floor(buf[i] / step_size) * step_size;
         _mm256_zeroupper();
     }
 
@@ -408,9 +389,7 @@ namespace Avx2Utils {
         float max_val = 0.0f;
         for (int32_t k = 0; k < 8; ++k) if (temp[k] > max_val) max_val = temp[k];
 
-        for (; i < count; ++i) {
-            max_val = (std::max)(max_val, std::abs(src[i]));
-        }
+        for (; i < count; ++i) max_val = (std::max)(max_val, std::abs(src[i]));
         _mm256_zeroupper();
         return max_val;
     }
@@ -435,11 +414,8 @@ namespace Avx2Utils {
         }
         
         for (; i < count; ++i) {
-            if (input[i] > envelope[i]) {
-                envelope[i] = attack_coeff * envelope[i] + (1.0f - attack_coeff) * input[i];
-            } else {
-                envelope[i] = release_coeff * envelope[i] + (1.0f - release_coeff) * input[i];
-            }
+            if (input[i] > envelope[i]) envelope[i] = attack_coeff * envelope[i] + (1.0f - attack_coeff) * input[i];
+            else envelope[i] = release_coeff * envelope[i] + (1.0f - release_coeff) * input[i];
         }
         _mm256_zeroupper();
     }
@@ -539,9 +515,7 @@ namespace Avx2Utils {
             _mm256_storeu_ps(out_peak + i, _mm256_max_ps(vL, vR));
         }
 
-        for (; i < count; ++i) {
-            out_peak[i] = (std::max)(std::abs(inL[i]), std::abs(inR[i]));
-        }
+        for (; i < count; ++i) out_peak[i] = (std::max)(std::abs(inL[i]), std::abs(inR[i]));
         _mm256_zeroupper();
     }
 
@@ -613,5 +587,349 @@ namespace Avx2Utils {
         _mm256_storeu_ps(out_age, v_age);
         _mm256_zeroupper();
         return _mm256_movemask_ps(v_mask);
+    }
+
+    inline void FillBufferRGBAx8(PIXEL_RGBA* buf, size_t pixelCount, PIXEL_RGBA color) {
+        if (pixelCount <= 0) return;
+        uint32_t colorU32 = *(uint32_t*)&color;
+        __m256i v_color = _mm256_setr_epi32(colorU32, colorU32, colorU32, colorU32, colorU32, colorU32, colorU32, colorU32);
+        
+        size_t i = 0;
+        size_t aligned = pixelCount - (pixelCount % 8);
+        uint32_t* buf32 = (uint32_t*)buf;
+        
+        for (; i < aligned; i += 8) _mm256_storeu_si256((__m256i*)(buf32 + i), v_color);
+        for (; i < pixelCount; ++i) buf[i] = color;
+    }
+
+    inline void BlendPixelBatchAVX2(PIXEL_RGBA* buf, const int32_t* xs, const int32_t* ys, int count, int imgW, int imgH, PIXEL_RGBA col) {
+        if (count <= 0 || col.a == 0) return;
+        __m256 v_alpha = _mm256_set1_ps(col.a / 255.0f);
+        __m256 v_invAlpha = _mm256_set1_ps(1.0f - col.a / 255.0f);
+        __m256 v_cr = _mm256_set1_ps((float)col.r);
+        __m256 v_cg = _mm256_set1_ps((float)col.g);
+        __m256 v_cb = _mm256_set1_ps((float)col.b);
+        __m256 v_ca = _mm256_set1_ps((float)col.a);
+
+        for (int k = 0; k < count; ++k) {
+            int32_t x = xs[k];
+            int32_t y = ys[k];
+            if (x < 0 || y < 0 || x >= imgW || y >= imgH) continue;
+            int32_t idx = y * imgW + x;
+            if (col.a == 255) {
+                buf[idx] = col;
+            } else {
+                PIXEL_RGBA bg = buf[idx];
+                __m256 v_bgr = _mm256_set1_ps((float)bg.r);
+                __m256 v_bgg = _mm256_set1_ps((float)bg.g);
+                __m256 v_bgb = _mm256_set1_ps((float)bg.b);
+                __m256 v_bga = _mm256_set1_ps((float)bg.a);
+                __m256 v_outr = _mm256_add_ps(_mm256_mul_ps(v_cr, v_alpha), _mm256_mul_ps(v_bgr, v_invAlpha));
+                __m256 v_outg = _mm256_add_ps(_mm256_mul_ps(v_cg, v_alpha), _mm256_mul_ps(v_bgg, v_invAlpha));
+                __m256 v_outb = _mm256_add_ps(_mm256_mul_ps(v_cb, v_alpha), _mm256_mul_ps(v_bgb, v_invAlpha));
+                __m256 v_outa = _mm256_min_ps(_mm256_set1_ps(255.0f), _mm256_add_ps(v_bga, v_ca));
+                alignas(32) float outr[8], outg[8], outb[8], outa[8];
+                _mm256_store_ps(outr, v_outr);
+                _mm256_store_ps(outg, v_outg);
+                _mm256_store_ps(outb, v_outb);
+                _mm256_store_ps(outa, v_outa);
+                buf[idx].r = (uint8_t)outr[0];
+                buf[idx].g = (uint8_t)outg[0];
+                buf[idx].b = (uint8_t)outb[0];
+                buf[idx].a = (uint8_t)outa[0];
+            }
+        }
+        _mm256_zeroupper();
+    }
+
+    inline void BlendPointsAVX2(PIXEL_RGBA* img, int imgW, int imgH, const float* px, const float* py, const float* ages, int count, PIXEL_RGBA color, float particleLife) {
+        if (count <= 0) return;
+        __m256 v_life = _mm256_set1_ps(particleLife);
+        __m256 v_zero = _mm256_setzero_ps();
+        __m256 v_one = _mm256_set1_ps(1.0f);
+        __m256 v_alpha_scale = _mm256_set1_ps(color.a / 255.0f);
+        __m256 v_px = _mm256_loadu_ps(px);
+        __m256 v_py = _mm256_loadu_ps(py);
+        __m256 v_age = _mm256_loadu_ps(ages);
+        __m256 v_valid_lo = _mm256_cmp_ps(v_age, v_zero, _CMP_GT_OQ);
+        __m256 v_valid_hi = _mm256_cmp_ps(v_age, v_life, _CMP_LT_OQ);
+        __m256 v_valid = _mm256_and_ps(v_valid_lo, v_valid_hi);
+        int32_t valid_mask = _mm256_movemask_ps(v_valid);
+        __m256 v_age_norm = _mm256_div_ps(v_age, v_life);
+        __m256 v_alpha = _mm256_mul_ps(_mm256_sub_ps(v_one, v_age_norm), v_alpha_scale);
+        __m256 v_cr = _mm256_set1_ps((float)color.r);
+        __m256 v_cg = _mm256_set1_ps((float)color.g);
+        __m256 v_cb = _mm256_set1_ps((float)color.b);
+        __m256 v_r = _mm256_mul_ps(v_cr, v_alpha);
+        __m256 v_g = _mm256_mul_ps(v_cg, v_alpha);
+        __m256 v_b = _mm256_mul_ps(v_cb, v_alpha);
+
+        alignas(32) float pxs[8], pys[8], rx[8], gx[8], bx[8], ax[8];
+        _mm256_store_ps(pxs, v_px);
+        _mm256_store_ps(pys, v_py);
+        _mm256_store_ps(rx, v_r);
+        _mm256_store_ps(gx, v_g);
+        _mm256_store_ps(bx, v_b);
+        _mm256_store_ps(ax, v_alpha);
+
+        for (int k = 0; k < count; ++k) {
+            if (!((valid_mask >> k) & 1)) continue;
+            int ix = (int)pxs[k];
+            int iy = (int)pys[k];
+            if (ix < 0 || iy < 0 || ix >= imgW || iy >= imgH) continue;
+            float alpha = ax[k];
+            float lifeRatio = ages[k] / particleLife;
+            int pSize = (int)(3.0f * (1.0f - lifeRatio) + 1.0f);
+            if (pSize < 1) pSize = 1;
+            float invA = 1.0f - alpha;
+            for (int dy = 0; dy < pSize; ++dy) {
+                int yy = iy + dy;
+                if (yy >= imgH) break;
+                int base = yy * imgW;
+                for (int dx = 0; dx < pSize; ++dx) {
+                    int xx = ix + dx;
+                    if (xx >= imgW) break;
+                    int idx = base + xx;
+                    PIXEL_RGBA src = img[idx];
+                    PIXEL_RGBA out;
+                    out.r = (uint8_t)(rx[k] + src.r * invA);
+                    out.g = (uint8_t)(gx[k] + src.g * invA);
+                    out.b = (uint8_t)(bx[k] + src.b * invA);
+                    out.a = (uint8_t)std::min<int>(255, (int)(src.a + color.a * alpha));
+                    img[idx] = out;
+                }
+            }
+        }
+        _mm256_zeroupper();
+    }
+
+    inline void ComputeRingAlphaMaskAVX2(float* outAlpha, int32_t rectX, int32_t rectY, int32_t rectW, int32_t rectH, int32_t imgW, int32_t imgH, float cx, float cy, float radius, float thickness) {
+        if (rectW <= 0 || rectH <= 0) return;
+        float rOut = radius;
+        float rIn = (radius - thickness);
+        if (rIn < 0.0f) rIn = 0.0f;
+        float rOut2 = rOut * rOut;
+        float rIn2 = rIn * rIn;
+
+        const int32_t simdWidth = 8;
+        __m256 v_cx = _mm256_set1_ps(cx);
+        __m256 v_cy = _mm256_set1_ps(cy);
+        __m256 v_rOut2 = _mm256_set1_ps(rOut2);
+        __m256 v_rIn2 = _mm256_set1_ps(rIn2);
+        __m256 v_one = _mm256_set1_ps(1.0f);
+
+        for (int32_t yy = 0; yy < rectH; ++yy) {
+            int32_t y = rectY + yy;
+            float dy = (float)y - cy;
+            __m256 v_dy = _mm256_set1_ps(dy);
+            __m256 v_dy2 = _mm256_mul_ps(v_dy, v_dy);
+
+            int32_t xx = 0;
+            for (; xx <= rectW - simdWidth; xx += simdWidth) {
+                alignas(32) float xs[8];
+                for (int k = 0; k < 8; ++k) xs[k] = (float)(rectX + xx + k);
+                __m256 v_x = _mm256_load_ps(xs);
+                __m256 v_dx = _mm256_sub_ps(v_x, v_cx);
+                __m256 v_dx2 = _mm256_mul_ps(v_dx, v_dx);
+                __m256 v_d2 = _mm256_add_ps(v_dx2, v_dy2);
+                __m256 v_ge_in = _mm256_cmp_ps(v_d2, v_rIn2, _CMP_GE_OS);
+                __m256 v_le_out = _mm256_cmp_ps(v_d2, v_rOut2, _CMP_LE_OS);
+                __m256 v_mask = _mm256_and_ps(v_ge_in, v_le_out);
+                __m256 v_distOut = _mm256_sub_ps(v_rOut2, v_d2);
+                __m256 v_distIn = _mm256_sub_ps(v_d2, v_rIn2);
+                __m256 v_alphaOut = _mm256_min_ps(v_one, _mm256_mul_ps(v_distOut, _mm256_set1_ps(0.25f)));
+                __m256 v_alphaIn = _mm256_min_ps(v_one, _mm256_mul_ps(v_distIn, _mm256_set1_ps(0.25f)));
+                __m256 v_alpha = _mm256_min_ps(v_alphaIn, v_alphaOut);
+                v_alpha = _mm256_and_ps(v_alpha, v_mask);
+
+                alignas(32) float outVals[8];
+                _mm256_store_ps(outVals, v_alpha);
+                for (int k = 0; k < 8; ++k) outAlpha[yy * rectW + xx + k] = outVals[k];
+            }
+            for (; xx < rectW; ++xx) {
+                int32_t x = rectX + xx;
+                float dx = (float)x - cx;
+                float d2 = dx*dx + dy*dy;
+                float a = 0.0f;
+                if (d2 >= rIn2 && d2 <= rOut2) {
+                    float distOut = rOut2 - d2;
+                    float distIn = d2 - rIn2;
+                    float ao = (std::min)(1.0f, distOut * 0.25f);
+                    float ai = (std::min)(1.0f, distIn * 0.25f);
+                    a = (std::min)(ao, ai);
+                }
+                outAlpha[yy * rectW + xx] = a;
+            }
+        }
+        _mm256_zeroupper();
+    }
+
+    inline void FillLineRGBAx8(PIXEL_RGBA* buf, int startX, int y, int lineLen, int imgW, int imgH, PIXEL_RGBA color) {
+        if (lineLen <= 0 || y < 0 || y >= imgH) return;
+        int endX = (std::min)(startX + lineLen, imgW);
+        if (startX >= imgW || endX <= 0) return;
+        if (startX < 0) startX = 0;
+        
+        int pixIdx = y * imgW + startX;
+        int remaining = endX - startX;
+        uint32_t colorU32 = *(uint32_t*)&color;
+        __m256i v_color = _mm256_setr_epi32(colorU32, colorU32, colorU32, colorU32, colorU32, colorU32, colorU32, colorU32);
+        
+        uint32_t* buf32 = (uint32_t*)(buf + pixIdx);
+        int aligned = remaining - (remaining % 8);
+        
+        for (int i = 0; i < aligned; i += 8) _mm256_storeu_si256((__m256i*)(buf32 + i), v_color);
+        for (int i = aligned; i < remaining; ++i) buf[pixIdx + i] = color;
+    }
+
+    inline void BlendLineRGBAx8(PIXEL_RGBA* buf, int startX, int y, int lineLen, int imgW, int imgH, PIXEL_RGBA color) {
+        if (lineLen <= 0 || y < 0 || y >= imgH || color.a == 0) return;
+        if (color.a == 255) {
+            FillLineRGBAx8(buf, startX, y, lineLen, imgW, imgH, color);
+            return;
+        }
+        
+        int endX = (std::min)(startX + lineLen, imgW);
+        if (startX >= imgW || endX <= 0) return;
+        if (startX < 0) startX = 0;
+        
+        int pixIdx = y * imgW + startX;
+        int remaining = endX - startX;
+        
+        __m256 v_alpha = _mm256_set1_ps(color.a / 255.0f);
+        __m256 v_invAlpha = _mm256_set1_ps(1.0f - color.a / 255.0f);
+        __m256 v_cr = _mm256_set1_ps((float)color.r);
+        __m256 v_cg = _mm256_set1_ps((float)color.g);
+        __m256 v_cb = _mm256_set1_ps((float)color.b);
+        __m256 v_ca = _mm256_set1_ps((float)color.a);
+        __m256 v_255 = _mm256_set1_ps(255.0f);
+        
+        for (int i = 0; i < remaining - 7; i += 8) {
+            __m256i bg_packed = _mm256_loadu_si256((__m256i*)(buf + pixIdx + i));
+            alignas(32) uint32_t bgPackedArr[8];
+            _mm256_store_si256((__m256i*)bgPackedArr, bg_packed);
+            
+            alignas(32) float bgr[8], bgg[8], bgb[8], bga[8];
+            for (int j = 0; j < 8; ++j) {
+                uint32_t px = bgPackedArr[j];
+                bgr[j] = (float)((uint8_t)(px & 0xFF));
+                bgg[j] = (float)((uint8_t)((px >> 8) & 0xFF));
+                bgb[j] = (float)((uint8_t)((px >> 16) & 0xFF));
+                bga[j] = (float)((uint8_t)((px >> 24) & 0xFF));
+            }
+            
+            __m256 v_bgr = _mm256_load_ps(bgr);
+            __m256 v_bgg = _mm256_load_ps(bgg);
+            __m256 v_bgb = _mm256_load_ps(bgb);
+            __m256 v_bga = _mm256_load_ps(bga);
+            __m256 v_outr = _mm256_add_ps(_mm256_mul_ps(v_cr, v_alpha), _mm256_mul_ps(v_bgr, v_invAlpha));
+            __m256 v_outg = _mm256_add_ps(_mm256_mul_ps(v_cg, v_alpha), _mm256_mul_ps(v_bgg, v_invAlpha));
+            __m256 v_outb = _mm256_add_ps(_mm256_mul_ps(v_cb, v_alpha), _mm256_mul_ps(v_bgb, v_invAlpha));
+            __m256 v_outa = _mm256_min_ps(v_255, _mm256_add_ps(v_bga, v_ca));
+            
+            alignas(32) float outr[8], outg[8], outb[8], outa[8];
+            _mm256_store_ps(outr, v_outr);
+            _mm256_store_ps(outg, v_outg);
+            _mm256_store_ps(outb, v_outb);
+            _mm256_store_ps(outa, v_outa);
+            
+            for (int j = 0; j < 8; ++j) {
+                buf[pixIdx + i + j].r = (uint8_t)outr[j];
+                buf[pixIdx + i + j].g = (uint8_t)outg[j];
+                buf[pixIdx + i + j].b = (uint8_t)outb[j];
+                buf[pixIdx + i + j].a = (uint8_t)outa[j];
+            }
+        }
+        
+        int aligned = remaining - (remaining % 8);
+        for (int i = aligned; i < remaining; ++i) {
+            PIXEL_RGBA bg = buf[pixIdx + i];
+            float alpha = color.a / 255.0f;
+            float invAlpha = 1.0f - alpha;
+            buf[pixIdx + i].r = (uint8_t)(color.r * alpha + bg.r * invAlpha);
+            buf[pixIdx + i].g = (uint8_t)(color.g * alpha + bg.g * invAlpha);
+            buf[pixIdx + i].b = (uint8_t)(color.b * alpha + bg.b * invAlpha);
+            buf[pixIdx + i].a = (uint8_t)(std::min)(255, (int)(bg.a + color.a));
+        }
+        _mm256_zeroupper();
+    }
+
+    inline void FillVerticalLineRGBAx8(PIXEL_RGBA* buf, int x, int startY, int lineLen, int imgW, int imgH, PIXEL_RGBA color) {
+        if (lineLen <= 0 || x < 0 || x >= imgW) return;
+        int endY = (std::min)(startY + lineLen, imgH);
+        if (startY >= imgH || endY <= 0) return;
+        if (startY < 0) startY = 0;
+        
+        int remaining = endY - startY;
+        for (int i = 0; i < remaining; ++i) buf[(startY + i) * imgW + x] = color;
+    }
+
+    inline void BlendVerticalLineRGBAx8(PIXEL_RGBA* buf, int x, int startY, int lineLen, int imgW, int imgH, PIXEL_RGBA color) {
+        if (lineLen <= 0 || x < 0 || x >= imgW || color.a == 0) return;
+        if (color.a == 255) {
+            FillVerticalLineRGBAx8(buf, x, startY, lineLen, imgW, imgH, color);
+            return;
+        }
+        
+        int endY = (std::min)(startY + lineLen, imgH);
+        if (startY >= imgH || endY <= 0) return;
+        if (startY < 0) startY = 0;
+        
+        int remaining = endY - startY;
+        float alpha = color.a / 255.0f;
+        float invAlpha = 1.0f - alpha;
+        
+        for (int i = 0; i < remaining - 7; i += 8) {
+            alignas(32) float pixr[8], pixg[8], pixb[8], pixa[8];
+            
+            for (int j = 0; j < 8; ++j) {
+                PIXEL_RGBA bg = buf[(startY + i + j) * imgW + x];
+                pixr[j] = (float)bg.r;
+                pixg[j] = (float)bg.g;
+                pixb[j] = (float)bg.b;
+                pixa[j] = (float)bg.a;
+            }
+            
+            __m256 v_bgr = _mm256_load_ps(pixr);
+            __m256 v_bgg = _mm256_load_ps(pixg);
+            __m256 v_bgb = _mm256_load_ps(pixb);
+            __m256 v_bga = _mm256_load_ps(pixa);
+            __m256 v_alpha = _mm256_set1_ps(alpha);
+            __m256 v_invAlpha = _mm256_set1_ps(invAlpha);
+            __m256 v_cr = _mm256_set1_ps((float)color.r);
+            __m256 v_cg = _mm256_set1_ps((float)color.g);
+            __m256 v_cb = _mm256_set1_ps((float)color.b);
+            __m256 v_ca = _mm256_set1_ps((float)color.a);
+            __m256 v_255 = _mm256_set1_ps(255.0f);
+            __m256 v_outr = _mm256_add_ps(_mm256_mul_ps(v_cr, v_alpha), _mm256_mul_ps(v_bgr, v_invAlpha));
+            __m256 v_outg = _mm256_add_ps(_mm256_mul_ps(v_cg, v_alpha), _mm256_mul_ps(v_bgg, v_invAlpha));
+            __m256 v_outb = _mm256_add_ps(_mm256_mul_ps(v_cb, v_alpha), _mm256_mul_ps(v_bgb, v_invAlpha));
+            __m256 v_outa = _mm256_min_ps(v_255, _mm256_add_ps(v_bga, v_ca));
+            
+            alignas(32) float outr[8], outg[8], outb[8], outa[8];
+            _mm256_store_ps(outr, v_outr);
+            _mm256_store_ps(outg, v_outg);
+            _mm256_store_ps(outb, v_outb);
+            _mm256_store_ps(outa, v_outa);
+            
+            for (int j = 0; j < 8; ++j) {
+                int idx = (startY + i + j) * imgW + x;
+                buf[idx].r = (uint8_t)outr[j];
+                buf[idx].g = (uint8_t)outg[j];
+                buf[idx].b = (uint8_t)outb[j];
+                buf[idx].a = (uint8_t)outa[j];
+            }
+        }
+        
+        int aligned = remaining - (remaining % 8);
+        for (int i = aligned; i < remaining; ++i) {
+            int idx = (startY + i) * imgW + x;
+            PIXEL_RGBA bg = buf[idx];
+            buf[idx].r = (uint8_t)(color.r * alpha + bg.r * invAlpha);
+            buf[idx].g = (uint8_t)(color.g * alpha + bg.g * invAlpha);
+            buf[idx].b = (uint8_t)(color.b * alpha + bg.b * invAlpha);
+            buf[idx].a = (uint8_t)(std::min)(255, (int)(bg.a + color.a));
+        }
+        _mm256_zeroupper();
     }
 }

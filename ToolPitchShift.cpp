@@ -41,8 +41,8 @@ struct PitchShiftState {
     }
     void clear() {
         if (initialized) {
-            std::fill(bufferL.begin(), bufferL.end(), 0.0f);
-            std::fill(bufferR.begin(), bufferR.end(), 0.0f);
+            Avx2Utils::FillBufferAVX2(bufferL.data(), bufferL.size(), 0.0f);
+            Avx2Utils::FillBufferAVX2(bufferR.data(), bufferR.size(), 0.0f);
             write_pos = 0;
             read_pos_a = 0.0;
         }
