@@ -240,7 +240,7 @@ FILTER_ITEM_TRACK track_ch_target = {L"チャンネル", 0, 0, 16, 1};
 FILTER_ITEM_TRACK track_vel_min = {L"最小強度", 0, 0, 127, 1};
 FILTER_ITEM_CHECK check_hide_perc = {L"ドラムを無効", false};
 FILTER_ITEM_GROUP group_style = {L"ノートスタイル"};
-FILTER_ITEM_CHECK check_draw_notes = {L"ノーツを描画", true};
+FILTER_ITEM_CHECK check_draw_notes = {L"ノートを描画", true};
 FILTER_ITEM_SELECT::ITEM list_col_mode[] = {
     {L"単色", 0},
     {L"虹色", 1},
