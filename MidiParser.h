@@ -21,6 +21,12 @@ struct TempoMapEntry {
     uint32_t mpqn;
 };
 
+struct TimeSignatureEvent {
+    uint32_t absoluteTick;
+    uint8_t numerator;
+    uint8_t denominator;
+};
+
 class MidiParser {
 public:
     MidiParser();
@@ -30,9 +36,15 @@ public:
     void Clear();
 
     const std::vector<RawMidiEvent>& GetEvents() const { return m_events; }
+    const std::vector<TempoEvent>& GetTempoEvents() const { return m_tempoEvents; }
     uint16_t GetTPQN() const { return m_tpqn; }
     int64_t GetTickAtTime(double time) const;
     double GetBpmAtTime(double time) const;
+    TimeSignatureEvent GetTimeSignatureAt(uint32_t tick) const {
+        if (m_timeSigEvents.empty()) return { 0, 4, 4 };
+        for (auto it = m_timeSigEvents.rbegin(); it != m_timeSigEvents.rend(); ++it) if (it->absoluteTick <= tick) return *it;
+        return m_timeSigEvents.front();
+    }
 
 private:
     void BuildTempoMap();
@@ -41,4 +53,5 @@ private:
     std::vector<RawMidiEvent> m_events;
     std::vector<TempoEvent> m_tempoEvents;
     std::vector<TempoMapEntry> m_tempoMap;
+    std::vector<TimeSignatureEvent> m_timeSigEvents;
 };

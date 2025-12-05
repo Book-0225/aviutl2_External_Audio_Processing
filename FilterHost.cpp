@@ -149,10 +149,7 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
 
                 for (int32_t i = 0; i < effect_count; ++i) {
                     std::wstring indexed_filter_name = std::wstring(current_filter_name);
-                    if (i > 0) {
-                        indexed_filter_name += L":" + std::to_wstring(i);
-                    }
-                    
+                    if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
                     LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
                     if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
                         std::string decoded_id_with_padding = StringUtils::HexToString(hex_encoded_id_str);
@@ -310,17 +307,13 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
 
     bool effective_bypass = (!apply_l && !apply_r) || (wet_val == 0.0f);
-    if (effective_bypass && vol_val == 100.0f) {
-        return true;
-    }
+    if (effective_bypass && vol_val == 100.0f) return true;
 
     bool needs_reinitialization = false;
     bool path_changed = false;
     std::string current_plugin_path;
 
-    if (PluginManager::GetInstance().IsPendingReinitialization(effect_id)) {
-        return true;
-    }
+    if (PluginManager::GetInstance().IsPendingReinitialization(effect_id)) return true;
 
     std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHost(effect_id);
     if (plugin_path_w.empty()) {
@@ -362,12 +355,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         if (sampleRate > 0) {
                             if (new_host->LoadPlugin(new_path_utf8, sampleRate, MAX_BLOCK_SIZE)) {
                                 std::string state_to_restore;
-                                if (!path_changed) {
-                                    state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
-                                }
-                                if (!state_to_restore.empty()) {
-                                    new_host->SetState(state_to_restore);
-                                }
+                                if (!path_changed) state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
+                                if (!state_to_restore.empty()) new_host->SetState(state_to_restore);
                             }
                             else {
                                 new_host = nullptr;
@@ -383,6 +372,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
         return true;
     }
+
+    int32_t ts_num = (int32_t)track_ts_num.value;
+    int32_t ts_denom = (int32_t)track_ts_denom.value;
 
     if (host) {
         if (check_map_reset.value) {
@@ -469,9 +461,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         host->HideGui();
                         std::string state = host->GetState();
                         DbgPrint("Plugin GUI hidden, saving state for %hs, (Size: %zu, Data: %.120hs...)", instance_id.c_str(), state.size(), state.c_str());
-                        if (!state.empty()) {
-                            PluginManager::GetInstance().SaveState(instance_id, state);
-                        }
+                        if (!state.empty()) PluginManager::GetInstance().SaveState(instance_id, state);
                     }
                 }
                 });
@@ -496,8 +486,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     int64_t current_pos = (int64_t)(audio->object->sample_index + 0.5);
     double bpm;
     bool sync_bpm = check_bpm_sync_midi.value;
-    int32_t ts_num = (int32_t)track_ts_num.value;
-    int32_t ts_denom = (int32_t)track_ts_denom.value;
     bool processed_by_host = false;
 	bool should_reset = false;
 
@@ -563,9 +551,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         else {
                             if (state->waiting_for_update[i]) continue;
                             if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
-                            if (state->missed_count[i] >= REMOVE_THRESHOLD) {
-                                note_data.effect_id[i] = -1;
-                            }
+                            if (state->missed_count[i] >= REMOVE_THRESHOLD) note_data.effect_id[i] = -1;
                             if (state->missed_count[i] <= ACTIVE_THRESHOLD) {
                                 uint8_t note_num = std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127);
                                 current_note_owners[note_num] = note_data.effect_id[i];
@@ -584,21 +570,15 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 auto curr_it = current_note_owners.find(note);
                 if (curr_it == current_note_owners.end() || curr_it->second != old_id) {
                     realtime_midi_events.push_back({ 0, 0x80, note, 0 });
-                    if (curr_it != current_note_owners.end() && curr_it->second != old_id) {
-                        retrigger_notes.insert(note);
-                    }
+                    if (curr_it != current_note_owners.end() && curr_it->second != old_id) retrigger_notes.insert(note);
                 }
             }
             for (const auto& pair : current_note_owners) {
                 uint8_t note = pair.first;
                 bool is_fresh = (ms.last_active_note_owners.find(note) == ms.last_active_note_owners.end());
                 bool is_retrigger = (retrigger_notes.count(note) > 0);
-                if (is_fresh) {
-                    realtime_midi_events.push_back({ 0, 0x90, note, 100 });
-                }
-                else if (is_retrigger) {
-                    realtime_midi_events.push_back({ 1, 0x90, note, 100 });
-                }
+                if (is_fresh)  realtime_midi_events.push_back({ 0, 0x90, note, 100 });
+                else if (is_retrigger) realtime_midi_events.push_back({ 1, 0x90, note, 100 });
             }
             ms.last_active_note_owners = current_note_owners;
         }
@@ -606,6 +586,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         if (sync_bpm) {
             double current_time_sec = (double)current_pos / audio->scene->sample_rate;
             bpm = ms.parser.GetBpmAtTime(current_time_sec);
+            int64_t ts_tick = ms.parser.GetTickAtTime(current_time_sec);
+            auto ts_evt = ms.parser.GetTimeSignatureAt((uint32_t)ts_tick);
+            if (ts_evt.numerator > 0 && ts_evt.denominator > 0) {
+                ts_num = ts_evt.numerator;
+                ts_denom = ts_evt.denominator;
+            }
         }
         else {
             bpm = track_bpm.value;
@@ -622,9 +608,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
             std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
             if (!realtime_events_sent && !realtime_midi_events.empty()) {
-                for (auto& evt : realtime_midi_events) {
-                    midi_events_for_block.push_back(evt);
-                }
+                for (auto& evt : realtime_midi_events) midi_events_for_block.push_back(evt);
                 realtime_events_sent = true;
             }
             int64_t start_tick = 0;
@@ -642,8 +626,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 }
 
                 const auto& all_events = ms.parser.GetEvents();
-                auto it = std::lower_bound(all_events.begin(), all_events.end(), (uint32_t)start_tick,
-                    [](const RawMidiEvent& e, uint32_t tick) { return e.absoluteTick < tick; });
+                auto it = std::lower_bound(all_events.begin(), all_events.end(), (uint32_t)start_tick, [](const RawMidiEvent& e, uint32_t tick) { return e.absoluteTick < tick; });
 
                 for (; it != all_events.end(); ++it) {
                     if (it->absoluteTick >= end_tick) break;
@@ -653,9 +636,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     if (sync_bpm) {
                         int64_t tick_diff = it->absoluteTick - start_tick;
                         int64_t total_tick_diff = end_tick - start_tick;
-                        if (total_tick_diff > 0) {
-                            delta_samples = (int32_t)((double)tick_diff / total_tick_diff * block_size);
-                        }
+                        if (total_tick_diff > 0) delta_samples = (int32_t)((double)tick_diff / total_tick_diff * block_size);
                     }
                     else {
                         double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
@@ -693,20 +674,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     float vol_ratio = vol_val / 100.0f;
 
     if (processed_by_host) {
-        if (apply_l) {
-            Avx2Utils::MixAudioAVX2(outL.data(), inL.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
-        }
-        else {
-            Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
-        }
+        if (apply_l) Avx2Utils::MixAudioAVX2(outL.data(), inL.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
+        else Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
 
         if (channels >= 2) {
-            if (apply_r) {
-                Avx2Utils::MixAudioAVX2(outR.data(), inR.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
-            }
-            else {
-                Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
-            }
+            if (apply_r)  Avx2Utils::MixAudioAVX2(outR.data(), inR.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
+            else Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
         }
     }
     else {

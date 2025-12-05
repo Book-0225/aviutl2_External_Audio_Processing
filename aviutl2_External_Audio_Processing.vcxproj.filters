@@ -32,6 +32,7 @@
     <ClCompile Include="ToolAutoWah.cpp" />
     <ClCompile Include="ToolNotesSend.cpp" />
     <ClCompile Include="ToolSpectralGate.cpp" />
+    <ClCompile Include="ToolMidiVisualizer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />

@@ -62,13 +62,9 @@ LRESULT CALLBACK MessageWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         std::vector<std::function<void()>> tasks_to_run;
         {
             std::lock_guard<std::mutex> lock(g_task_queue_mutex);
-            if (!g_execution_queue.empty()) {
-                tasks_to_run.swap(g_execution_queue);
-            }
+            if (!g_execution_queue.empty()) tasks_to_run.swap(g_execution_queue);
         }
-        for (const auto& task : tasks_to_run) {
-            task();
-        }
+        for (const auto& task : tasks_to_run) task();
         return 0;
     }
     return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -85,9 +81,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
     );
     g_main_thread_tasks.clear();
 
-    if (g_hMessageWindow) {
-        PostMessage(g_hMessageWindow, WM_APP_EXECUTE_TASKS, 0, 0);
-    }
+    if (g_hMessageWindow) PostMessage(g_hMessageWindow, WM_APP_EXECUTE_TASKS, 0, 0);
 }
 
 BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
@@ -184,6 +178,7 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
 	host->register_filter_plugin(&filter_plugin_table_autowah);
 	host->register_filter_plugin(&filter_plugin_table_deesser);
 	host->register_filter_plugin(&filter_plugin_table_spectral_gate);
+	host->register_filter_plugin(&filter_plugin_table_midi_visualizer);
 	host->register_filter_plugin(&filter_plugin_table_notes_send_media);
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);

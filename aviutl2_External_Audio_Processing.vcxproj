@@ -42,6 +42,7 @@
     <ClCompile Include="ToolReverb.cpp" />
     <ClCompile Include="ToolPhaser.cpp" />
     <ClCompile Include="ToolSpectralGate.cpp" />
+    <ClCompile Include="ToolMidiVisualizer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPluginFactory.h" />

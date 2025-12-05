@@ -544,4 +544,74 @@ namespace Avx2Utils {
         }
         _mm256_zeroupper();
     }
+
+    struct ParticleBatchParams {
+        int32_t start_idx;
+        int32_t countPerStep;
+        int32_t k_min;
+        float emissionInterval;
+        float timeSinceStart;
+        uint32_t baseSeed;
+        float cx, cy;
+        int32_t scrollMode;
+        float gravity;
+        float particleLife;
+    };
+
+    inline int ComputeParticleBatchAVX2(const ParticleBatchParams& p, float* out_x, float* out_y, float* out_age) {
+        __m256 v_gravity = _mm256_set1_ps(p.gravity);
+        __m256 v_life = _mm256_set1_ps(p.particleLife);
+        __m256 v_zero = _mm256_setzero_ps();
+        __m256 v_cx = _mm256_set1_ps(p.cx);
+        __m256 v_cy = _mm256_set1_ps(p.cy);
+        __m256i v_idx = _mm256_setr_epi32(p.start_idx, p.start_idx + 1, p.start_idx + 2, p.start_idx + 3, p.start_idx + 4, p.start_idx + 5, p.start_idx + 6, p.start_idx + 7);
+        __m256 v_idx_ps = _mm256_cvtepi32_ps(v_idx);
+        __m256 v_count_ps = _mm256_cvtepi32_ps(_mm256_set1_epi32(p.countPerStep));
+        __m256 v_k_rel_ps = _mm256_floor_ps(_mm256_div_ps(v_idx_ps, v_count_ps));
+        __m256i v_k_rel_i = _mm256_cvtps_epi32(v_k_rel_ps);
+        __m256i v_k_i = _mm256_add_epi32(_mm256_set1_epi32(p.k_min), v_k_rel_i);
+        __m256i v_count_i = _mm256_set1_epi32(p.countPerStep);
+        __m256i v_p_i = _mm256_sub_epi32(v_idx, _mm256_mullo_epi32(v_k_rel_i, v_count_i));
+        __m256 v_k_ps = _mm256_cvtepi32_ps(v_k_i);
+        __m256 v_emitTime = _mm256_mul_ps(v_k_ps, _mm256_set1_ps(p.emissionInterval));
+        __m256 v_age = _mm256_sub_ps(_mm256_set1_ps(p.timeSinceStart), v_emitTime);
+        __m256i v_baseSeed = _mm256_set1_epi32(p.baseSeed);
+        __m256i v_seed = _mm256_add_epi32(v_baseSeed, _mm256_mullo_epi32(v_k_i, _mm256_set1_epi32(7193)));
+        v_seed = _mm256_add_epi32(v_seed, _mm256_mullo_epi32(v_p_i, _mm256_set1_epi32(31337)));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_slli_epi32(v_seed, 13));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_srli_epi32(v_seed, 17));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_slli_epi32(v_seed, 5));
+        __m256 v_rand1 = _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_and_si256(v_seed, _mm256_set1_epi32(0xFFFFFF))), _mm256_set1_ps(1.0f / 16777215.0f));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_slli_epi32(v_seed, 13));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_srli_epi32(v_seed, 17));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_slli_epi32(v_seed, 5));
+        __m256 v_rand2 = _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_and_si256(v_seed, _mm256_set1_epi32(0xFFFFFF))), _mm256_set1_ps(1.0f / 16777215.0f));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_slli_epi32(v_seed, 13));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_srli_epi32(v_seed, 17));
+        v_seed = _mm256_xor_si256(v_seed, _mm256_slli_epi32(v_seed, 5));
+        __m256 v_rand3 = _mm256_mul_ps(_mm256_cvtepi32_ps(_mm256_and_si256(v_seed, _mm256_set1_epi32(0xFFFFFF))), _mm256_set1_ps(1.0f / 16777215.0f));
+        __m256 v_one = _mm256_set1_ps(1.0f);
+        __m256 v_two = _mm256_set1_ps(2.0f);
+        __m256 v_rx = _mm256_sub_ps(_mm256_mul_ps(v_rand1, v_two), v_one);
+        __m256 v_ry = _mm256_sub_ps(_mm256_mul_ps(v_rand2, v_two), v_one);
+        __m256 v_lenSq = _mm256_add_ps(_mm256_mul_ps(v_rx, v_rx), _mm256_mul_ps(v_ry, v_ry));
+        __m256 v_invLen = _mm256_rsqrt_ps(_mm256_add_ps(v_lenSq, _mm256_set1_ps(1e-6f)));
+        __m256 v_speed = _mm256_add_ps(_mm256_set1_ps(50.0f), _mm256_mul_ps(v_rand3, _mm256_set1_ps(250.0f)));
+        __m256 v_vx = _mm256_mul_ps(v_rx, _mm256_mul_ps(v_invLen, v_speed));
+        __m256 v_vy = _mm256_mul_ps(v_ry, _mm256_mul_ps(v_invLen, v_speed));
+        __m256 v_px = _mm256_add_ps(v_cx, _mm256_mul_ps(v_vx, v_age));
+        __m256 v_py = _mm256_add_ps(v_cy, _mm256_mul_ps(v_vy, v_age));
+        __m256 v_g_delta = _mm256_mul_ps(_mm256_set1_ps(0.5f), _mm256_mul_ps(v_gravity, _mm256_mul_ps(v_age, v_age)));
+        if (p.scrollMode == 3) v_py = _mm256_sub_ps(v_py, v_g_delta);
+        else v_py = _mm256_add_ps(v_py, v_g_delta);
+        __m256 v_mask = _mm256_and_ps(
+            _mm256_cmp_ps(v_age, v_zero, _CMP_GT_OQ),
+            _mm256_cmp_ps(v_age, v_life, _CMP_LT_OQ)
+        );
+        _mm256_storeu_ps(out_x, v_px);
+        _mm256_storeu_ps(out_y, v_py);
+        _mm256_storeu_ps(out_age, v_age);
+        _mm256_zeroupper();
+        return _mm256_movemask_ps(v_mask);
+    }
 }

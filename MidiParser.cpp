@@ -30,6 +30,7 @@ MidiParser::~MidiParser() {}
 void MidiParser::Clear() {
     m_events.clear();
     m_tempoEvents.clear();
+    m_timeSigEvents.clear();
     m_tpqn = 480;
 }
 
@@ -49,9 +50,7 @@ bool MidiParser::Load(const std::string& path) {
     uint16_t numTracks = ReadBE16(f);
     m_tpqn = ReadBE16(f);
 
-    if (headerLength > 6) {
-        f.seekg(headerLength - 6, std::ios::cur);
-    }
+    if (headerLength > 6) f.seekg(headerLength - 6, std::ios::cur);
 
     for (int32_t t = 0; t < numTracks; ++t) {
         f.read(chunkType, 4);
@@ -91,6 +90,13 @@ bool MidiParser::Load(const std::string& path) {
                             double bpm = 60000000.0 / (double)microseconds;
                             m_tempoEvents.push_back({ currentTick, microseconds, bpm });
                         }
+                    }
+                    else if (type == 0x58 && len == 4) {
+                        uint8_t d[4];
+                        f.read((char*)d, 4);
+                        uint8_t num = d[0];
+                        uint8_t den = 1 << d[1];
+                        m_timeSigEvents.push_back({ currentTick, num, den });
                     }
                     else {
                         f.seekg(len, std::ios::cur);
@@ -142,6 +148,9 @@ bool MidiParser::Load(const std::string& path) {
         return a.absoluteTick < b.absoluteTick;
         });
     BuildTempoMap();
+    std::sort(m_timeSigEvents.begin(), m_timeSigEvents.end(), [](const TimeSignatureEvent& a, const TimeSignatureEvent& b) {
+        return a.absoluteTick < b.absoluteTick;
+    });
     return true;
 }
 
