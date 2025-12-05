@@ -272,7 +272,7 @@ FILTER_ITEM_CHECK check_grid_v = {L"ビートグリッド", false};
 FILTER_ITEM_GROUP group_effect = {L"エフェクト"};
 FILTER_ITEM_TRACK track_sink_depth = {L"沈み込み", 0.0, 0.0, 10.0, 1.0};
 FILTER_ITEM_TRACK track_ripple_size = {L"波紋", 0.0, 0.0, 500.0, 1.0};
-FILTER_ITEM_TRACK track_particle_amt = {L"パーティクル", 10.0, 0.0, 500.0, 1.0};
+FILTER_ITEM_TRACK track_particle_amt = {L"パーティクル", 10.0, 0.0, 1000.0, 1.0};
 
 void *filter_items_midi_visualizer[] = {
     &track_file,
