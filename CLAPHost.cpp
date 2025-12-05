@@ -1,4 +1,4 @@
-﻿#include "CLAPHost.h"
+﻿#include "ClapHost.h"
 #include "clap/all.h"
 #include <windows.h>
 #include <string>
