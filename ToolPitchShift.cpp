@@ -164,6 +164,10 @@ bool func_proc_audio_pitch_shift(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupPitchShiftResources() {
+    g_ps_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_pitch_shift = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

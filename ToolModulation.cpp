@@ -203,6 +203,10 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupModulationResources() {
+    g_mod_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_modulation = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

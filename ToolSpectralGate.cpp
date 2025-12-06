@@ -145,6 +145,10 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupSpectralGateResources() {
+    g_spectral_gate_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

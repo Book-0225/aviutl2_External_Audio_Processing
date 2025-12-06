@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.17"
+#define PLUGIN_VERSION L"v2-0.0.17a"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -133,6 +133,28 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     
     DbgPrint("EAP2 Initialized Successfully.");
     return true;
+}
+
+// Master Cleanup Function
+void ToolCleanupResources() {
+    CleanupSpectralGateResources();
+    CleanupSpatialResources();
+    CleanupReverbResources();
+    CleanupPitchShiftResources();
+    CleanupPhaserResources();
+    CleanupModulationResources();
+    CleanupGeneratorResources();
+    CleanupMaximizerResources();
+    CleanupEQResources();
+    CleanupDistortionResources();
+    CleanupDeEsserResources();
+    CleanupDynamicsResources();
+    CleanupChainGateResources();
+    CleanupChainFilterResources();
+    CleanupChainDynEQResources();
+    CleanupChainCompResources();
+    CleanupAutoWahResources();
+    CleanupMidiVisualizerResources();
 }
 
 EXTERN_C __declspec(dllexport) void UninitializePlugin() {

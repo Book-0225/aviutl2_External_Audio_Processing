@@ -171,6 +171,10 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupChainDynEQResources() {
+    g_dyneq_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_chain_dyn_eq = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

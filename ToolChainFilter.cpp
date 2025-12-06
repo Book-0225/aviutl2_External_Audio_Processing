@@ -169,6 +169,10 @@ bool func_proc_audio_chain_filter(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupChainFilterResources() {
+    g_cfilt_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_chain_filter = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

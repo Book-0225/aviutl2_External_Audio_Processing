@@ -143,6 +143,10 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupDeEsserResources() {
+    g_deess_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_deesser = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

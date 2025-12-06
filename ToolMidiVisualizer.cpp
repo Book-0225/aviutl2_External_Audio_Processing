@@ -70,6 +70,7 @@ struct VisualizerData {
             }
         }
     }
+    std::vector<PIXEL_RGBA> imgBuf;
 };
 
 static std::map<int64_t, VisualizerData> g_dataMap;
@@ -205,7 +206,7 @@ FILTER_ITEM_GROUP group_canvas = {L"表示設定"};
 FILTER_ITEM_TRACK track_width = {L"幅", 1280.0, 10.0, 4000.0, 1.0};
 FILTER_ITEM_TRACK track_height = {L"高さ", 720.0, 10.0, 4000.0, 1.0};
 FILTER_ITEM_COLOR color_bg = {L"背景色", 0x000000};
-FILTER_ITEM_TRACK track_bg_alpha = {L"背景透明度", 0.0, 0.0, 255.0, 1.0};
+FILTER_ITEM_TRACK track_bg_alpha = {L"背景透明度", 100.0, 0.0, 100.0, 1.0};
 FILTER_ITEM_GROUP group_view = {L"表示とスクロール"};
 FILTER_ITEM_SELECT::ITEM list_scroll[] = {
     {L"右から左", 0},
@@ -355,8 +356,11 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     int32_t w = (int32_t)track_width.value;
     int32_t h = (int32_t)track_height.value;
     if (w <= 0 || h <= 0) return true;
-    std::vector<PIXEL_RGBA> imgBuf(w * h);
-    uint8_t bgAlpha = (uint8_t)track_bg_alpha.value;
+    if (data.imgBuf.size() != (size_t)(w * h)) {
+        data.imgBuf.resize(w * h);
+    }
+    std::vector<PIXEL_RGBA>& imgBuf = data.imgBuf;
+    uint8_t bgAlpha = UINT8_MAX - (uint8_t)((track_bg_alpha.value / 100.0) * UINT8_MAX);
     PIXEL_RGBA bgCol = {(uint8_t)color_bg.value.b, (uint8_t)color_bg.value.g, (uint8_t)color_bg.value.r, bgAlpha};
     Avx2Utils::FillBufferRGBAx8(imgBuf.data(), w * h, bgCol);
     double currentTime = video->object->time + track_offset.value;
@@ -408,14 +412,14 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     bool border = check_border.value;
     int32_t borderW = (int32_t)track_border_w.value;
     PIXEL_RGBA borderColor = {color_border.value.r, color_border.value.g, color_border.value.b, 255};
-    uint8_t noteAlpha = (uint8_t)((track_note_alpha.value * UINT8_MAX) / 100.0);
+    uint8_t noteAlpha = (uint8_t)((track_note_alpha.value / 100.0) * UINT8_MAX);
     bool drawKb = check_draw_kb.value;
     bool drawNotes = check_draw_notes.value;
     double kbWidth = track_kb_width.value;
     double blackKeyRatio = track_kb_black_ratio.value;
     double ledPosRatio = track_kb_led_pos.value / 100.0;
     double ledSizeRatio = track_kb_led_size.value / 100.0;
-    uint8_t ledAlpha = (uint8_t)((track_kb_led_alpha.value * UINT8_MAX) / 100.0);
+    uint8_t ledAlpha = (uint8_t)((track_kb_led_alpha.value / 100.0) * UINT8_MAX);
     int32_t grid_width = (int32_t)track_grid_width.value;
     int32_t range = maxKey - minKey + 1;
     int32_t sinkDepth = (int32_t)track_sink_depth.value;
@@ -841,6 +845,10 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     }
     video->set_image_data(imgBuf.data(), w, h);
     return true;
+}
+
+void CleanupMidiVisualizerResources() {
+    g_dataMap.clear();
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer = {

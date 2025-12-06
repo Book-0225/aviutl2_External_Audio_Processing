@@ -160,6 +160,10 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupPhaserResources() {
+    g_ph_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_phaser = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

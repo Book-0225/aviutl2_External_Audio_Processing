@@ -154,6 +154,10 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupMaximizerResources() {
+    g_max_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_maximizer = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

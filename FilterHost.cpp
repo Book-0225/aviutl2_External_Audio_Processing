@@ -25,6 +25,7 @@ struct ParamCache {
     double prev_val[4] = { -1.0, -1.0, -1.0, -1.0 };
 };
 static std::map<std::string, ParamCache> g_param_cache;
+static std::mutex g_param_cache_mutex;
 
 struct MidiState {
     std::string prev_path;
@@ -32,6 +33,7 @@ struct MidiState {
     std::map<uint8_t, int64_t> last_active_note_owners;
 };
 static std::map<std::string, MidiState> g_midi_state;
+static std::mutex g_midi_state_mutex;
 
 struct ResetGUIContext {
     std::string target_instance_id;
@@ -128,13 +130,26 @@ struct NotesState {
     }
 };
 
-void CleanupMainFilterResources() {
-    PluginManager::GetInstance().CleanupResources();
-}
-
 static std::set<std::string>* g_active_ids_collector = nullptr;
 static std::mutex g_notes_state_mutex;
 static std::map<const void*, NotesState> g_notes_states;
+
+void CleanupMainFilterResources() {
+    PluginManager::GetInstance().CleanupResources();
+    {
+        std::lock_guard<std::mutex> lock(g_notes_state_mutex);
+        g_notes_states.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(g_midi_state_mutex);
+        g_midi_state.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(g_param_cache_mutex);
+        g_param_cache.clear();
+    }
+    ToolCleanupResources();
+}
 
 void collect_active_ids_proc(EDIT_SECTION* edit) {
     if (!g_active_ids_collector) return;
@@ -403,7 +418,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         bool is_learning = check_param_learn.value;
         int32_t lastTouched = host->GetLastTouchedParamID();
 
-        ParamCache& cache = g_param_cache[instance_id];
+        ParamCache* pCache = nullptr;
+        {
+             std::lock_guard<std::mutex> lock(g_param_cache_mutex);
+             pCache = &g_param_cache[instance_id];
+        }
+        ParamCache& cache = *pCache;
 
         if (is_learning && lastTouched != -1) {
             for (int32_t i = 0; i < 4; ++i) {
@@ -493,7 +513,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         should_reset = PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num);
         if (should_reset) {
             host_for_audio->Reset();
-            g_midi_state[instance_id].last_active_note_owners.clear();
+            {
+                std::lock_guard<std::mutex> lock(g_midi_state_mutex);
+                g_midi_state[instance_id].last_active_note_owners.clear();
+            }
 
             {
                 std::lock_guard<std::mutex> lock(g_notes_state_mutex);
@@ -519,7 +542,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
         std::string midi_path_u8 = StringUtils::WideToUtf8(midi_path_param.value);
-        MidiState& ms = g_midi_state[instance_id];
+        MidiState* pMs = nullptr;
+        {
+             std::lock_guard<std::mutex> lock(g_midi_state_mutex);
+             pMs = &g_midi_state[instance_id];
+        }
+        MidiState& ms = *pMs;
         if (ms.prev_path != midi_path_u8) {
             ms.parser.Load(midi_path_u8);
             ms.prev_path = midi_path_u8;

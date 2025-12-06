@@ -131,6 +131,10 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupGeneratorResources() {
+    g_gen_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_generator = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
     GEN_TOOL_NAME(TOOL_NAME),

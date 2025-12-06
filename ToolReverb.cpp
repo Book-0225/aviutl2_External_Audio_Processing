@@ -301,6 +301,10 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupReverbResources() {
+    g_rev_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_reverb = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

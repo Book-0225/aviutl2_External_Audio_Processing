@@ -164,6 +164,10 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupAutoWahResources() {
+    g_wah_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_autowah = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),

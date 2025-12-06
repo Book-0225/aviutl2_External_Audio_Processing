@@ -164,6 +164,10 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     return true;
 }
 
+void CleanupDynamicsResources() {
+    g_dyn_states.clear();
+}
+
 FILTER_PLUGIN_TABLE filter_plugin_table_dynamics = {
     FILTER_PLUGIN_TABLE::FLAG_AUDIO,
     GEN_TOOL_NAME(TOOL_NAME),
