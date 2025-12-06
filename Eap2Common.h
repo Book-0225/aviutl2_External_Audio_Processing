@@ -90,7 +90,6 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
 
-// Tool Cleanup Functions
 void CleanupSpectralGateResources();
 void CleanupSpatialResources();
 void CleanupReverbResources();
@@ -110,7 +109,7 @@ void CleanupChainCompResources();
 void CleanupAutoWahResources();
 void CleanupMidiVisualizerResources();
 
-void ToolCleanupResources(); // Master cleanup
+void ToolCleanupResources();
 void CleanupMainFilterResources();
 void func_project_save(PROJECT_FILE* pf);
 void func_project_load(PROJECT_FILE* pf);

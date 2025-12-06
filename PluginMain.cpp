@@ -135,7 +135,6 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     return true;
 }
 
-// Master Cleanup Function
 void ToolCleanupResources() {
     CleanupSpectralGateResources();
     CleanupSpatialResources();
