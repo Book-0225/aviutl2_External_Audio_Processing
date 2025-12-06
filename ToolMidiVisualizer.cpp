@@ -358,7 +358,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     std::vector<PIXEL_RGBA> imgBuf(w * h);
     uint8_t bgAlpha = (uint8_t)track_bg_alpha.value;
     PIXEL_RGBA bgCol = {(uint8_t)color_bg.value.b, (uint8_t)color_bg.value.g, (uint8_t)color_bg.value.r, bgAlpha};
-    // Use AVX2-accelerated fill for large buffers
     Avx2Utils::FillBufferRGBAx8(imgBuf.data(), w * h, bgCol);
     double currentTime = video->object->time + track_offset.value;
     double speedMul = track_speed_mul.value;
@@ -594,7 +593,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             if (check_grid_h.value) {
                 int32_t gy = ky + kh;
                 if (gy < h && gy >= 0) {
-                    // Use SIMD-accelerated line blending for grid
                     for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
                         int32_t y = gy + gwid;
                         if (y < h && y >= 0) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), 0, y, w, w, h, gridColH);
@@ -718,14 +716,12 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 if (pos < -2 || pos > maxDim + 2) continue;
                 PIXEL_RGBA col = isMeasure ? measureCol : beatCol;
                 if (scrollMode == 0 || scrollMode == 1) {
-                    // Use SIMD-accelerated vertical line blending for beat grid
                     for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
                         int32_t x = pos + gwid;
                         if (x >= 0 && x < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), x, 0, h, w, h, col);
                     }
                 }
                 else {
-                    // Use SIMD-accelerated horizontal line blending for horizontal scroll
                     for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
                         int32_t y = pos + gwid;
                         if (y >= 0 && y < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), 0, y, w, w, h, col);
@@ -839,7 +835,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 float px[8], py[8], ages[8];
                 int32_t mask = Avx2Utils::ComputeParticleBatchAVX2(params, px, py, ages);
                 int32_t block = (std::min)(8, total_particles - idx);
-                // BlendPointsAVX2 will check validity (age range) and bounds internally
                 Avx2Utils::BlendPointsAVX2(imgBuf.data(), w, h, px, py, ages, block, noteColor, (float)particleLife);
             }
         }
