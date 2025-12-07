@@ -6,7 +6,10 @@
 #include <mutex>
 #include <algorithm>
 #include <random>
+#include <string>
 #include "Avx2Utils.h"
+#include "StringUtils.h"
+#include "PluginManager.h"
 
 #define TOOL_NAME L"Generator"
 
@@ -17,14 +20,19 @@ FILTER_ITEM_SELECT::ITEM gen_type_list[] = {
     { L"Saw", 3 },
     { L"White Noise", 4 },
     { L"Pink Noise", 5 },
-    { nullptr, 0 }
+    { nullptr }
 };
 FILTER_ITEM_SELECT gen_type(L"Waveform", 0, gen_type_list);
 FILTER_ITEM_TRACK gen_freq(L"Frequency", 440.0, 20.0, 20000.0, 1.0);
+struct GenData {
+    char uuid[40] = { 0 };
+};
+FILTER_ITEM_DATA<GenData> gen_data(L"GEN_DATA");
 
 void* filter_items_generator[] = {
     &gen_type,
     &gen_freq,
+    &gen_data,
     nullptr
 };
 
@@ -40,10 +48,72 @@ struct GeneratorState {
     void clear() { if (initialized) init(); }
 };
 
+struct GenParamCache {
+    int32_t last_type = -1;
+};
+
 static std::mutex g_gen_state_mutex;
 static std::map<const void*, GeneratorState> g_gen_states;
+
+static std::mutex g_gen_param_cache_mutex;
+static std::map<std::string, GenParamCache> g_gen_param_cache;
+
 static std::mt19937 g_rng(12345);
 static std::uniform_real_distribution<float> g_dist(-1.0f, 1.0f);
+
+std::wstring GetGenParamsString(int32_t type) {
+    std::wstring typeName = L"Unknown";
+    switch (type) {
+    case 0: typeName = L"Sine"; break;
+    case 1: typeName = L"Square"; break;
+    case 2: typeName = L"Triangle"; break;
+    case 3: typeName = L"Saw"; break;
+    case 4: typeName = L"White Noise"; break;
+    case 5: typeName = L"Pink Noise"; break;
+    }
+    return L" (" + typeName + L")";
+}
+
+struct RenameParam {
+    std::wstring newName;
+    std::wstring oldNameCandidate;
+    std::wstring defaultName;
+    std::string id;
+};
+
+static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
+    RenameParam* p = (RenameParam*)param;
+    OBJECT_HANDLE obj = nullptr;
+    int32_t max_layer = edit->info->layer_max;
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
+        OBJECT_HANDLE obj_temp = edit->find_object(layer, 0);
+        while (!obj) {
+            int32_t effect_count = edit->count_object_effect(obj_temp, GEN_TOOL_NAME(TOOL_NAME));
+            for (int32_t i = 0; i < effect_count; ++i) {
+                std::wstring indexed_filter_name = std::wstring(GEN_TOOL_NAME(TOOL_NAME));
+                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj_temp, indexed_filter_name.c_str(), gen_data.name);
+                if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
+                    if (StringUtils::HexToString(hex_encoded_id_str) == p->id) {
+                        obj = obj_temp;
+                        break;
+                    }
+                }
+            }
+            int32_t end_frame = edit->get_object_layer_frame(obj_temp).end;
+            obj_temp = edit->find_object(layer, end_frame + 1);
+            if (!obj_temp) break;
+        }
+    }
+    if (!obj) return;
+    LPCWSTR currentNamePtr = edit->get_object_name(obj);
+    std::wstring currentName = currentNamePtr ? currentNamePtr : L"";
+    bool doRename = false;
+    if (currentName.empty()) doRename = true;
+    else if (currentName == p->defaultName) doRename = true;
+    else if (!p->oldNameCandidate.empty() && currentName == p->oldNameCandidate) doRename = true;
+    if (doRename) edit->set_object_name(obj, p->newName.c_str());
+}
 
 bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -52,7 +122,48 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
 
     int32_t type = gen_type.value;
     float freq = static_cast<float>(gen_freq.value);
+    std::string instance_id;
+    if (gen_data.value->uuid[0] != '\0') {
+        instance_id = gen_data.value->uuid;
+    }
+    else {
+        instance_id = StringUtils::GenerateUUID();
+        strcpy_s(gen_data.value->uuid, sizeof(gen_data.value->uuid), instance_id.c_str());
+    }
+    if (!instance_id.empty()) {
+        int64_t effect_id = audio->object->effect_id;
+        bool is_copy = false;
+        PluginManager::GetInstance().RegisterOrUpdateInstance(instance_id, effect_id, is_copy);
+        if (is_copy) {
+            strcpy_s(gen_data.value->uuid, sizeof(gen_data.value->uuid), instance_id.c_str());
+            {
+                std::lock_guard<std::mutex> lock(g_gen_param_cache_mutex);
+                g_gen_param_cache.erase(instance_id);
+            }
+        }
+    }
+    else {
+        return true;
+    }
+    {
+        std::lock_guard<std::mutex> lock(g_gen_param_cache_mutex);
+        GenParamCache& cache = g_gen_param_cache[instance_id];
+        if (cache.last_type != type) {
+            int32_t old_type = (cache.last_type == -1) ? type : cache.last_type;
+            g_main_thread_tasks.push_back([instance_id, type, old_type]() {
+                if (g_edit_handle) {
+                    RenameParam rp;
+                    rp.id = instance_id;
+                    rp.defaultName = TOOL_NAME;
+                    rp.newName = std::wstring(rp.defaultName) + GetGenParamsString(type);
+                    rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
+                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                }
+                });
 
+            cache.last_type = type;
+        }
+    }
     GeneratorState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_gen_state_mutex);
@@ -132,7 +243,14 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
 }
 
 void CleanupGeneratorResources() {
-    g_gen_states.clear();
+    {
+        std::lock_guard<std::mutex> lock(g_gen_state_mutex);
+        g_gen_states.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(g_gen_param_cache_mutex);
+        g_gen_param_cache.clear();
+    }
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_generator = {

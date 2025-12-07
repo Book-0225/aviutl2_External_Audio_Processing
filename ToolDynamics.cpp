@@ -21,11 +21,11 @@ FILTER_ITEM_TRACK dyn_comp_makeup(L"Makeup Gain", 0.0, 0.0, 30.0, 0.1);
 FILTER_ITEM_TRACK dyn_limiter(L"Limiter", 0.0, -20.0, 0.0, 0.1);
 
 void* filter_items_dynamics[] = {
-	&gate_group,
+    &gate_group,
     &dyn_gate_thresh,
-	&dyn_gate_att,
+    &dyn_gate_att,
     &dyn_gate_rel,
-	&comp_group,
+    &comp_group,
     &dyn_comp_thresh,
     &dyn_comp_ratio,
     &dyn_comp_attack,
@@ -51,7 +51,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     int32_t channels = (std::min)(2, audio->object->channel_num);
 
     double gate_th_db = dyn_gate_thresh.value;
-	double gate_att_ms = dyn_gate_att.value;
+    double gate_att_ms = dyn_gate_att.value;
     double gate_rel_ms = dyn_gate_rel.value;
     double comp_th_db = dyn_comp_thresh.value;
     double comp_ratio = dyn_comp_ratio.value;

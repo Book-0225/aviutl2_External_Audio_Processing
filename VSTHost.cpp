@@ -473,10 +473,10 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     ProcessContext ctx{};
     ctx.state = ProcessContext::kPlaying;
     ctx.sampleRate = currentSampleRate;
-	ctx.projectTimeSamples = currentSampleIndex;
-	ctx.tempo = bpm;
-	ctx.timeSigNumerator = tsNum;
-	ctx.timeSigDenominator = tsDenom;
+    ctx.projectTimeSamples = currentSampleIndex;
+    ctx.tempo = bpm;
+    ctx.timeSigNumerator = tsNum;
+    ctx.timeSigDenominator = tsDenom;
     if (bpm > 0.0) {
         double samplesPerBeat = (currentSampleRate * 60.0) / bpm;
         double ppq = (double)currentSampleIndex / samplesPerBeat;

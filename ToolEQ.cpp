@@ -24,10 +24,10 @@ FILTER_ITEM_TRACK eq_mh_freq(L"M-High Freq", 3500.0, 1000.0, 20000.0, 1.0);
 FILTER_ITEM_TRACK eq_high_freq(L"High Freq", 10000.0, 2000.0, 20000.0, 1.0);
 
 void* filter_items_eq[] = {
-	&cut_group,
+    &cut_group,
     &eq_hpf,
     &eq_lpf,
-	&eq_group,
+    &eq_group,
     &eq_low,
     &eq_ml,
     &eq_mid,

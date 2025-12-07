@@ -232,7 +232,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     } else {
         needs_reset = true;
     }
-	DbgPrint("ShouldReset result: %d", needs_reset);
+    DbgPrint("ShouldReset result: %d", needs_reset);
     return needs_reset;
 }
 

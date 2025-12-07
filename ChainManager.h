@@ -19,8 +19,8 @@ struct ChainData
 class ChainManager
 {
 public:
-	static const int32_t MAX_ID = 64;
-	static constexpr int32_t MAX_PER_ID = ChainData::MAX_PER_ID;
-	static inline std::array<ChainData, MAX_ID> chains;
-	static inline std::array<std::mutex, MAX_ID> chains_mutexes;
+    static const int32_t MAX_ID = 64;
+    static constexpr int32_t MAX_PER_ID = ChainData::MAX_PER_ID;
+    static inline std::array<ChainData, MAX_ID> chains;
+    static inline std::array<std::mutex, MAX_ID> chains_mutexes;
 };

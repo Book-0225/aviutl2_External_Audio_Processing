@@ -37,7 +37,7 @@ namespace StringUtils {
 
     inline std::string GenerateUUID() {
         UUID u;
-        UuidCreate(&u);
+        if (UuidCreate(&u) != RPC_S_OK) return "";
         RPC_CSTR s = nullptr;
         if (UuidToStringA(&u, &s) != RPC_S_OK) return "";
 
@@ -48,10 +48,6 @@ namespace StringUtils {
 
     inline std::string HexToString(const std::string& hex) {
         if (hex.empty()) return {};
-        if (hex.size() % 2 != 0) {
-			DbgPrint("[EAP2 Warning] HexToString: input hex string has odd length");
-        }
-
         std::string res;
         res.reserve(hex.size() / 2);
 
@@ -62,6 +58,9 @@ namespace StringUtils {
                 continue;
             }
             res.push_back(static_cast<char>(byte));
+        }
+        while (!res.empty() && res.back() == '\0') {
+            res.pop_back();
         }
         return res;
     }

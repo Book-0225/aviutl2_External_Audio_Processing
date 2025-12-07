@@ -81,8 +81,8 @@ bool func_proc_audio_chain_comp(FILTER_PROC_AUDIO* audio) {
     double sidechain_input = 0.0;
     {
         std::lock_guard<std::mutex> lock(ChainManager::chains_mutexes[id_idx]);
-		std::array<double, ChainManager::MAX_PER_ID> levels;
-		auto& chain = ChainManager::chains[id_idx];
+        std::array<double, ChainManager::MAX_PER_ID> levels;
+        auto& chain = ChainManager::chains[id_idx];
         for (int32_t i = 0; i < ChainManager::MAX_PER_ID; i++) {
             if (chain.effect_id[i] != -1) {
                 if (chain.update_count[i] != state->last_update_count[i]) {
@@ -99,8 +99,8 @@ bool func_proc_audio_chain_comp(FILTER_PROC_AUDIO* audio) {
             }
             else {
                 levels[i] = 0.0;
-				state->missed_count[i] = 0;
-			}
+                state->missed_count[i] = 0;
+            }
         }
         sidechain_input = *std::max_element(levels.begin(), levels.end());
     }

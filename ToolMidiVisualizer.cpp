@@ -8,6 +8,7 @@
 #include "MidiParser.h"
 #include "StringUtils.h"
 #include "Avx2Utils.h"
+#include "PluginManager.h"
 
 #define TOOL_NAME L"MIDI Visualizer"
 
@@ -209,19 +210,19 @@ FILTER_ITEM_COLOR color_bg = {L"背景色", 0x000000};
 FILTER_ITEM_TRACK track_bg_alpha = {L"背景透明度", 100.0, 0.0, 100.0, 1.0};
 FILTER_ITEM_GROUP group_view = {L"表示とスクロール"};
 FILTER_ITEM_SELECT::ITEM list_scroll[] = {
-    {L"右から左", 0},
-    {L"左から右", 1},
-    {L"上から下", 2},
-    {L"下から上", 3},
-    {nullptr}
+    { L"右から左", 0 },
+    { L"左から右", 1 },
+    { L"上から下", 2 },
+    { L"下から上", 3 },
+    { nullptr }
 };
 FILTER_ITEM_SELECT select_scroll = {L"方向", 2, list_scroll};
 FILTER_ITEM_SELECT::ITEM list_reaction[] = {
-    {L"通過", 0},
-    {L"消失+変色", 1},
-    {L"消失+LED", 2},
-    {L"消失", 3},
-    {nullptr}
+    { L"通過", 0 },
+    { L"消失+変色", 1 },
+    { L"消失+LED", 2 },
+    { L"消失", 3 },
+    { nullptr }
 };
 FILTER_ITEM_SELECT select_reaction = {L"挙動", 0, list_reaction};
 FILTER_ITEM_TRACK track_zoom_time = {L"拡大率", 100.0, 1.0, 2000.0, 1.0};
@@ -233,8 +234,16 @@ FILTER_ITEM_CHECK check_auto_fit = {L"自動調整", true};
 FILTER_ITEM_TRACK track_key_size = {L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0};
 FILTER_ITEM_GROUP group_sync = {L"同期", false};
 FILTER_ITEM_TRACK track_offset = {L"オフセット", 0.0, -100.0, 100.0, 0.01};
-FILTER_ITEM_CHECK check_sync_bpm = {L"BPMを同期", true};
+FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
+    { L"同期しない", 0 },
+    { L"MIDIにBPMを同期", 1 },
+    { L"AviUtlにBPMを同期", 2 },
+    { nullptr }
+};
+FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 0, sync_mode_visualizer);
 FILTER_ITEM_TRACK track_manual_bpm = {L"BPM(手動)", 120.0, 1.0, 999.0, 0.1};
+FILTER_ITEM_TRACK track_manual_num = { L"分子(手動)", 4.0, 1.0, 32.0, 1.0 };
+FILTER_ITEM_TRACK track_manual_denom = { L"分母(手動)", 4.0, 1.0, 32.0, 1.0 };
 FILTER_ITEM_TRACK track_speed_mul = {L"速度", 1.0, 0.1, 10.0, 0.1};
 FILTER_ITEM_GROUP group_filter = {L"フィルタ", false};
 FILTER_ITEM_TRACK track_ch_target = {L"チャンネル", 0, 0, 16, 1};
@@ -243,11 +252,11 @@ FILTER_ITEM_CHECK check_hide_perc = {L"ドラムを無効", false};
 FILTER_ITEM_GROUP group_style = {L"ノートスタイル"};
 FILTER_ITEM_CHECK check_draw_notes = {L"ノートを描画", true};
 FILTER_ITEM_SELECT::ITEM list_col_mode[] = {
-    {L"単色", 0},
-    {L"虹色", 1},
-    {L"チャンネル", 2},
-    {L"強弱", 3},
-    {nullptr}
+    { L"単色", 0 },
+    { L"虹色", 1 },
+    { L"チャンネル", 2 },
+    { L"強弱", 3 },
+    { nullptr }
 };
 FILTER_ITEM_SELECT select_col_mode = {L"カラーモード", 1, list_col_mode};
 FILTER_ITEM_COLOR color_base = {L"基本色", 0x00FF00};
@@ -276,6 +285,10 @@ FILTER_ITEM_TRACK track_ripple_size = {L"波紋サイズ", 0.0, 0.0, 1000.0, 1.0
 FILTER_ITEM_TRACK track_ripple_time = {L"波紋時間", 1.0, 0.0, 10.0, 0.01};
 FILTER_ITEM_TRACK track_particle_amt = {L"パーティクル量", 10.0, 0.0, 5000.0, 1.0};
 FILTER_ITEM_TRACK track_particle_time = {L"パーティクル時間", 0.5, 0.0, 50.0, 0.01};
+struct MidiData {
+    char uuid[40] = { 0 };
+};
+FILTER_ITEM_DATA<MidiData> midi_visualizer_data_param(L"MIDI_DATA");
 
 void *filter_items_midi_visualizer[] = {
     &track_file,
@@ -296,8 +309,10 @@ void *filter_items_midi_visualizer[] = {
     &track_key_size,
     &group_sync,
     &track_offset,
-    &check_sync_bpm,
+    &select_bpm_sync_visualizer,
     &track_manual_bpm,
+    &track_manual_num,
+    &track_manual_denom,
     &track_speed_mul,
     &group_filter,
     &track_ch_target,
@@ -332,19 +347,95 @@ void *filter_items_midi_visualizer[] = {
     &track_ripple_time,
     &track_particle_amt,
     &track_particle_time,
+    &midi_visualizer_data_param,
     nullptr
 };
 
+struct RenameParam {
+    std::wstring newName;
+    std::wstring oldNameCandidate;
+    std::wstring defaultName;
+    std::string id;
+};
+
+static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
+    RenameParam* p = (RenameParam*)param;
+    OBJECT_HANDLE obj = nullptr;
+    int32_t max_layer = edit->info->layer_max;
+    for (int32_t layer = 0; layer <= max_layer; ++layer) {
+        OBJECT_HANDLE obj_temp = edit->find_object(layer, 0);
+        while (!obj) {
+            int32_t effect_count = edit->count_object_effect(obj_temp, GEN_TOOL_NAME(TOOL_NAME));
+            for (int32_t i = 0; i < effect_count; ++i) {
+                std::wstring indexed_filter_name = std::wstring(GEN_TOOL_NAME(TOOL_NAME));
+                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj_temp, indexed_filter_name.c_str(), midi_visualizer_data_param.name);
+                if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
+                    if (StringUtils::HexToString(hex_encoded_id_str) == p->id) {
+                        obj = obj_temp;
+                        break;
+                    }
+                }
+            }
+            int32_t end_frame = edit->get_object_layer_frame(obj_temp).end;
+            obj_temp = edit->find_object(layer, end_frame + 1);
+            if (!obj_temp) break;
+        }
+    }
+    if (!obj) return;
+    LPCWSTR currentNamePtr = edit->get_object_name(obj);
+    std::wstring currentName = currentNamePtr ? currentNamePtr : L"";
+    bool doRename = false;
+    if (currentName.empty()) doRename = true;
+    else if (currentName == p->defaultName) doRename = true;
+    else if (!p->oldNameCandidate.empty() && currentName == p->oldNameCandidate) doRename = true;
+    if (doRename) edit->set_object_name(obj, p->newName.c_str());
+}
+
 bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
+    std::string midi_visualizer_id;
     int64_t objId = video->object->id;
     VisualizerData &data = g_dataMap[objId];
     LPCWSTR currentPathW = track_file.value;
+    if (midi_visualizer_data_param.value->uuid[0] != '\0') {
+        midi_visualizer_id = midi_visualizer_data_param.value->uuid;
+    }
+    else {
+        midi_visualizer_id = StringUtils::GenerateUUID();
+        strcpy_s(midi_visualizer_data_param.value->uuid, sizeof(midi_visualizer_data_param.value->uuid), midi_visualizer_id.c_str());
+    }
+    if (!midi_visualizer_id.empty()) {
+        int64_t effect_id = video->object->effect_id;
+        bool is_copy = false;
+        PluginManager::GetInstance().RegisterOrUpdateInstance(midi_visualizer_id, effect_id, is_copy);
+        if (is_copy) strcpy_s(midi_visualizer_data_param.value->uuid, sizeof(midi_visualizer_data_param.value->uuid), midi_visualizer_id.c_str());
+    }
+    else {
+        return true;
+    }
     if (currentPathW && wcslen(currentPathW) > 0) {
         if (data.lastFilePath != currentPathW) {
             std::string pathUtf8 = StringUtils::WideToUtf8(currentPathW);
             if (data.parser.Load(pathUtf8)) {
                 data.RebuildNotes();
                 data.isLoaded = true;
+                g_main_thread_tasks.push_back([midi_visualizer_id, currentPathW, data] {
+                    if (g_edit_handle) {
+                        RenameParam rp;
+                        rp.id = midi_visualizer_id;
+                        rp.defaultName = GEN_TOOL_NAME(TOOL_NAME);
+                        std::filesystem::path newP(currentPathW);
+                        rp.newName = std::wstring(rp.defaultName) + L" (" + newP.filename().wstring() + L")";
+                        if (!data.lastFilePath.empty()) {
+                            std::filesystem::path oldP(data.lastFilePath);
+                            rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + oldP.filename().wstring() + L")";
+                        }
+                        else {
+                            rp.oldNameCandidate = L"";
+                        }
+                        g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                    }
+                    });
             }
             else {
                 data.isLoaded = false;
@@ -369,7 +460,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     uint16_t tpqn = data.parser.GetTPQN();
     double ticksPerSec = 0;
     double bpm = 120.0;
-    if (check_sync_bpm.value) {
+    if (select_bpm_sync_visualizer.value == 1) {
         currentTick = data.parser.GetTickAtTime(currentTime * speedMul);
         auto tempos = data.parser.GetTempoEvents();
         uint32_t mpqn = 500000;
@@ -378,6 +469,11 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             else break;
         }
         if (mpqn > 0) bpm = 60000000.0 / mpqn;
+    }
+    else if (select_bpm_sync_visualizer.value == 2){
+        bpm = g_shared_bpm.load();
+        if (bpm <= 0) bpm = 120;
+        currentTick = (int64_t)(currentTime * (bpm * tpqn / 60.0) * speedMul);
     }
     else {
         bpm = track_manual_bpm.value;
@@ -707,7 +803,19 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             int64_t startLoopTick = (minTick / tpqn) * tpqn;
             for (int64_t t = startLoopTick; t < maxTick; t += tpqn) {
                 auto ts = data.parser.GetTimeSignatureAt((uint32_t)t);
-                int64_t measureLen = (int64_t)ts.numerator * tpqn * 4 / ts.denominator;
+                int64_t measureLen;
+                switch (select_bpm_sync_visualizer.value)
+                {
+                case 1:
+                    measureLen = (int64_t)ts.numerator * tpqn * 4 / ts.denominator;
+                    break;
+                case 2:
+                    measureLen = g_shared_ts_num.load() * tpqn * 4 / g_shared_ts_denom.load();
+                    break;
+                default:
+                    measureLen = (int64_t)(track_manual_num.value * tpqn * 4 / track_manual_denom.value);
+                    break;
+                }
                 if (measureLen == 0) measureLen = tpqn * 4;
                 int64_t relTick = t - ts.absoluteTick;
                 bool isMeasure = (relTick >= 0) && (relTick % measureLen == 0);
