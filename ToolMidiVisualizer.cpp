@@ -289,6 +289,10 @@ struct MidiData {
     char uuid[40] = { 0 };
 };
 FILTER_ITEM_DATA<MidiData> midi_visualizer_data_param(L"MIDI_DATA");
+struct LastMidiData {
+    wchar_t last_midi_path[512] = { 0 };
+};
+FILTER_ITEM_DATA<LastMidiData> last_midi_path(L"LAST_MIDI_PATH");
 
 void *filter_items_midi_visualizer[] = {
     &track_file,
@@ -348,6 +352,7 @@ void *filter_items_midi_visualizer[] = {
     &track_particle_amt,
     &track_particle_time,
     &midi_visualizer_data_param,
+    &last_midi_path,
     nullptr
 };
 
@@ -408,7 +413,10 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
         int64_t effect_id = video->object->effect_id;
         bool is_copy = false;
         PluginManager::GetInstance().RegisterOrUpdateInstance(midi_visualizer_id, effect_id, is_copy);
-        if (is_copy) strcpy_s(midi_visualizer_data_param.value->uuid, sizeof(midi_visualizer_data_param.value->uuid), midi_visualizer_id.c_str());
+        if (is_copy) {
+            strcpy_s(midi_visualizer_data_param.value->uuid, sizeof(midi_visualizer_data_param.value->uuid), midi_visualizer_id.c_str());
+            wcscpy_s(last_midi_path.value->last_midi_path, sizeof(last_midi_path.value->last_midi_path), last_midi_path.default_value.last_midi_path);
+        }
     }
     else {
         return true;
@@ -419,7 +427,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             if (data.parser.Load(pathUtf8)) {
                 data.RebuildNotes();
                 data.isLoaded = true;
-                g_main_thread_tasks.push_back([midi_visualizer_id, currentPathW, data] {
+                if (_wcsicmp(last_midi_path.value->last_midi_path, currentPathW)) g_main_thread_tasks.push_back([midi_visualizer_id, currentPathW, data] {
                     if (g_edit_handle) {
                         RenameParam rp;
                         rp.id = midi_visualizer_id;
@@ -436,6 +444,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                         g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                     }
                     });
+                wcscpy_s(last_midi_path.value->last_midi_path, sizeof(last_midi_path.value->last_midi_path), currentPathW);
             }
             else {
                 data.isLoaded = false;

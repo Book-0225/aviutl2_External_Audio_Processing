@@ -26,6 +26,7 @@ FILTER_ITEM_SELECT gen_type(L"Waveform", 0, gen_type_list);
 FILTER_ITEM_TRACK gen_freq(L"Frequency", 440.0, 20.0, 20000.0, 1.0);
 struct GenData {
     char uuid[40] = { 0 };
+    int32_t last_type = -1;
 };
 FILTER_ITEM_DATA<GenData> gen_data(L"GEN_DATA");
 
@@ -48,15 +49,8 @@ struct GeneratorState {
     void clear() { if (initialized) init(); }
 };
 
-struct GenParamCache {
-    int32_t last_type = -1;
-};
-
 static std::mutex g_gen_state_mutex;
 static std::map<const void*, GeneratorState> g_gen_states;
-
-static std::mutex g_gen_param_cache_mutex;
-static std::map<std::string, GenParamCache> g_gen_param_cache;
 
 static std::mt19937 g_rng(12345);
 static std::uniform_real_distribution<float> g_dist(-1.0f, 1.0f);
@@ -94,9 +88,13 @@ static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
                 if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
                 LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj_temp, indexed_filter_name.c_str(), gen_data.name);
                 if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
-                    if (StringUtils::HexToString(hex_encoded_id_str) == p->id) {
-                        obj = obj_temp;
-                        break;
+                    std::string raw_data = StringUtils::HexToString(hex_encoded_id_str);
+                    if (raw_data.size() >= sizeof(GenData::uuid)) {
+                        const GenData* data = reinterpret_cast<const GenData*>(raw_data.data());
+                        if (p->id == data->uuid) {
+                            obj = obj_temp;
+                            break;
+                        }
                     }
                 }
             }
@@ -129,6 +127,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     else {
         instance_id = StringUtils::GenerateUUID();
         strcpy_s(gen_data.value->uuid, sizeof(gen_data.value->uuid), instance_id.c_str());
+        gen_data.value->last_type = -1;
     }
     if (!instance_id.empty()) {
         int64_t effect_id = audio->object->effect_id;
@@ -136,33 +135,26 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
         PluginManager::GetInstance().RegisterOrUpdateInstance(instance_id, effect_id, is_copy);
         if (is_copy) {
             strcpy_s(gen_data.value->uuid, sizeof(gen_data.value->uuid), instance_id.c_str());
-            {
-                std::lock_guard<std::mutex> lock(g_gen_param_cache_mutex);
-                g_gen_param_cache.erase(instance_id);
-            }
+            gen_data.value->last_type = -1;
         }
     }
     else {
         return true;
     }
-    {
-        std::lock_guard<std::mutex> lock(g_gen_param_cache_mutex);
-        GenParamCache& cache = g_gen_param_cache[instance_id];
-        if (cache.last_type != type) {
-            int32_t old_type = (cache.last_type == -1) ? type : cache.last_type;
-            g_main_thread_tasks.push_back([instance_id, type, old_type]() {
-                if (g_edit_handle) {
-                    RenameParam rp;
-                    rp.id = instance_id;
-                    rp.defaultName = TOOL_NAME;
-                    rp.newName = std::wstring(rp.defaultName) + GetGenParamsString(type);
-                    rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
-                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
-                }
-                });
+    if (gen_data.value->last_type != type) {
+        int32_t old_type = (gen_data.value->last_type == -1) ? type : gen_data.value->last_type;
+        g_main_thread_tasks.push_back([instance_id, type, old_type] {
+            if (g_edit_handle) {
+                RenameParam rp;
+                rp.id = instance_id;
+                rp.defaultName = TOOL_NAME;
+                rp.newName = std::wstring(rp.defaultName) + GetGenParamsString(type);
+                rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
+                g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+            }
+            });
 
-            cache.last_type = type;
-        }
+        gen_data.value->last_type = type;
     }
     GeneratorState* state = nullptr;
     {
@@ -243,14 +235,8 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
 }
 
 void CleanupGeneratorResources() {
-    {
-        std::lock_guard<std::mutex> lock(g_gen_state_mutex);
-        g_gen_states.clear();
-    }
-    {
-        std::lock_guard<std::mutex> lock(g_gen_param_cache_mutex);
-        g_gen_param_cache.clear();
-    }
+    std::lock_guard<std::mutex> lock(g_gen_state_mutex);
+    g_gen_states.clear();
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_generator = {

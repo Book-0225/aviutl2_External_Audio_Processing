@@ -34,8 +34,8 @@ extern LOG_HANDLE* g_logger;
 
 #ifdef _DEBUG
 #define DbgPrint(format, ...) do { \
-    TCHAR b[512]; \
-    _stprintf_s(b, 512, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
+    TCHAR b[1024]; \
+    _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
     OutputDebugString(b); \
     if (g_logger && g_logger->verbose) { \
         g_logger->verbose(g_logger, b); \
@@ -44,8 +44,8 @@ extern LOG_HANDLE* g_logger;
 #else
 #define DbgPrint(format, ...) do { \
     if (g_logger && g_logger->verbose) { \
-        TCHAR b[512]; \
-        _stprintf_s(b, 512, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
+        TCHAR b[1024]; \
+        _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
         g_logger->verbose(g_logger, b); \
     } \
 } while (0)

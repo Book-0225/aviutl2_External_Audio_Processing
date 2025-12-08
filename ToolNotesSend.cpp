@@ -59,6 +59,8 @@ FILTER_ITEM_SELECT notes_send_note(L"Note", 60, notes_list);
 
 struct NotesSendData {
     char uuid[40] = { 0 };
+    int32_t last_note = -1;
+    int32_t last_id = -1;
 };
 FILTER_ITEM_DATA<NotesSendData> notes_send_data(L"NOTES_SEND_DATA");
 
@@ -68,14 +70,6 @@ void* filter_items_notes_send[] = {
     &notes_send_data,
     nullptr
 };
-
-struct NotesSendParamCache {
-    int32_t last_note = -1;
-    int32_t last_id = -1;
-};
-
-static std::mutex g_notes_send_cache_mutex;
-static std::map<std::string, NotesSendParamCache> g_notes_send_param_cache;
 
 std::wstring GetNoteName(int32_t note) {
     static const wchar_t* noteNames[] = { L"C", L"C#", L"D", L"D#", L"E", L"F", L"F#", L"G", L"G#", L"A", L"A#", L"B" };
@@ -109,9 +103,13 @@ static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
                 if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
                 LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj_temp, indexed_filter_name.c_str(), notes_send_data.name);
                 if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
-                    if (StringUtils::HexToString(hex_encoded_id_str) == p->id) {
-                        obj = obj_temp;
-                        break;
+                    std::string raw_data = StringUtils::HexToString(hex_encoded_id_str);
+                    if (raw_data.size() >= sizeof(NotesSendData::uuid)) {
+                        const NotesSendData* data = reinterpret_cast<const NotesSendData*>(raw_data.data());
+                        if (p->id == data->uuid) {
+                            obj = obj_temp;
+                            break;
+                        }
                     }
                 }
             }
@@ -148,32 +146,26 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
         PluginManager::GetInstance().RegisterOrUpdateInstance(instance_id, effect_id, is_copy);
         if (is_copy) {
             strcpy_s(notes_send_data.value->uuid, sizeof(notes_send_data.value->uuid), instance_id.c_str());
-            {
-                std::lock_guard<std::mutex> lock(g_notes_send_cache_mutex);
-                g_notes_send_param_cache.erase(instance_id);
-            }
+            notes_send_data.value->last_note = notes_send_data.default_value.last_note;
+            notes_send_data.value->last_id = notes_send_data.default_value.last_id;
         }
     }
-    {
-        std::lock_guard<std::mutex> lock(g_notes_send_cache_mutex);
-        NotesSendParamCache& cache = g_notes_send_param_cache[instance_id];
-        if (cache.last_note != note_num || cache.last_id != display_id) {
-            int32_t old_note = (cache.last_note == -1) ? note_num : cache.last_note;
-            int32_t old_id = (cache.last_id == -1) ? display_id : cache.last_id;
-            g_main_thread_tasks.push_back([instance_id, note_num, display_id, old_note, old_id]() {
-                if (g_edit_handle) {
-                    RenameParam rp;
-                    rp.id = instance_id;
-                    rp.defaultName = GEN_TOOL_NAME(TOOL_NAME_MEDIA);
-                    rp.newName = std::wstring(rp.defaultName) + GetNotesSendParamsString(note_num, display_id);
-                    rp.oldNameCandidate = std::wstring(rp.defaultName) + GetNotesSendParamsString(old_note, old_id);
-                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
-                }
-                });
+    if (notes_send_data.value->last_note != note_num || notes_send_data.value->last_id != display_id) {
+        int32_t old_note = (notes_send_data.value->last_note == -1) ? note_num : notes_send_data.value->last_note;
+        int32_t old_id = (notes_send_data.value->last_id == -1) ? display_id : notes_send_data.value->last_id;
+        g_main_thread_tasks.push_back([instance_id, note_num, display_id, old_note, old_id] {
+            if (g_edit_handle) {
+                RenameParam rp;
+                rp.id = instance_id;
+                rp.defaultName = GEN_TOOL_NAME(TOOL_NAME_MEDIA);
+                rp.newName = std::wstring(rp.defaultName) + GetNotesSendParamsString(note_num, display_id);
+                rp.oldNameCandidate = std::wstring(rp.defaultName) + GetNotesSendParamsString(old_note, old_id);
+                g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+            }
+            });
 
-            cache.last_note = note_num;
-            cache.last_id = display_id;
-        }
+        notes_send_data.value->last_note = note_num;
+        notes_send_data.value->last_id = display_id;
     }
     {
         std::lock_guard<std::mutex> lock(NotesManager::notes_mutexes[id_idx]);
@@ -198,11 +190,6 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
         }
     }
     return true;
-}
-
-void CleanupNotesSendResources() {
-    std::lock_guard<std::mutex> lock(g_notes_send_cache_mutex);
-    g_notes_send_param_cache.clear();
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media = {

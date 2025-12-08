@@ -37,6 +37,8 @@ namespace StringUtils {
 
     inline std::string GenerateUUID() {
         UUID u;
+        static std::mutex uuid_gen_mutex;
+        std::lock_guard<std::mutex> lock(uuid_gen_mutex);
         if (UuidCreate(&u) != RPC_S_OK) return "";
         RPC_CSTR s = nullptr;
         if (UuidToStringA(&u, &s) != RPC_S_OK) return "";
