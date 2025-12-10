@@ -20,6 +20,10 @@ public:
     std::string GetPluginPath() const override;
     void SetParameter(uint32_t paramId, float value) override;
     int32_t GetLastTouchedParamID() override;
+    int32_t GetLatencySamples() override;
+    int32_t GetParameterCount() override;
+    bool GetParameterInfo(int32_t index, ParameterInfo& info) override;
+    uint32_t GetParameterID(int32_t index) override;
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };

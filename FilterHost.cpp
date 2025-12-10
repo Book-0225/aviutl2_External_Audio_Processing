@@ -12,6 +12,7 @@
 #include "MidiParser.h"
 #include "NotesManager.h"
 #include "Avx2Utils.h"
+#include "ToolParamListWindow.h"
 
 #define FILTER_NAME L"Host"
 #define FILTER_NAME_MEDIA L"Host (Media)"
@@ -23,9 +24,18 @@ static std::string g_legacy_id_to_clear;
 static std::string g_plugin_path_for_clear;
 struct ParamCache {
     double prev_val[4] = { -1.0, -1.0, -1.0, -1.0 };
+    bool prev_show_list = false;
 };
 static std::map<std::string, ParamCache> g_param_cache;
 static std::mutex g_param_cache_mutex;
+
+struct DelayBuffer {
+    std::vector<float> bufferL;
+    std::vector<float> bufferR;
+    int32_t writePos = 0;
+};
+static std::map<std::string, DelayBuffer> g_delay_buffers;
+static std::mutex g_delay_buffers_mutex;
 
 struct MidiState {
     std::string prev_path;
@@ -57,11 +67,16 @@ FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
 FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
+FILTER_ITEM_CHECK check_show_param_list(L"Show Param List", false);
 FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
 FILTER_ITEM_CHECK check_map_reset(L"Reset Mapping", false);
+FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_map2(L"Map 2", -1.0, -1.0, 1000, 1.0);
 FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_map3(L"Map 3", -1.0, -1.0, 1000, 1.0);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_map4(L"Map 4", -1.0, -1.0, 1000, 1.0);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
 FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0);
@@ -102,11 +117,16 @@ void* filter_items_host[] = {
     &check_apply_r,
     &toggle_gui_check,
     &param_group,
+    &check_show_param_list,
     &check_param_learn,
     &check_map_reset,
+    &track_map1,
     &track_param1,
+    &track_map2,
     &track_param2,
+    &track_map3,
     &track_param3,
+    &track_map4,
     &track_param4,
     &midi_group,
     &track_recv_id,
@@ -124,11 +144,16 @@ void* filter_items_host_media[] = {
     &track_ts_denom,
     &toggle_gui_check,
     &param_group,
+    &check_show_param_list,
     &check_param_learn,
     &check_map_reset,
+    &track_map1,
     &track_param1,
+    &track_map2,
     &track_param2,
+    &track_map3,
     &track_param3,
+    &track_map4,
     &track_param4,
     &midi_group,
     &track_recv_id,
@@ -169,6 +194,11 @@ void CleanupMainFilterResources() {
         std::lock_guard<std::mutex> lock(g_param_cache_mutex);
         g_param_cache.clear();
     }
+    {
+        std::lock_guard<std::mutex> lock(g_delay_buffers_mutex);
+        g_delay_buffers.clear();
+    }
+    ToolParamListWindow::GetInstance().Close();
     ToolCleanupResources();
 }
 
@@ -508,6 +538,13 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             (float)track_param4.value
         };
 
+        float map_vals[4] = {
+            (float)track_map1.value,
+            (float)track_map2.value,
+            (float)track_map3.value,
+            (float)track_map4.value
+        };
+
         bool is_learning = check_param_learn.value;
         int32_t lastTouched = host->GetLastTouchedParamID();
 
@@ -518,9 +555,18 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
         ParamCache& cache = *pCache;
 
+        for(int32_t i=0; i<4; ++i) {
+            int32_t mapIndex = (int32_t)map_vals[i];
+            int32_t maxParam = host->GetParameterCount();
+            if (mapIndex >= 0 && mapIndex < maxParam) {
+                 uint32_t paramID = host->GetParameterID(mapIndex);
+                 PluginManager::GetInstance().UpdateMapping(instance_id, i, paramID);
+            }
+        }
+
         if (is_learning && lastTouched != -1) {
             for (int32_t i = 0; i < 4; ++i) {
-                if (cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
+                if (map_vals[i] < 0 && cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
                     PluginManager::GetInstance().UpdateMapping(instance_id, i, lastTouched);
                     DbgPrint("Mapped Slider %d to ParamID %d", i + 1, lastTouched);
                     break;
@@ -579,6 +625,36 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 }
                 });
         }
+    }
+
+    bool show_list_current = check_show_param_list.value;
+    bool show_list_prev = false;
+    {
+         std::lock_guard<std::mutex> lock(g_param_cache_mutex);
+         show_list_prev = g_param_cache[instance_id].prev_show_list;
+         g_param_cache[instance_id].prev_show_list = show_list_current;
+    }
+
+    if (show_list_current && !show_list_prev) {
+         ToolParamListWindow::GetInstance().SetOwner(instance_id);
+         ToolParamListWindow::GetInstance().SetTargetVisible(true);
+         std::string pathUtf8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
+         std::string name = std::filesystem::path(pathUtf8).filename().string();
+         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+         g_main_thread_tasks.push_back([effect_id, name]() {
+             auto host = PluginManager::GetInstance().GetHost(effect_id);
+             if (host) {
+                ToolParamListWindow::GetInstance().Show(host, name);
+             }
+         });
+    } else if (!show_list_current && show_list_prev) {
+         if (ToolParamListWindow::GetInstance().IsOwner(instance_id)) {
+             ToolParamListWindow::GetInstance().SetTargetVisible(false);
+             std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+             g_main_thread_tasks.push_back([]() {
+                 ToolParamListWindow::GetInstance().Close();
+             });
+         }
     }
 
     if (effective_bypass) {
@@ -845,27 +921,72 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         processed_by_host = true;
     }
 
+    int32_t latency = 0;
+    if (host_for_audio) latency = host_for_audio->GetLatencySamples();
+    
+    float* dryL = inL.data();
+    float* dryR = inR.data();
+    std::vector<float> delayedL, delayedR;
+
+    if (latency > 0) {
+        DelayBuffer* db = nullptr;
+        {
+             std::lock_guard<std::mutex> lock(g_delay_buffers_mutex);
+             db = &g_delay_buffers[instance_id];
+        }
+        
+        int32_t reqSize = latency + MAX_BLOCK_SIZE * 2;
+        if (db->bufferL.size() < reqSize) {
+             db->bufferL.resize(reqSize, 0.0f);
+             db->bufferR.resize(reqSize, 0.0f);
+        }
+        
+        int32_t writeP = db->writePos;
+        int32_t bufSize = (int32_t)db->bufferL.size();
+        
+        for(int32_t i=0; i<total_samples; ++i) {
+             db->bufferL[writeP] = inL[i];
+             if(channels >= 2) db->bufferR[writeP] = inR[i];
+             writeP++;
+             if(writeP >= bufSize) writeP = 0;
+        }
+        db->writePos = writeP;
+        
+        int32_t readP = db->writePos - total_samples - latency;
+        while(readP < 0) readP += bufSize;
+        
+        delayedL.resize(total_samples);
+        if(channels >= 2) delayedR.resize(total_samples);
+        
+        for(int32_t i=0; i<total_samples; ++i) {
+             delayedL[i] = db->bufferL[readP];
+             if(channels >= 2) delayedR[i] = db->bufferR[readP];
+             readP++;
+             if(readP >= bufSize) readP = 0;
+        }
+        
+        dryL = delayedL.data();
+        if(channels >= 2) dryR = delayedR.data();
+    }
+
     float wet_ratio = wet_val / 100.0f;
     float dry_ratio = 1.0f - wet_ratio;
     float vol_ratio = vol_val / 100.0f;
 
     if (processed_by_host) {
-        if (apply_l) Avx2Utils::MixAudioAVX2(outL.data(), inL.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
-        else Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
-
+        if (apply_l) Avx2Utils::MixAudioAVX2(outL.data(), dryL, total_samples, wet_ratio, dry_ratio, vol_ratio);
+        else Avx2Utils::ScaleBufferAVX2(outL.data(), dryL, total_samples, vol_ratio);
         if (channels >= 2) {
-            if (apply_r)  Avx2Utils::MixAudioAVX2(outR.data(), inR.data(), total_samples, wet_ratio, dry_ratio, vol_ratio);
-            else Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
+            if (apply_r)  Avx2Utils::MixAudioAVX2(outR.data(), dryR, total_samples, wet_ratio, dry_ratio, vol_ratio);
+            else Avx2Utils::ScaleBufferAVX2(outR.data(), dryR, total_samples, vol_ratio);
         }
     }
     else {
-
         float combined_scale = (apply_l ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
-        Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, combined_scale);
-
+        Avx2Utils::ScaleBufferAVX2(outL.data(), dryL, total_samples, combined_scale);
         if (channels >= 2) {
             combined_scale = (apply_r ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
-            Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, combined_scale);
+            Avx2Utils::ScaleBufferAVX2(outR.data(), dryR, total_samples, combined_scale);
         }
     }
 

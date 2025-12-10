@@ -57,6 +57,7 @@
     <ClInclude Include="StringUtils.h" />
     <ClInclude Include="MidiParser.h" />
     <ClInclude Include="AVX2Utils.h" />
+    <ClInclude Include="ToolParamListWindow.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

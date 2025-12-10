@@ -41,4 +41,16 @@ public:
     virtual void SetParameter(uint32_t paramId, float value) = 0;
     virtual int32_t GetLastTouchedParamID() = 0;
 
+
+    virtual int32_t GetLatencySamples() = 0;
+
+    struct ParameterInfo {
+        char name[128];
+        char unit[32];
+        uint32_t step;
+    };
+    virtual int32_t GetParameterCount() = 0;
+    virtual bool GetParameterInfo(int32_t index, ParameterInfo& info) = 0;
+    virtual uint32_t GetParameterID(int32_t index) = 0;
+
 };

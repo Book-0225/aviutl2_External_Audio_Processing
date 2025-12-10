@@ -164,6 +164,39 @@ struct VstHost::Impl {
         return -1;
     }
 
+    int32_t GetLatencySamples() {
+        if (processor) return processor->getLatencySamples();
+        return 0;
+    }
+
+    int32_t GetParameterCount() {
+        if (controller) return controller->getParameterCount();
+        return 0;
+    }
+
+    bool GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) {
+        if (!controller) return false;
+        Steinberg::Vst::ParameterInfo vstInfo = {};
+        if (controller->getParameterInfo(index, vstInfo) == kResultOk) {
+            info.step = vstInfo.stepCount;
+            std::string nameUtf8 = StringUtils::WideToUtf8(reinterpret_cast<LPCWSTR>(vstInfo.title));
+            strncpy_s(info.name, nameUtf8.c_str(), sizeof(info.name) - 1);
+            std::string unitUtf8 = StringUtils::WideToUtf8(reinterpret_cast<LPCWSTR>(vstInfo.units));
+            strncpy_s(info.unit, unitUtf8.c_str(), sizeof(info.unit) - 1);
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t GetParameterID(int32_t index) {
+        if (!controller) return 0;
+        Steinberg::Vst::ParameterInfo vstInfo = {};
+        if (controller->getParameterInfo(index, vstInfo) == kResultOk) {
+            return vstInfo.id;
+        }
+        return 0;
+    }
+
     void SetParameter(uint32_t paramId, float value) {
         if (controller) {
             controller->setParamNormalized(paramId, (ParamValue)value);
@@ -641,7 +674,7 @@ void VstHost::Impl::ShowGui() {
     AdjustWindowRectEx(&rc, WS_OVERLAPPED | WS_CAPTION, FALSE, 0);
 
     WNDCLASS wc{};
-    wc.lpfnWndProc = [](HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) -> LRESULT {
+    wc.lpfnWndProc = [](HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) -> LRESULT {
         VstHost::Impl* self = nullptr;
         if (msg == WM_CREATE) {
             self = (VstHost::Impl*)((CREATESTRUCT*)lp)->lpCreateParams;
@@ -781,4 +814,20 @@ int32_t VstHost::GetLastTouchedParamID() {
         return m_impl->GetLastTouchedParamID();
     }
     return -1;
+}
+
+int32_t VstHost::GetLatencySamples() {
+    return m_impl->GetLatencySamples();
+}
+
+int32_t VstHost::GetParameterCount() {
+    return m_impl->GetParameterCount();
+}
+
+bool VstHost::GetParameterInfo(int32_t index, ParameterInfo& info) {
+    return m_impl->GetParameterInfo(index, info);
+}
+
+uint32_t VstHost::GetParameterID(int32_t index) {
+    return m_impl->GetParameterID(index);
 }

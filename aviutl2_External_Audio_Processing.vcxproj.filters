@@ -47,5 +47,6 @@
     <ClInclude Include="ChainManager.h" />
     <ClInclude Include="AVX2Utils.h" />
     <ClInclude Include="NotesManager.h" />
+    <ClInclude Include="ToolParamListWindow.h" />
   </ItemGroup>
 </Project>

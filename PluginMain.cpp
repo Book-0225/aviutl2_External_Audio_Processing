@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.18a"
+#define PLUGIN_VERSION L"v2-0.0.19"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -53,14 +53,14 @@ std::mutex g_task_queue_mutex;
 std::vector<std::function<void()>> g_main_thread_tasks;
 std::vector<std::function<void()>> g_execution_queue;
 std::atomic<double> g_shared_bpm{ 120.0 };
-std::atomic<int> g_shared_ts_num{ 4 };
-std::atomic<int> g_shared_ts_denom{ 4 };
+std::atomic<int32_t> g_shared_ts_num{ 4 };
+std::atomic<int32_t> g_shared_ts_denom{ 4 };
 
 UINT_PTR g_timer_id = 87655;
 HWND g_hMessageWindow = NULL;
-const UINT WM_APP_EXECUTE_TASKS = WM_APP + 100;
+const uint32_t WM_APP_EXECUTE_TASKS = WM_APP + 100;
 
-LRESULT CALLBACK MessageWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK MessageWndProc(HWND hWnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
     if (msg == WM_APP_EXECUTE_TASKS) {
         std::vector<std::function<void()>> tasks_to_run;
         {

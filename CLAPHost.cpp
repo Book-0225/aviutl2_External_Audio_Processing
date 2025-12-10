@@ -204,7 +204,7 @@ void ClapHost::Impl::Reset() {
     }
 }
 
-LRESULT CALLBACK ClapHostGuiProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
+LRESULT CALLBACK ClapHostGuiProc(HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) {
     auto self = (ClapHost::Impl*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
     if (msg == WM_CREATE) {
         self = (ClapHost::Impl*)((CREATESTRUCT*)lp)->lpCreateParams;
@@ -343,4 +343,24 @@ void ClapHost::SetParameter(uint32_t paramId, float value) {
 int32_t ClapHost::GetLastTouchedParamID() {
     // TODO: CLAP版実装
     return -1;
+}
+
+int32_t ClapHost::GetLatencySamples() {
+    // TODO: CLAP版実装
+    return 0;
+}
+
+int32_t ClapHost::GetParameterCount() {
+    // TODO: CLAP版実装
+    return 0;
+}
+
+bool ClapHost::GetParameterInfo(int32_t index, ParameterInfo& info) {
+    // TODO: CLAP版実装
+    return false;
+}
+
+uint32_t ClapHost::GetParameterID(int32_t index) {
+    // TODO: CLAP版実装
+    return 0;
 }

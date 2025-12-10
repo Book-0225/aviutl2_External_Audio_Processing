@@ -673,7 +673,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 out.r = (uint8_t)(col.r * alphaNorm + src.r * invA);
                 out.g = (uint8_t)(col.g * alphaNorm + src.g * invA);
                 out.b = (uint8_t)(col.b * alphaNorm + src.b * invA);
-                out.a = (uint8_t)std::min<int>(255, (int32_t)(src.a + col.a * a));
+                out.a = (uint8_t)(std::min)(255, (int32_t)(src.a + col.a * a));
                 imgBuf[idx] = out;
             }
         }
