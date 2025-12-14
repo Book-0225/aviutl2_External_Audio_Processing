@@ -14,7 +14,7 @@ struct ClapHost::Impl {
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, const std::vector<MidiEvent>& midiEvents);
-    void Reset();
+    void Reset(int64_t currentSampleIndex);
     void ShowGui();
     void HideGui();
     std::string GetState();
@@ -210,7 +210,7 @@ void ClapHost::Impl::ProcessAudio(const float* inL, const float* inR, float* out
     plugin->process(plugin, &process);
 }
 
-void ClapHost::Impl::Reset() {
+void ClapHost::Impl::Reset(int64_t currentSampleIndex) {
     if (isReady && plugin && plugin->reset) {
         plugin->reset(plugin);
     }
@@ -336,7 +336,7 @@ bool ClapHost::LoadPlugin(const std::string& path, double sampleRate, int32_t bl
 void ClapHost::SetSampleRate(double sampleRate) { m_impl->SetSampleRate(sampleRate); }
 double ClapHost::GetSampleRate() const { return m_impl->currentSampleRate; }
 void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, midiEvents); }
-void ClapHost::Reset() { m_impl->Reset(); }
+void ClapHost::Reset(int64_t currentSampleIndex) { m_impl->Reset(currentSampleIndex); }
 void ClapHost::ShowGui() { m_impl->ShowGui(); }
 void ClapHost::HideGui() { m_impl->HideGui(); }
 std::string ClapHost::GetState() { return m_impl->GetState(); }

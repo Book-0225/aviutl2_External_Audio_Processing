@@ -26,7 +26,7 @@ public:
         int32_t timeSigDenom,
         const std::vector<MidiEvent>& midiEvents
     ) = 0;
-    virtual void Reset() = 0;
+    virtual void Reset(int64_t currentSampleIndex) = 0;
 
     virtual void ShowGui() = 0;
     virtual void HideGui() = 0;

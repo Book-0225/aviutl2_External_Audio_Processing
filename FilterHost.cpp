@@ -717,7 +717,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
              wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
         }
         if (should_reset) {
-            host_for_audio->Reset();
+            host_for_audio->Reset(current_pos);
             ms.last_active_note_owners.clear();
 
             {

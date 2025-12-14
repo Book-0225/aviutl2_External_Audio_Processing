@@ -141,7 +141,7 @@ struct VstHost::Impl {
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents);
-    void Reset();
+    void Reset(int64_t currentSampleIndex);
     void ShowGui();
     void HideGui();
     std::string GetState();
@@ -242,6 +242,9 @@ struct VstHost::Impl {
     WindowController* windowController = nullptr;
     std::string currentPluginPath;
     double currentSampleRate = 44100.0;
+    double currentBpm = 120.0;
+    int32_t currentTsNum = 4;
+    int32_t currentTsDenom = 4;
     int32_t currentBlockSize = 1024;
     bool initialMute = false;
 
@@ -534,8 +537,11 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     ctx.sampleRate = currentSampleRate;
     ctx.projectTimeSamples = currentSampleIndex;
     ctx.tempo = bpm;
+    currentBpm = bpm;
     ctx.timeSigNumerator = tsNum;
+    currentTsNum = tsNum;
     ctx.timeSigDenominator = tsDenom;
+    currentTsDenom = tsDenom;
     if (bpm > 0.0) {
         double samplesPerBeat = (currentSampleRate * 60.0) / bpm;
         double ppq = (double)currentSampleIndex / samplesPerBeat;
@@ -588,7 +594,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     }
 }
 
-void VstHost::Impl::Reset() {
+void VstHost::Impl::Reset(int64_t currentSampleIndex) {
     if (!isReady || !component || !processor) return;
     pendingStopNotes = true;
 
@@ -685,12 +691,30 @@ void VstHost::Impl::Reset() {
         }
 
         ProcessContext ctx{};
-        ctx.state = ProcessContext::kPlaying;
+        ctx.state = ProcessContext::kPlaying |
+            ProcessContext::kProjectTimeMusicValid |
+            ProcessContext::kTempoValid |
+            ProcessContext::kTimeSigValid |
+            ProcessContext::kBarPositionValid |
+            ProcessContext::kCycleValid |
+            ProcessContext::kSystemTimeValid;
         ctx.sampleRate = currentSampleRate;
-        ctx.projectTimeSamples = 0;
-        ctx.tempo = 120.0;
-        ctx.timeSigNumerator = 4;
-        ctx.timeSigDenominator = 4;
+        ctx.projectTimeSamples = currentSampleIndex;
+        ctx.tempo = currentBpm;
+        ctx.timeSigNumerator = currentTsNum;
+        ctx.timeSigDenominator = currentTsDenom;
+        if (currentBpm > 0.0) {
+            double samplesPerBeat = (currentSampleRate * 60.0) / currentBpm;
+            double ppq = (double)currentSampleIndex / samplesPerBeat;
+            ctx.projectTimeMusic = ppq;
+            if (currentTsNum > 0 && currentTsDenom > 0) {
+                double quarterNotesPerBar = (double)currentTsNum * 4.0 / (double)currentTsDenom;
+                int64_t currentBarIndex = (int64_t)(ppq / quarterNotesPerBar);
+                ctx.barPositionMusic = (double)currentBarIndex * quarterNotesPerBar;
+                ctx.cycleStartMusic = ctx.barPositionMusic;
+                ctx.cycleEndMusic = ctx.barPositionMusic + quarterNotesPerBar;
+            }
+        }
         ctx.systemTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         data.processContext = &ctx;
         SafeProcessCall(processor, data);
@@ -842,7 +866,7 @@ void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, floa
     m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, currentSampleIndex, bpm, tsNum, tsDenom, midiEvents);
 }
 
-void VstHost::Reset() { m_impl->Reset(); }
+void VstHost::Reset(int64_t currentSampleIndex) { m_impl->Reset(currentSampleIndex); }
 void VstHost::ShowGui() { m_impl->ShowGui(); }
 void VstHost::HideGui() { m_impl->HideGui(); }
 std::string VstHost::GetState() { return m_impl->GetState(); }
