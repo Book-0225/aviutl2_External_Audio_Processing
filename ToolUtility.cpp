@@ -103,7 +103,7 @@ bool func_proc_audio_utility(FILTER_PROC_AUDIO* audio) {
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_utility = {
-    FILTER_PLUGIN_TABLE::FLAG_AUDIO,
+    TYPE_AUDIO_FILTER_OBJECT,
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),

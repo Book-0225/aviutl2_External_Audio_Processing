@@ -969,7 +969,7 @@ void CleanupMidiVisualizerResources() {
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer = {
-    FILTER_PLUGIN_TABLE::FLAG_VIDEO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
+    TYPE_VIDEO_MEDIA,
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),

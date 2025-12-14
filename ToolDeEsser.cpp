@@ -148,7 +148,7 @@ void CleanupDeEsserResources() {
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_deesser = {
-    FILTER_PLUGIN_TABLE::FLAG_AUDIO,
+    TYPE_AUDIO_FILTER_OBJECT,
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),

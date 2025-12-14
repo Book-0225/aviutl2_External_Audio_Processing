@@ -193,7 +193,7 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media = {
-    FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
+    TYPE_AUDIO_MEDIA,
     GEN_TOOL_NAME(TOOL_NAME_MEDIA),
     label,
     GEN_FILTER_INFO(TOOL_NAME_MEDIA),

@@ -240,7 +240,7 @@ void CleanupGeneratorResources() {
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_generator = {
-    FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
+    TYPE_AUDIO_MEDIA,
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),

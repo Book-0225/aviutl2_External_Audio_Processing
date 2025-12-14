@@ -1005,7 +1005,7 @@ bool func_proc_audio_host_media(FILTER_PROC_AUDIO* audio) {
 }
 
 FILTER_PLUGIN_TABLE filter_plugin_table_host = {
-    FILTER_PLUGIN_TABLE::FLAG_AUDIO,
+    TYPE_AUDIO_FILTER_OBJECT,
     filter_name,
     label,
     GEN_FILTER_INFO(FILTER_NAME),
@@ -1016,7 +1016,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
 
 
 FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
-    FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT,
+    TYPE_AUDIO_MEDIA,
     filter_name_media,
     label,
     GEN_FILTER_INFO(FILTER_NAME_MEDIA),

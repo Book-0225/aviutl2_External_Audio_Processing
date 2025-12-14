@@ -1,5 +1,4 @@
 ﻿#pragma once
-
 #include <windows.h>
 #include <mutex>
 #include <vector>
@@ -65,6 +64,10 @@ extern const wchar_t filter_info[];
 extern const wchar_t filter_name_media[];
 extern const wchar_t tool_name[];
 extern const wchar_t label[];
+
+#define TYPE_AUDIO_FILTER_OBJECT FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_FILTER
+#define TYPE_VIDEO_MEDIA FILTER_PLUGIN_TABLE::FLAG_VIDEO | FILTER_PLUGIN_TABLE::FLAG_INPUT
+#define TYPE_AUDIO_MEDIA FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT
 
 extern std::mutex g_task_queue_mutex;
 extern std::vector<std::function<void()>> g_main_thread_tasks;
