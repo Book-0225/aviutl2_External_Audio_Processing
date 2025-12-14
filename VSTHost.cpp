@@ -504,7 +504,13 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     }
 
     ProcessContext ctx{};
-    ctx.state = ProcessContext::kPlaying;
+    ctx.state = ProcessContext::kPlaying |
+        ProcessContext::kProjectTimeMusicValid |
+        ProcessContext::kTempoValid |
+        ProcessContext::kTimeSigValid |
+        ProcessContext::kBarPositionValid |
+        ProcessContext::kCycleValid |
+        ProcessContext::kSystemTimeValid;
     ctx.sampleRate = currentSampleRate;
     ctx.projectTimeSamples = currentSampleIndex;
     ctx.tempo = bpm;
