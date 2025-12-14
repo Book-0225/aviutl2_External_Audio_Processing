@@ -41,6 +41,9 @@ public:
     virtual void SetParameter(uint32_t paramId, float value) = 0;
     virtual int32_t GetLastTouchedParamID() = 0;
 
+    virtual void SetSampleRate(double sampleRate) = 0;
+    virtual double GetSampleRate() const = 0;
+
 
     virtual int32_t GetLatencySamples() = 0;
 

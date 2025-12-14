@@ -20,6 +20,8 @@ public:
     std::string GetPluginPath() const override;
     void SetParameter(uint32_t paramId, float value) override;
     int32_t GetLastTouchedParamID() override;
+    void SetSampleRate(double sampleRate) override;
+    double GetSampleRate() const override;
     int32_t GetLatencySamples() override;
     int32_t GetParameterCount() override;
     bool GetParameterInfo(int32_t index, ParameterInfo& info) override;

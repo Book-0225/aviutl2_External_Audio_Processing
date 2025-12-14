@@ -24,6 +24,8 @@ public:
     int32_t GetParameterCount() override;
     bool GetParameterInfo(int32_t index, ParameterInfo& info) override;
     uint32_t GetParameterID(int32_t index) override;
+    void SetSampleRate(double sampleRate) override;
+    double GetSampleRate() const override;
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };

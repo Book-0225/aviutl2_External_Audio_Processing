@@ -36,6 +36,18 @@ struct ClapHost::Impl {
     HWND guiWindow = nullptr;
     double currentSampleRate = 44100.0;
     int32_t currentBlockSize = 1024;
+
+    void SetSampleRate(double newRate) {
+        if (std::abs(currentSampleRate - newRate) < 0.1) return;
+        currentSampleRate = newRate;
+        if (!isReady || !plugin) return;
+
+        if (plugin->stop_processing) plugin->stop_processing(plugin);
+        plugin->deactivate(plugin);
+        if (plugin->activate(plugin, currentSampleRate, currentBlockSize, currentBlockSize)) {
+            if (plugin->start_processing) plugin->start_processing(plugin);
+        }
+    }
 };
 
 
@@ -321,6 +333,8 @@ ClapHost::Impl::~Impl() {
 ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
 bool ClapHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
+void ClapHost::SetSampleRate(double sampleRate) { m_impl->SetSampleRate(sampleRate); }
+double ClapHost::GetSampleRate() const { return m_impl->currentSampleRate; }
 void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, midiEvents); }
 void ClapHost::Reset() { m_impl->Reset(); }
 void ClapHost::ShowGui() { m_impl->ShowGui(); }

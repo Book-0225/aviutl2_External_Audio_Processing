@@ -426,6 +426,14 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (PluginManager::GetInstance().IsPendingReinitialization(effect_id)) return true;
 
     std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHost(effect_id);
+    if (host && audio->scene->sample_rate > 0) {
+        double currentRate = host->GetSampleRate();
+        double targetRate = (double)audio->scene->sample_rate;
+        if (std::abs(currentRate - targetRate) > 0.1) {
+            DbgPrint("Sample Rate Change Detected for %lld: %.1f -> %.1f", effect_id, currentRate, targetRate);
+            host->SetSampleRate(targetRate);
+        }
+    }
     if (plugin_path_w.empty()) {
         if (host) needs_reinitialization = true;
     }
@@ -849,6 +857,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         while (processed < total_samples) {
             int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
+            if (host_for_audio) {
+                int64_t lat = host_for_audio->GetLatencySamples();
+                current_block_pos += lat;
+            }
 
             double time_start = (double)current_block_pos / audio->scene->sample_rate;
             double time_end = (double)(current_block_pos + block_size) / audio->scene->sample_rate;

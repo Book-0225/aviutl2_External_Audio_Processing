@@ -241,8 +241,9 @@ struct VstHost::Impl {
     FUnknownPtr<IPlugView> plugView;
     WindowController* windowController = nullptr;
     std::string currentPluginPath;
-    double currentSampleRate = 44140.0;
+    double currentSampleRate = 44100.0;
     int32_t currentBlockSize = 1024;
+    bool initialMute = false;
 
     std::mutex paramMutex;
     std::mutex processorUpdateMutex;
@@ -253,6 +254,25 @@ struct VstHost::Impl {
     std::atomic<bool> pendingStopNotes{ false };
     void RequestStopAllNotes() {
         pendingStopNotes = true;
+    }
+
+    void SetSampleRate(double newRate) {
+        if (std::abs(currentSampleRate - newRate) < 0.1) return;
+        if (!isReady || !processor || !component) {
+            currentSampleRate = newRate;
+            return;
+        }
+
+        processor->setProcessing(false);
+        component->setActive(false);
+
+        component->setActive(true);
+        ProcessSetup setup{ kRealtime, kSample32, currentBlockSize, newRate };
+        processor->setupProcessing(setup);
+        processor->setProcessing(true);
+
+        currentSampleRate = newRate;
+        initialMute = true;
     }
 };
 
@@ -534,17 +554,29 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     result = SafeProcessCall(processor, data);
 
     if (result == kResultOk) {
-        int32_t numOutParams = outParamChanges.getParameterCount();
-        if (numOutParams > 0) {
-            std::lock_guard<std::mutex> lock(outputParamMutex);
-            for (int32_t i = 0; i < numOutParams; ++i) {
-                IParamValueQueue* queue = outParamChanges.getParameterData(i);
-                if (queue && queue->getPointCount() > 0) {
-                    ParamID id = queue->getParameterId();
-                    ParamValue value;
-                    int32_t sampleOffset;
-                    if (queue->getPoint(queue->getPointCount() - 1, sampleOffset, value) == kResultTrue) {
-                        outputParamQueue.push_back({ id, value });
+        if (initialMute) {
+            if (outL != inL) Avx2Utils::FillBufferAVX2(outL, numSamples, 0.0f);
+            else Avx2Utils::FillBufferAVX2(const_cast<float*>(outL), numSamples, 0.0f);
+
+            if (numChannels > 1) {
+                 if (outR != inR) Avx2Utils::FillBufferAVX2(outR, numSamples, 0.0f);
+                 else Avx2Utils::FillBufferAVX2(const_cast<float*>(outR), numSamples, 0.0f);
+            }
+            initialMute = false;
+        }
+        else {
+            int32_t numOutParams = outParamChanges.getParameterCount();
+            if (numOutParams > 0) {
+                std::lock_guard<std::mutex> lock(outputParamMutex);
+                for (int32_t i = 0; i < numOutParams; ++i) {
+                    IParamValueQueue* queue = outParamChanges.getParameterData(i);
+                    if (queue && queue->getPointCount() > 0) {
+                        ParamID id = queue->getParameterId();
+                        ParamValue value;
+                        int32_t sampleOffset;
+                        if (queue->getPoint(queue->getPointCount() - 1, sampleOffset, value) == kResultTrue) {
+                            outputParamQueue.push_back({ id, value });
+                        }
                     }
                 }
             }
@@ -579,6 +611,7 @@ void VstHost::Impl::Reset() {
     component->setActive(false);
     component->setActive(true);
     processor->setProcessing(true);
+    initialMute = true;
 
     EventList resetEventList;
     
@@ -795,6 +828,14 @@ VstHost::~VstHost() = default;
 
 bool VstHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
     return m_impl->LoadPlugin(path, sampleRate, blockSize);
+}
+
+void VstHost::SetSampleRate(double sampleRate) {
+    m_impl->SetSampleRate(sampleRate);
+}
+
+double VstHost::GetSampleRate() const {
+    return m_impl->currentSampleRate;
 }
 
 void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
