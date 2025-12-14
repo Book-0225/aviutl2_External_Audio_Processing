@@ -267,9 +267,6 @@ struct VstHost::Impl {
         }
 
         processor->setProcessing(false);
-        component->setActive(false);
-
-        component->setActive(true);
         ProcessSetup setup{ kRealtime, kSample32, currentBlockSize, newRate };
         processor->setupProcessing(setup);
         processor->setProcessing(true);
