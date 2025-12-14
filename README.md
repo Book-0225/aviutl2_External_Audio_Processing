@@ -126,7 +126,7 @@ v0.0.17以降のバージョンに移行してください。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta24以降(beta24で動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta24以降(beta24aで動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
@@ -790,6 +790,9 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
   フィルタが元の位置に戻るまでの時間を調整します。
 
 ## 改版履歴
+
+- **v0.0.20b**
+  - VST3プラグインのシーク時に不安定になる問題を修正
 
 - **v0.0.20a**
   - VST3プラグインのサンプリングレートが荒ぶる問題を改善
