@@ -716,31 +716,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 });
              wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
         }
-        if (should_reset) {
-            host_for_audio->Reset(current_pos);
-            ms.last_active_note_owners.clear();
-
-            {
-                std::lock_guard<std::mutex> lock(g_notes_state_mutex);
-                state = &g_notes_states[audio->object];
-
-                if (recv_id_val > 0) {
-                    int32_t id_idx = std::clamp(recv_id_val - 1, 0, NotesManager::MAX_ID - 1);
-                    std::lock_guard<std::mutex> note_lock(NotesManager::notes_mutexes[id_idx]);
-                    const auto& note_data = NotesManager::notes[id_idx];
-
-                    for (int32_t i = 0; i < NotesManager::MAX_PER_ID; i++) {
-                        state->last_update_count[i] = note_data.update_count[i];
-                        state->missed_count[i] = 0;
-                        state->waiting_for_update[i] = true;
-                    }
-                }
-                else {
-                    *state = NotesState();
-                }
-            }
-        }
-        PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
         std::string midi_path_u8 = StringUtils::WideToUtf8(midi_path_param.value);
 
@@ -774,6 +749,51 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             ms.parser.Load(midi_path_u8);
             ms.prev_path = midi_path_u8;
         }
+
+        double current_time_sec = (double)current_pos / audio->scene->sample_rate;
+        if (sync_bpm == 1) {
+            bpm = ms.parser.GetBpmAtTime(current_time_sec);
+            auto ts_evt = ms.parser.GetTimeSignatureAt((uint32_t)ms.parser.GetTickAtTime(current_time_sec));
+            if (ts_evt.numerator > 0 && ts_evt.denominator > 0) {
+                ts_num = ts_evt.numerator;
+                ts_denom = ts_evt.denominator;
+            }
+        }
+        else if (sync_bpm == 2) {
+            bpm = g_shared_bpm.load();
+            ts_num = g_shared_ts_num.load();
+            ts_denom = g_shared_ts_denom.load();
+        }
+        else {
+            bpm = track_bpm.value;
+        }
+        if (bpm < 0.1) bpm = 0.1;
+
+        if (should_reset) {
+            host_for_audio->Reset(current_pos, bpm, ts_num, ts_denom);
+            ms.last_active_note_owners.clear();
+
+            {
+                std::lock_guard<std::mutex> lock(g_notes_state_mutex);
+                state = &g_notes_states[audio->object];
+
+                if (recv_id_val > 0) {
+                    int32_t id_idx = std::clamp(recv_id_val - 1, 0, NotesManager::MAX_ID - 1);
+                    std::lock_guard<std::mutex> note_lock(NotesManager::notes_mutexes[id_idx]);
+                    const auto& note_data = NotesManager::notes[id_idx];
+
+                    for (int32_t i = 0; i < NotesManager::MAX_PER_ID; i++) {
+                        state->last_update_count[i] = note_data.update_count[i];
+                        state->missed_count[i] = 0;
+                        state->waiting_for_update[i] = true;
+                    }
+                }
+                else {
+                    *state = NotesState();
+                }
+            }
+        }
+        PluginManager::GetInstance().UpdateLastAudioState(effect_id, current_pos, audio->object->sample_num);
 
         std::vector<IAudioPluginHost::MidiEvent> realtime_midi_events;
 
@@ -831,25 +851,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             }
             ms.last_active_note_owners = current_note_owners;
         }
-
-        double current_time_sec = (double)current_pos / audio->scene->sample_rate;
-        if (sync_bpm == 1) {
-            bpm = ms.parser.GetBpmAtTime(current_time_sec);
-            auto ts_evt = ms.parser.GetTimeSignatureAt((uint32_t)ms.parser.GetTickAtTime(current_time_sec));
-            if (ts_evt.numerator > 0 && ts_evt.denominator > 0) {
-                ts_num = ts_evt.numerator;
-                ts_denom = ts_evt.denominator;
-            }
-        }
-        else if (sync_bpm == 2) {
-            bpm = g_shared_bpm.load();
-            ts_num = g_shared_ts_num.load();
-            ts_denom = g_shared_ts_denom.load();
-        }
-        else {
-            bpm = track_bpm.value;
-        }
-        if (bpm < 0.1) bpm = 0.1;
 
         int32_t processed = 0;
         bool realtime_events_sent = false;

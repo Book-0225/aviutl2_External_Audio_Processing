@@ -141,7 +141,7 @@ struct VstHost::Impl {
 
     bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents);
-    void Reset(int64_t currentSampleIndex);
+    void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom);
     void ShowGui();
     void HideGui();
     std::string GetState();
@@ -591,8 +591,11 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     }
 }
 
-void VstHost::Impl::Reset(int64_t currentSampleIndex) {
+void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) {
     if (!isReady || !component || !processor) return;
+    currentBpm = bpm;
+    currentTsNum = timeSigNum;
+    currentTsDenom = timeSigDenom;
     pendingStopNotes = true;
 
     {
@@ -863,7 +866,7 @@ void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, floa
     m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, currentSampleIndex, bpm, tsNum, tsDenom, midiEvents);
 }
 
-void VstHost::Reset(int64_t currentSampleIndex) { m_impl->Reset(currentSampleIndex); }
+void VstHost::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) { m_impl->Reset(currentSampleIndex, bpm, timeSigNum, timeSigDenom); }
 void VstHost::ShowGui() { m_impl->ShowGui(); }
 void VstHost::HideGui() { m_impl->HideGui(); }
 std::string VstHost::GetState() { return m_impl->GetState(); }
