@@ -1006,13 +1006,12 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 
 ### 前提条件
 
-- Visual Studio 2026 & 2022
-- cmake
+- Visual Studio 2026
+- cmake 4.2.x
 - Git
 
 ### 実際の手順
 
-#### Visual Studio 2022
 1. `git clone --recursive https://github.com/Book-0225/aviutl2_External_Audio_Processing.git`
 2. `cd aviutl2_External_Audio_Processing`
 3. `aviutl2_External_Audio_Processing/aviutl2_sdk`になるようにaviutl2のSDKを配置
@@ -1021,7 +1020,6 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 6. `cmake ..\vst3sdk\`
 7. `cmake --build . --config Release`
 8. `cd ..`
-#### Visual Studio 2026
 9. `msbuild aviutl2_External_Audio_Processing.vcxproj /p:Configuration=Release /p:Platform="x64"`
 
 上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`が生成されるはずです。
