@@ -1012,7 +1012,7 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 ### 前提条件
 
 - Visual Studio 2026
-- cmake
+- cmake 4.2.x
 - Git
 
 ### 実際の手順
