@@ -22,6 +22,12 @@ struct ClapHost::Impl {
     void ReleasePlugin();
     void Cleanup();
     bool GuiResize(uint32_t width, uint32_t height);
+    int32_t GetParameterCount();
+    bool GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info);
+    uint32_t GetParameterID(int32_t index);
+    int32_t GetLatencySamples();
+    int32_t GetLastTouchedParamID();
+    void SetParameter(uint32_t paramId, float value);
     std::string m_pluginPath;
     bool m_isGuiVisible = false;
 
@@ -32,7 +38,10 @@ struct ClapHost::Impl {
     const clap_plugin* plugin = nullptr;
     const clap_plugin_state* extState = nullptr;
     const clap_plugin_gui* extGui = nullptr;
+    const clap_plugin_params* extParams = nullptr;
+    const clap_plugin_latency* extLatency = nullptr;
     bool isReady = false;
+    std::atomic<int32_t> lastTouchedParamID{-1};
     HWND guiWindow = nullptr;
     double currentSampleRate = 44100.0;
     int32_t currentBlockSize = 1024;
@@ -52,9 +61,7 @@ struct ClapHost::Impl {
 
 
 static void clap_log_callback(const clap_host_t* host, clap_log_severity severity, const char* msg) {
-    OutputDebugStringA("[CLAP] ");
-    OutputDebugStringA(msg);
-    OutputDebugStringA("\n");
+    DbgPrint("[CLAP] %hs \n", msg);
 }
 
 static bool clap_gui_resize(const clap_host_t* host, uint32_t width, uint32_t height) {
@@ -63,9 +70,7 @@ static bool clap_gui_resize(const clap_host_t* host, uint32_t width, uint32_t he
 }
 static const clap_host_log s_clap_log = {
     [](const clap_host_t*, clap_log_severity, const char* msg) {
-        OutputDebugStringA("[CLAP] ");
-        OutputDebugStringA(msg);
-        OutputDebugStringA("\n");
+        DbgPrint("[CLAP] %hs \n", msg);
     }
 };
 
@@ -150,6 +155,11 @@ bool ClapHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int3
 
     extState = (const clap_plugin_state*)plugin->get_extension(plugin, CLAP_EXT_STATE);
     extGui = (const clap_plugin_gui*)plugin->get_extension(plugin, CLAP_EXT_GUI);
+    extParams = (const clap_plugin_params*)plugin->get_extension(plugin, CLAP_EXT_PARAMS);
+    extLatency = (const clap_plugin_latency*)plugin->get_extension(plugin, CLAP_EXT_LATENCY);
+
+    if (extParams) DbgPrint("[CLAP] params extension available\n");
+    if (extLatency) DbgPrint("[CLAP] latency extension available\n");
 
     if (!plugin->activate(plugin, sampleRate, blockSize, blockSize)) {
         ReleasePlugin();
@@ -169,6 +179,8 @@ void ClapHost::Impl::ReleasePlugin() {
     plugin = nullptr;
     extState = nullptr;
     extGui = nullptr;
+    extParams = nullptr;
+    extLatency = nullptr;
     if (entry) entry->deinit();
     entry = nullptr;
     if (hModule) FreeLibrary(hModule);
@@ -176,6 +188,7 @@ void ClapHost::Impl::ReleasePlugin() {
     isReady = false;
     m_pluginPath.clear();
     m_isGuiVisible = false;
+    lastTouchedParamID = -1;
 }
 
 void ClapHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, const std::vector<MidiEvent>& midiEvents) {
@@ -326,9 +339,82 @@ bool ClapHost::Impl::SetState(const std::string& state_b64) {
 }
 
 void ClapHost::Impl::Cleanup() { ReleasePlugin(); }
+
+int32_t ClapHost::Impl::GetParameterCount() {
+    if (!extParams) {
+        DbgPrint("[CLAP] params extension not available\n");
+        return 0;
+    }
+    return static_cast<int32_t>(extParams->count(plugin));
+}
+
+bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) {
+    if (!extParams) {
+        DbgPrint("[CLAP] params extension not available\n");
+        return false;
+    }
+    
+    clap_param_info_t clapInfo = {};
+    if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
+        DbgPrint("[CLAP] failed to get parameter info for index %d\n", index);
+        return false;
+    }
+    strncpy_s(info.name, clapInfo.name, sizeof(info.name) - 1);
+    info.name[sizeof(info.name) - 1] = '\0';
+    strncpy_s(info.unit, clapInfo.module, sizeof(info.unit) - 1);
+    info.unit[sizeof(info.unit) - 1] = '\0';
+    if (clapInfo.flags & CLAP_PARAM_IS_STEPPED) info.step = static_cast<uint32_t>(clapInfo.max_value - clapInfo.min_value);
+    else info.step = 0;
+    
+    return true;
+}
+
+uint32_t ClapHost::Impl::GetParameterID(int32_t index) {
+    if (!extParams) {
+        DbgPrint("[CLAP] params extension not available\n");
+        return 0;
+    }
+    
+    clap_param_info_t clapInfo = {};
+    if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
+        DbgPrint("[CLAP] failed to get parameter info for index %d\n", index);
+        return 0;
+    }
+    
+    return static_cast<uint32_t>(clapInfo.id);
+}
+
+int32_t ClapHost::Impl::GetLatencySamples() {
+    if (!extLatency) {
+        DbgPrint("[CLAP] latency extension not available\n");
+        return 0;
+    }
+    
+    if (!isReady || !plugin) {
+        DbgPrint("[CLAP] plugin not ready\n");
+        return 0;
+    }
+    
+    return static_cast<int32_t>(extLatency->get(plugin));
+}
+
+int32_t ClapHost::Impl::GetLastTouchedParamID() {
+    return lastTouchedParamID.exchange(-1);
+}
+
+void ClapHost::Impl::SetParameter(uint32_t paramId, float value) {
+    if (!extParams) {
+        DbgPrint("[CLAP] params extension not available\n");
+        return;
+    }
+    
+    DbgPrint("[CLAP] SetParameter id=%u, value=%f (not fully implemented)\n", paramId, value);
+}
+
 ClapHost::Impl::~Impl() {
     Cleanup();
 }
+
 
 ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
@@ -351,30 +437,25 @@ std::string ClapHost::GetPluginPath() const {
 }
 
 void ClapHost::SetParameter(uint32_t paramId, float value) {
-    // TODO: CLAP版実装
+    m_impl->SetParameter(paramId, value);
 }
 
 int32_t ClapHost::GetLastTouchedParamID() {
-    // TODO: CLAP版実装
-    return -1;
+    return m_impl->GetLastTouchedParamID();
 }
 
 int32_t ClapHost::GetLatencySamples() {
-    // TODO: CLAP版実装
-    return 0;
+    return m_impl->GetLatencySamples();
 }
 
 int32_t ClapHost::GetParameterCount() {
-    // TODO: CLAP版実装
-    return 0;
+    return m_impl->GetParameterCount();
 }
 
 bool ClapHost::GetParameterInfo(int32_t index, ParameterInfo& info) {
-    // TODO: CLAP版実装
-    return false;
+    return m_impl->GetParameterInfo(index, info);
 }
 
 uint32_t ClapHost::GetParameterID(int32_t index) {
-    // TODO: CLAP版実装
-    return 0;
+    return m_impl->GetParameterID(index);
 }

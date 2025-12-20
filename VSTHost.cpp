@@ -1,5 +1,4 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
-#include "VstHost.h"
+﻿#include "VstHost.h"
 #include "public.sdk/source/vst/hosting/module.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
@@ -558,13 +557,8 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 
     if (result == kResultOk) {
         if (initialMute) {
-            if (outL != inL) Avx2Utils::FillBufferAVX2(outL, numSamples, 0.0f);
-            else Avx2Utils::FillBufferAVX2(const_cast<float*>(outL), numSamples, 0.0f);
-
-            if (numChannels > 1) {
-                 if (outR != inR) Avx2Utils::FillBufferAVX2(outR, numSamples, 0.0f);
-                 else Avx2Utils::FillBufferAVX2(const_cast<float*>(outR), numSamples, 0.0f);
-            }
+            Avx2Utils::FillBufferAVX2(outL, numSamples, 0.0f);
+            if (numChannels > 1)  Avx2Utils::FillBufferAVX2(outR, numSamples, 0.0f);
             initialMute = false;
         }
         else {
