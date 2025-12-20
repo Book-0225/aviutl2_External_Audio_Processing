@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.20d"
+#define PLUGIN_VERSION L"v2-0.0.21"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -15,7 +15,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2002400
+#define MINIMUM_VERSION 2002500
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -101,7 +101,7 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
         g_hinstance = hinst;
         DisableThreadLibraryCalls(hinst);
     }
-    return TRUE;
+    return true;
 }
 
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
@@ -168,6 +168,10 @@ void ToolCleanupResources() {
     CleanupMidiVisualizerResources();
 }
 
+void func_proc_clear_cache(EDIT_SECTION* edit) {
+    CleanupMainFilterResources();
+}
+
 EXTERN_C __declspec(dllexport) void UninitializePlugin() {
     KillTimer(NULL, g_timer_id);
 
@@ -215,5 +219,6 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->register_filter_plugin(&filter_plugin_table_notes_send_media);
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
+    host->register_clear_cache_handler(func_proc_clear_cache);
     g_edit_handle = host->create_edit_handle();
 }
