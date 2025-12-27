@@ -45,11 +45,6 @@ struct MidiState {
 static std::map<std::string, MidiState> g_midi_state;
 static std::mutex g_midi_state_mutex;
 
-struct ResetGUIContext {
-    std::string target_instance_id;
-    LPCWSTR param_name;
-};
-
 TCHAR filter_ext[] =
 L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0"
 L"VST3 Plugins (*.vst3)\0*.vst3\0"
@@ -69,7 +64,33 @@ FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
 FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
 FILTER_ITEM_CHECK check_show_param_list(L"Show Param List", false);
 FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
-FILTER_ITEM_CHECK check_map_reset(L"Reset Mapping", false);
+struct InstanceID {
+    char uuid[40] = { 0 };
+};
+FILTER_ITEM_DATA<InstanceID> instance_data_param(L"INSTANCE_ID");
+FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
+    if (!edit) return;
+    int32_t select_count = edit->get_selected_object_num();
+    for (int s = 0; s < select_count; ++s) {
+        OBJECT_HANDLE obj = edit->get_selected_object(s);
+        if (!obj) continue;
+        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
+            int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
+                std::wstring indexed_filter_name = std::wstring(current_filter_name);
+                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+                if (hex_id) {
+                    std::string uuid = StringUtils::HexToString(hex_id);
+                    if (!uuid.empty()) {
+                        PluginManager::GetInstance().ClearMapping(uuid);
+                        DbgPrint("Mappings cleared via button for %hs", uuid.c_str());
+                    }
+                }
+            }
+        }
+    }
+    });
 FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_map2(L"Map 2", -1.0, -1.0, 1000, 1.0);
@@ -88,10 +109,6 @@ FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
-struct InstanceID {
-    char uuid[40] = { 0 };
-};
-FILTER_ITEM_DATA<InstanceID> instance_data_param(L"INSTANCE_ID");
 struct InstanceLastRecvData {
     int32_t last_recv_id = -1;
 };
@@ -119,7 +136,7 @@ void* filter_items_host[] = {
     &param_group,
     &check_show_param_list,
     &check_param_learn,
-    &check_map_reset,
+    &button_map_reset,
     &track_map1,
     &track_param1,
     &track_map2,
@@ -146,7 +163,7 @@ void* filter_items_host_media[] = {
     &param_group,
     &check_show_param_list,
     &check_param_learn,
-    &check_map_reset,
+    &button_map_reset,
     &track_map1,
     &track_param1,
     &track_map2,
@@ -295,44 +312,6 @@ void func_project_load(PROJECT_FILE* pf) {
     }
 }
 
-void reset_checkbox_proc(void* param, EDIT_SECTION* edit) {
-    auto* ctx = static_cast<ResetGUIContext*>(param);
-    if (!ctx) return;
-
-    int32_t max_layer = edit->info->layer_max;
-
-    for (int32_t layer = 0; layer <= max_layer; ++layer) {
-        int32_t current_frame = 0;
-        while (true) {
-            OBJECT_HANDLE obj = edit->find_object(layer, current_frame);
-            if (obj == nullptr) break;
-            for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
-                int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
-                for (int32_t i = 0; i < effect_count; ++i) {
-                    std::wstring indexed_filter_name = std::wstring(current_filter_name);
-                    if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
-
-                    LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
-
-                    if (hex_id) {
-                        std::string raw_data = StringUtils::HexToString(hex_id);
-                        if (raw_data.size() >= 36) {
-                            std::string obj_uuid = std::string(raw_data.c_str());
-
-                            if (obj_uuid == ctx->target_instance_id) {
-                                bool result = edit->set_object_item_value(obj, indexed_filter_name.c_str(), ctx->param_name, "0");
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-            OBJECT_LAYER_FRAME frame_info = edit->get_object_layer_frame(obj);
-            current_frame = frame_info.end + 1;
-        }
-    }
-}
-
 struct RenameParam {
     std::wstring newName;
     std::wstring oldNameCandidate;
@@ -386,8 +365,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         instance_id = instance_data_param.value->uuid;
     }
     else {
-            instance_id = StringUtils::GenerateUUID();
-            strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
+        instance_id = StringUtils::GenerateUUID();
+        strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
     }
 
     if (instance_id.empty()) return true;
@@ -523,22 +502,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     int32_t ts_denom = (int32_t)track_ts_denom.value;
 
     if (host) {
-        if (check_map_reset.value) {
-            PluginManager::GetInstance().ClearMapping(instance_id);
-            {
-                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-                g_main_thread_tasks.push_back([tgt_id = instance_id]() {
-                    if (g_edit_handle) {
-
-                        ResetGUIContext ctx;
-                        ctx.target_instance_id = tgt_id;
-                        ctx.param_name = check_map_reset.name;
-                        g_edit_handle->call_edit_section_param(&ctx, reset_checkbox_proc);
-                    }
-                    });
-            }
-            DbgPrint("Mappings Cleared and GUI reset requested for %hs", instance_id.c_str());
-        }
         float slider_vals[4] = {
             (float)track_param1.value,
             (float)track_param2.value,
@@ -558,17 +521,17 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
         ParamCache* pCache = nullptr;
         {
-             std::lock_guard<std::mutex> lock(g_param_cache_mutex);
-             pCache = &g_param_cache[instance_id];
+            std::lock_guard<std::mutex> lock(g_param_cache_mutex);
+            pCache = &g_param_cache[instance_id];
         }
         ParamCache& cache = *pCache;
 
-        for(int32_t i=0; i<4; ++i) {
+        for (int32_t i = 0; i < 4; ++i) {
             int32_t mapIndex = (int32_t)map_vals[i];
             int32_t maxParam = host->GetParameterCount();
             if (mapIndex >= 0 && mapIndex < maxParam) {
-                 uint32_t paramID = host->GetParameterID(mapIndex);
-                 PluginManager::GetInstance().UpdateMapping(instance_id, i, paramID);
+                uint32_t paramID = host->GetParameterID(mapIndex);
+                PluginManager::GetInstance().UpdateMapping(instance_id, i, paramID);
             }
         }
 
@@ -638,31 +601,32 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     bool show_list_current = check_show_param_list.value;
     bool show_list_prev = false;
     {
-         std::lock_guard<std::mutex> lock(g_param_cache_mutex);
-         show_list_prev = g_param_cache[instance_id].prev_show_list;
-         g_param_cache[instance_id].prev_show_list = show_list_current;
+        std::lock_guard<std::mutex> lock(g_param_cache_mutex);
+        show_list_prev = g_param_cache[instance_id].prev_show_list;
+        g_param_cache[instance_id].prev_show_list = show_list_current;
     }
 
     if (show_list_current && !show_list_prev) {
-         ToolParamListWindow::GetInstance().SetOwner(instance_id);
-         ToolParamListWindow::GetInstance().SetTargetVisible(true);
-         std::string pathUtf8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
-         std::string name = std::filesystem::path(pathUtf8).filename().string();
-         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-         g_main_thread_tasks.push_back([effect_id, name]() {
-             auto host = PluginManager::GetInstance().GetHost(effect_id);
-             if (host) {
+        ToolParamListWindow::GetInstance().SetOwner(instance_id);
+        ToolParamListWindow::GetInstance().SetTargetVisible(true);
+        std::string pathUtf8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
+        std::string name = std::filesystem::path(pathUtf8).filename().string();
+        std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+        g_main_thread_tasks.push_back([effect_id, name]() {
+            auto host = PluginManager::GetInstance().GetHost(effect_id);
+            if (host) {
                 ToolParamListWindow::GetInstance().Show(host, name);
-             }
-         });
-    } else if (!show_list_current && show_list_prev) {
-         if (ToolParamListWindow::GetInstance().IsOwner(instance_id)) {
-             ToolParamListWindow::GetInstance().SetTargetVisible(false);
-             std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-             g_main_thread_tasks.push_back([]() {
-                 ToolParamListWindow::GetInstance().Close();
-             });
-         }
+            }
+            });
+    }
+    else if (!show_list_current && show_list_prev) {
+        if (ToolParamListWindow::GetInstance().IsOwner(instance_id)) {
+            ToolParamListWindow::GetInstance().SetTargetVisible(false);
+            std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+            g_main_thread_tasks.push_back([]() {
+                ToolParamListWindow::GetInstance().Close();
+                });
+        }
     }
 
     if (effective_bypass) {
@@ -714,7 +678,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
                 });
-             wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
+            wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
         }
 
         std::string midi_path_u8 = StringUtils::WideToUtf8(midi_path_param.value);
@@ -936,7 +900,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
     int32_t latency = 0;
     if (host_for_audio) latency = host_for_audio->GetLatencySamples();
-    
+
     float* dryL = inL.data();
     float* dryR = inR.data();
     std::vector<float> delayedL, delayedR;
@@ -944,42 +908,42 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (latency > 0) {
         DelayBuffer* db = nullptr;
         {
-             std::lock_guard<std::mutex> lock(g_delay_buffers_mutex);
-             db = &g_delay_buffers[instance_id];
+            std::lock_guard<std::mutex> lock(g_delay_buffers_mutex);
+            db = &g_delay_buffers[instance_id];
         }
-        
+
         int32_t reqSize = latency + MAX_BLOCK_SIZE * 2;
         if (db->bufferL.size() < reqSize) {
-             db->bufferL.resize(reqSize, 0.0f);
-             db->bufferR.resize(reqSize, 0.0f);
+            db->bufferL.resize(reqSize, 0.0f);
+            db->bufferR.resize(reqSize, 0.0f);
         }
-        
+
         int32_t writeP = db->writePos;
         int32_t bufSize = (int32_t)db->bufferL.size();
-        
-        for(int32_t i=0; i<total_samples; ++i) {
-             db->bufferL[writeP] = inL[i];
-             if(channels >= 2) db->bufferR[writeP] = inR[i];
-             writeP++;
-             if(writeP >= bufSize) writeP = 0;
+
+        for (int32_t i = 0; i < total_samples; ++i) {
+            db->bufferL[writeP] = inL[i];
+            if (channels >= 2) db->bufferR[writeP] = inR[i];
+            writeP++;
+            if (writeP >= bufSize) writeP = 0;
         }
         db->writePos = writeP;
-        
+
         int32_t readP = db->writePos - total_samples - latency;
-        while(readP < 0) readP += bufSize;
-        
+        while (readP < 0) readP += bufSize;
+
         delayedL.resize(total_samples);
-        if(channels >= 2) delayedR.resize(total_samples);
-        
-        for(int32_t i=0; i<total_samples; ++i) {
-             delayedL[i] = db->bufferL[readP];
-             if(channels >= 2) delayedR[i] = db->bufferR[readP];
-             readP++;
-             if(readP >= bufSize) readP = 0;
+        if (channels >= 2) delayedR.resize(total_samples);
+
+        for (int32_t i = 0; i < total_samples; ++i) {
+            delayedL[i] = db->bufferL[readP];
+            if (channels >= 2) delayedR[i] = db->bufferR[readP];
+            readP++;
+            if (readP >= bufSize) readP = 0;
         }
-        
+
         dryL = delayedL.data();
-        if(channels >= 2) dryR = delayedR.data();
+        if (channels >= 2) dryR = delayedR.data();
     }
 
     float wet_ratio = wet_val / 100.0f;
