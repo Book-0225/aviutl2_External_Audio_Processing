@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.22"
+#define PLUGIN_VERSION L"v2-0.0.23"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -15,7 +15,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2002600
+#define MINIMUM_VERSION 2003100
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -52,9 +52,6 @@ LOG_HANDLE* g_logger = nullptr;
 std::mutex g_task_queue_mutex;
 std::vector<std::function<void()>> g_main_thread_tasks;
 std::vector<std::function<void()>> g_execution_queue;
-std::atomic<double> g_shared_bpm{ 120.0 };
-std::atomic<int32_t> g_shared_ts_num{ 4 };
-std::atomic<int32_t> g_shared_ts_denom{ 4 };
 
 UINT_PTR g_timer_id = 87655;
 HWND g_hMessageWindow = NULL;
@@ -74,15 +71,6 @@ LRESULT CALLBACK MessageWndProc(HWND hWnd, uint32_t msg, WPARAM wParam, LPARAM l
 }
 
 void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
-    if (g_edit_handle) {
-        EDIT_INFO info = { 0 };
-        g_edit_handle->get_edit_info(&info, sizeof(info));
-        g_shared_bpm.store(info.grid_bpm_tempo > 0 ? info.grid_bpm_tempo : 120.0);
-        if (info.grid_bpm_beat > 0) {
-            g_shared_ts_num.store(info.grid_bpm_beat);
-            g_shared_ts_denom.store(4);
-        }
-    }
     std::lock_guard<std::mutex> lock(g_task_queue_mutex);
     if (g_main_thread_tasks.empty()) return;
 

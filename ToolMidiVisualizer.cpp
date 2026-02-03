@@ -237,7 +237,6 @@ FILTER_ITEM_TRACK track_offset = {L"オフセット", 0.0, -100.0, 100.0, 0.01};
 FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
     { L"同期しない", 0 },
     { L"MIDIにBPMを同期", 1 },
-    { L"AviUtlにBPMを同期", 2 },
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 0, sync_mode_visualizer);
@@ -478,11 +477,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
             else break;
         }
         if (mpqn > 0) bpm = 60000000.0 / mpqn;
-    }
-    else if (select_bpm_sync_visualizer.value == 2){
-        bpm = g_shared_bpm.load();
-        if (bpm <= 0) bpm = 120;
-        currentTick = (int64_t)(currentTime * (bpm * tpqn / 60.0) * speedMul);
     }
     else {
         bpm = track_manual_bpm.value;
@@ -817,9 +811,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 {
                 case 1:
                     measureLen = (int64_t)ts.numerator * tpqn * 4 / ts.denominator;
-                    break;
-                case 2:
-                    measureLen = g_shared_ts_num.load() * tpqn * 4 / g_shared_ts_denom.load();
                     break;
                 default:
                     measureLen = (int64_t)(track_manual_num.value * tpqn * 4 / track_manual_denom.value);

@@ -53,10 +53,6 @@ extern LOG_HANDLE* g_logger;
 extern HINSTANCE g_hinstance;
 extern EDIT_HANDLE* g_edit_handle;
 
-extern std::atomic<double> g_shared_bpm;
-extern std::atomic<int32_t> g_shared_ts_num;
-extern std::atomic<int32_t> g_shared_ts_denom;
-
 extern const wchar_t regex_info_name[];
 extern const wchar_t regex_tool_name[];
 extern const wchar_t filter_name[];

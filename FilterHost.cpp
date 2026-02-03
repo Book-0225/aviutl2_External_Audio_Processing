@@ -105,7 +105,6 @@ FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\
 FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { L"同期しない", 0 },
     { L"MIDIにBPMを同期", 1 },
-    { L"AviUtlにBPMを同期", 2 },
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
@@ -722,11 +721,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 ts_num = ts_evt.numerator;
                 ts_denom = ts_evt.denominator;
             }
-        }
-        else if (sync_bpm == 2) {
-            bpm = g_shared_bpm.load();
-            ts_num = g_shared_ts_num.load();
-            ts_denom = g_shared_ts_denom.load();
         }
         else {
             bpm = track_bpm.value;
