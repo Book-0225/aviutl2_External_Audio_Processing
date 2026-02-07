@@ -836,7 +836,7 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
   - 設定機能を追加(まだあまり設定できる機能はありません)  
     それに伴い設定のリセットを追加
   - Pull request [#2](https://github.com/Book-0225/aviutl2_External_Audio_Processing/pull/2)を基にIssue [#1](https://github.com/Book-0225/aviutl2_External_Audio_Processing/issues/1)を改善できる設定を追加  
-  [Rumia-Channel](https://github.com/Rumia-Channel)様による貢献をベースに作成しました。  
+  [Rumia-Channel](https://github.com/Rumia-Channel)様による貢献を基に作成しました。  
   ご協力ありがとうございました。
 
 - **v0.0.23**
