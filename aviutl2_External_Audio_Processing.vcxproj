@@ -13,6 +13,7 @@
   <ItemGroup>
     <ClCompile Include="AudioPluginFactory.cpp" />
     <ClCompile Include="CLAPHost.cpp" />
+    <ClCompile Include="Config.cpp" />
     <ClCompile Include="ToolAutoWah.cpp" />
     <ClCompile Include="ToolChainComp.cpp" />
     <ClCompile Include="ToolChainDynamicEQ.cpp" />

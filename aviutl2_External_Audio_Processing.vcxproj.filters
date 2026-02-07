@@ -33,6 +33,7 @@
     <ClCompile Include="ToolNotesSend.cpp" />
     <ClCompile Include="ToolSpectralGate.cpp" />
     <ClCompile Include="ToolMidiVisualizer.cpp" />
+    <ClCompile Include="Config.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />

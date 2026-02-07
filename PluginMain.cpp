@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.23"
+#define PLUGIN_VERSION L"v2-0.0.24"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -44,6 +44,7 @@ constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBU
 constexpr wchar_t regex_info_name[] = REGEX_FILTER_NAME;
 constexpr wchar_t regex_tool_name[] = REGEX_TOOL_NAME;
 constexpr wchar_t label[] = FILTER_NAME_SHORT;
+constexpr wchar_t plugin_version[] = PLUGIN_VERSION;
 
 HINSTANCE g_hinstance = NULL;
 EDIT_HANDLE* g_edit_handle = nullptr;
@@ -56,6 +57,7 @@ std::vector<std::function<void()>> g_execution_queue;
 UINT_PTR g_timer_id = 87655;
 HWND g_hMessageWindow = NULL;
 const uint32_t WM_APP_EXECUTE_TASKS = WM_APP + 100;
+
 
 LRESULT CALLBACK MessageWndProc(HWND hWnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
     if (msg == WM_APP_EXECUTE_TASKS) {
@@ -89,6 +91,9 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
         g_hinstance = hinst;
         DisableThreadLibraryCalls(hinst);
     }
+
+    LoadConfig();
+
     return true;
 }
 
@@ -156,10 +161,6 @@ void ToolCleanupResources() {
     CleanupMidiVisualizerResources();
 }
 
-void func_proc_clear_cache(EDIT_SECTION* edit) {
-    CleanupMainFilterResources();
-}
-
 EXTERN_C __declspec(dllexport) void UninitializePlugin() {
     KillTimer(NULL, g_timer_id);
 
@@ -171,6 +172,8 @@ EXTERN_C __declspec(dllexport) void UninitializePlugin() {
     CleanupMainFilterResources();
     AudioPluginFactory::Uninitialize();
     CoUninitialize();
+
+    // SaveConfig(); 将来的にAviUtl内で設定を変更出来るようにした時用
     
     DbgPrint("EAP2 Uninitialized.");
 }
@@ -181,32 +184,35 @@ EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
 
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->set_plugin_information(plugin_info);
+    host->register_config_menu(L"EAP2の設定をリセット", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定をリセットしますか？(再起動後に反映)", L"EAP2 設定リセット", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig(); });
     host->register_filter_plugin(&filter_plugin_table_host);
     host->register_filter_plugin(&filter_plugin_table_host_media);
-    host->register_filter_plugin(&filter_plugin_table_utility);
-    host->register_filter_plugin(&filter_plugin_table_eq);
-    host->register_filter_plugin(&filter_plugin_table_stereo);
-    host->register_filter_plugin(&filter_plugin_table_dynamics);
-    host->register_filter_plugin(&filter_plugin_table_spatial);
-    host->register_filter_plugin(&filter_plugin_table_modulation);
-    host->register_filter_plugin(&filter_plugin_table_distortion);
-    host->register_filter_plugin(&filter_plugin_table_maximizer);
-    host->register_filter_plugin(&filter_plugin_table_chain_send);
-    host->register_filter_plugin(&filter_plugin_table_chain_comp);
-    host->register_filter_plugin(&filter_plugin_table_chain_gate);
-    host->register_filter_plugin(&filter_plugin_table_chain_dyn_eq);
-    host->register_filter_plugin(&filter_plugin_table_chain_filter);
-    host->register_filter_plugin(&filter_plugin_table_reverb);
-    host->register_filter_plugin(&filter_plugin_table_phaser);
-    host->register_filter_plugin(&filter_plugin_table_generator);
-    host->register_filter_plugin(&filter_plugin_table_pitch_shift);
-    host->register_filter_plugin(&filter_plugin_table_autowah);
-    host->register_filter_plugin(&filter_plugin_table_deesser);
-    host->register_filter_plugin(&filter_plugin_table_spectral_gate);
-    host->register_filter_plugin(&filter_plugin_table_midi_visualizer);
-    host->register_filter_plugin(&filter_plugin_table_notes_send_media);
+    if (!settings.module.all_tool_disable) {
+        host->register_filter_plugin(&filter_plugin_table_utility);
+        host->register_filter_plugin(&filter_plugin_table_eq);
+        host->register_filter_plugin(&filter_plugin_table_stereo);
+        host->register_filter_plugin(&filter_plugin_table_dynamics);
+        host->register_filter_plugin(&filter_plugin_table_spatial);
+        host->register_filter_plugin(&filter_plugin_table_modulation);
+        host->register_filter_plugin(&filter_plugin_table_distortion);
+        host->register_filter_plugin(&filter_plugin_table_maximizer);
+        host->register_filter_plugin(&filter_plugin_table_chain_send);
+        host->register_filter_plugin(&filter_plugin_table_chain_comp);
+        host->register_filter_plugin(&filter_plugin_table_chain_gate);
+        host->register_filter_plugin(&filter_plugin_table_chain_dyn_eq);
+        host->register_filter_plugin(&filter_plugin_table_chain_filter);
+        host->register_filter_plugin(&filter_plugin_table_reverb);
+        host->register_filter_plugin(&filter_plugin_table_phaser);
+        host->register_filter_plugin(&filter_plugin_table_generator);
+        host->register_filter_plugin(&filter_plugin_table_pitch_shift);
+        host->register_filter_plugin(&filter_plugin_table_autowah);
+        host->register_filter_plugin(&filter_plugin_table_deesser);
+        host->register_filter_plugin(&filter_plugin_table_spectral_gate);
+        host->register_filter_plugin(&filter_plugin_table_midi_visualizer);
+        host->register_filter_plugin(&filter_plugin_table_notes_send_media);
+    }
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
-    host->register_clear_cache_handler(func_proc_clear_cache);
+    host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });
     g_edit_handle = host->create_edit_handle();
 }

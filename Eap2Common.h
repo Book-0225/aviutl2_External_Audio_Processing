@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <windows.h>
 #include <mutex>
+#include <variant>
 #include <vector>
 #include <functional>
 #include <tchar.h>
@@ -60,6 +61,7 @@ extern const wchar_t filter_info[];
 extern const wchar_t filter_name_media[];
 extern const wchar_t tool_name[];
 extern const wchar_t label[];
+extern const wchar_t plugin_version[];
 
 #define TYPE_AUDIO_FILTER_OBJECT FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_FILTER
 #define TYPE_VIDEO_MEDIA FILTER_PLUGIN_TABLE::FLAG_VIDEO | FILTER_PLUGIN_TABLE::FLAG_INPUT
@@ -92,6 +94,74 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_deesser;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
+
+struct ConfigEntry {
+    std::wstring key;
+    std::wstring defaultValue;
+    std::function<void(const std::wstring&)> load;
+    std::function<std::wstring()> save;
+
+    template<typename T>
+    static ConfigEntry Create(std::wstring key, std::wstring def, T* target) {
+        auto entry = ConfigEntry{
+            key, def,
+            [target](const std::wstring& s) {
+                if constexpr (std::is_same_v<T, bool>) *target = (s == L"1");
+                else if constexpr (std::is_same_v<T, int32_t>) *target = std::stoi(s);
+                else if constexpr (std::is_same_v<T, std::wstring>) *target = s;
+            },
+            [target]() {
+                if constexpr (std::is_same_v<T, bool>) return *target ? L"1" : L"0";
+                else if constexpr (std::is_same_v<T, int32_t>) return std::to_wstring(*target);
+                else if constexpr (std::is_same_v<T, std::wstring>) return *target;
+            }
+        };
+        entry.load(def);
+        return entry;
+    }
+};
+
+struct ConfigInfo {
+    std::wstring categoryName = L"Info";
+    std::wstring version;
+    std::vector<ConfigEntry> getEntries() {
+        return {
+            ConfigEntry::Create(L"Version", plugin_version, &version)
+        };
+    }
+};
+
+struct ModuleConfig {
+    std::wstring categoryName = L"Module";
+    bool all_tool_disable;
+    std::vector<ConfigEntry> getEntries() {
+        return {
+            ConfigEntry::Create(L"AllToolDisable", L"0", &all_tool_disable),
+        };
+    }
+};
+
+struct VstConfig {
+    std::wstring categoryName = L"VST";
+    bool forceResize;
+    std::vector<ConfigEntry> getEntries() {
+        return {
+            ConfigEntry::Create(L"ForceResize", L"0", &forceResize)
+        };
+    }
+};
+
+struct AppSettings {
+    ConfigInfo info;
+    ModuleConfig module;
+    VstConfig vst;
+};
+
+extern AppSettings settings;
+
+void LoadConfig();
+void SaveConfig();
+void ResetConfig();
 
 void CleanupSpectralGateResources();
 void CleanupSpatialResources();
