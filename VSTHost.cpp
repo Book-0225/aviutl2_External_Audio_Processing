@@ -724,11 +724,22 @@ void VstHost::Impl::ShowGui() {
     if (!controller) return;
 
     plugView = owned(controller->createView("editor"));
-    if (!plugView) return;
+    if (!plugView) {
+        DbgPrint("[VST3 GUI] Failed to create editor view");
+        return;
+    }
 
     ViewRect vr; plugView->getSize(&vr);
+
+    // Check if plugin supports resizing (for logging purposes)
+    bool canResize = (plugView->canResize() == kResultTrue);
+    DbgPrint("[VST3 GUI] Plugin canResize: %hs", canResize ? "yes" : "no");
+
+    // Always allow window resizing regardless of plugin support
+    DWORD windowStyle = WS_OVERLAPPEDWINDOW;
+
     RECT rc = { 0, 0, vr.right - vr.left, vr.bottom - vr.top };
-    AdjustWindowRectEx(&rc, WS_OVERLAPPED | WS_CAPTION, FALSE, 0);
+    AdjustWindowRectEx(&rc, windowStyle, FALSE, 0);
 
     WNDCLASS wc{};
     wc.lpfnWndProc = [](HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) -> LRESULT {
@@ -745,6 +756,33 @@ void VstHost::Impl::ShowGui() {
         if (msg == WM_TIMER && wp == 1001) {
             if (self) {
                 self->ProcessGuiUpdates();
+            }
+            return 0;
+        }
+
+        if (msg == WM_SIZE && self && self->plugView) {
+            // Always try to resize the plugin view, even if canResize() is not supported
+            RECT clientRect;
+            GetClientRect(hWnd, &clientRect);
+            ViewRect newSize;
+            newSize.left = 0;
+            newSize.top = 0;
+            newSize.right = clientRect.right - clientRect.left;
+            newSize.bottom = clientRect.bottom - clientRect.top;
+
+            ViewRect currentSize;
+            if (self->plugView->getSize(&currentSize) == kResultOk) {
+                if (currentSize.getWidth() != newSize.getWidth() ||
+                    currentSize.getHeight() != newSize.getHeight()) {
+                    // Try to resize even if canResize() returns false
+                    // Some plugins don't implement canResize() correctly
+                    if (self->plugView->onSize(&newSize) == kResultOk) {
+                        DbgPrint("[VST3 GUI] Resized to %dx%d",
+                                 newSize.getWidth(), newSize.getHeight());
+                    } else {
+                        DbgPrint("[VST3 GUI] Resize request rejected by plugin");
+                    }
+                }
             }
             return 0;
         }
@@ -769,19 +807,53 @@ void VstHost::Impl::ShowGui() {
         };
     wc.hInstance = hInstance;
     wc.lpszClassName = L"VstHostGuiWindowClass";
-    RegisterClass(&wc);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
-    guiWindow = CreateWindowEx(0, wc.lpszClassName, L"VST3 Plugin", WS_OVERLAPPED | WS_CAPTION,
+    // Register window class only if not already registered
+    WNDCLASS existingClass;
+    if (!GetClassInfo(hInstance, wc.lpszClassName, &existingClass)) {
+        if (!RegisterClass(&wc)) {
+            DbgPrint("[VST3 GUI] Failed to register window class");
+            plugView.reset();
+            return;
+        }
+    }
+
+    // Extract plugin name from path for window title
+    std::wstring pluginName = L"VST3 Plugin";
+    if (!currentPluginPath.empty()) {
+        std::wstring wPath = StringUtils::Utf8ToWide(currentPluginPath);
+        size_t lastSlash = wPath.find_last_of(L"\\/");
+        if (lastSlash != std::wstring::npos) {
+            pluginName = wPath.substr(lastSlash + 1);
+            // Remove extension
+            size_t lastDot = pluginName.find_last_of(L".");
+            if (lastDot != std::wstring::npos) {
+                pluginName = pluginName.substr(0, lastDot);
+            }
+        }
+    }
+
+    guiWindow = CreateWindowEx(0, wc.lpszClassName, pluginName.c_str(), windowStyle,
         CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
         nullptr, nullptr, hInstance, this);
-    if (!guiWindow) { plugView.reset(); return; }
+    if (!guiWindow) {
+        DbgPrint("[VST3 GUI] Failed to create window (Error: %d)", GetLastError());
+        plugView.reset();
+        return;
+    }
 
     windowController = new WindowController(plugView, guiWindow);
     windowController->connect();
     if (plugView->attached(guiWindow, kPlatformTypeHWND) != kResultOk) {
+        DbgPrint("[VST3 GUI] Failed to attach plugin view to window");
         DestroyWindow(guiWindow);
         return;
     }
+
+    DbgPrint("[VST3 GUI] Plugin GUI window created successfully (canResize: %hs)",
+             canResize ? "yes" : "no");
     ShowWindow(guiWindow, SW_SHOW);
 }
 
