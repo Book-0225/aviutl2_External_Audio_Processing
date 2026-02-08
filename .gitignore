@@ -5,3 +5,6 @@ x64/
 aviutl2_sdk/
 External*/
 *.user
+# AviUtl2 CLI
+/.aviutl2-cli
+/release

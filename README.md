@@ -152,8 +152,18 @@ v0.0.17以降のバージョンに移行してください。
 
 ## インストール
 
+### aux2ファイルを直接インストールする場合
+
 1. リリースページから最新版の `External_Audio_Processing2.aux2` をダウンロードします。
-2. `External_Audio_Processing2.aux2`ファイルを、AviUtl ExEdit2の`Plugin`フォルダ内に入れてください。
+2. `External_Audio_Processing2.aux2`ファイルを、  
+  AviUtl ExEdit2のウィンドウにドラッグアンドドロップするか、  
+  `Plugin`フォルダ内に入れてください。
+
+### au2pkg.zipファイルを利用する場合
+
+1. リリースページから最新版の `External_Audio_Processing2.au2pkg.zip` をダウンロードします。
+2. `External_Audio_Processing2.au2pkg.zip`ファイルを、  
+  AviUtl ExEdit2のウィンドウにドラッグアンドドロップしてください。
 
 ## 設定項目
 
@@ -162,7 +172,8 @@ v0.0.17以降のバージョンに移行してください。
 初回の読込後プラグイン本体と同じフォルダに`External_Audio_Processing2.ini`が生成されます。  
 設定ファイルをリセットする場合はAviUtl ExEdit2終了後に削除するか、  
 AviUtl ExEdit2上部の設定内のプラグイン設定にある`EAP2の設定をリセット`を実行してください。  
-設定ファイルの変更はAviUtl ExEdit2の再起動後に反映されます。
+設定ファイルの変更はAviUtl ExEdit2の再起動後に反映されます。  
+一部設定はAviUtl ExEdit2上部の設定内のプラグイン設定にある`EAP2の設定を再読込`を実行すると再起動なしでも反映されます。
 
 ```ini
 ; デフォルト設定(v0.0.24時点)
@@ -835,6 +846,7 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 - **v0.0.25**
   - 設定の読込タイミングを修正
   - 一部設定の再読込機能を実装
+  - au2pkg.zip形式の配布を開始
   - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta32以降に変更
 
 - **v0.0.24**
@@ -1059,8 +1071,9 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 - Visual Studio 2026
 - cmake 4.2.x
 - Git
+- aviutl2 CLI (オプション)
 
-### 実際の手順
+### 実際の手順 (aviutl2 CLIを使用しない場合)
 
 1. `git clone --recursive https://github.com/Book-0225/aviutl2_External_Audio_Processing.git`
 2. `cd aviutl2_External_Audio_Processing`
@@ -1073,6 +1086,20 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 9. `msbuild aviutl2_External_Audio_Processing.vcxproj /p:Configuration=Release /p:Platform="x64"`
 
 上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`が生成されるはずです。
+
+### 実際の手順 (aviutl2 CLIを使用する場合)
+
+1. `git clone --recursive https://github.com/Book-0225/aviutl2_External_Audio_Processing.git`
+2. `cd aviutl2_External_Audio_Processing`
+3. `aviutl2_External_Audio_Processing/aviutl2_sdk`になるようにaviutl2のSDKを配置
+4. `mkdir vst3sdk_build`
+5. `cd .\vst3sdk_build\`
+6. `cmake ..\vst3sdk\`
+7. `cmake --build . --config Release`
+8. `cd ..`
+9. `au2 release`
+
+上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`と`release/External_Audio_Processing2.au2pkg.zip`が生成されるはずです。
 
 ## Credits
 

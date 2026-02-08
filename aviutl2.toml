@@ -1,0 +1,30 @@
+#:schema ./.aviutl2-cli/aviutl2.schema.json
+# 設定ファイルについては https://github.com/sevenc-nanashi/aviutl2-cli を参照してください。
+[project]
+name = "External_Audio_Processing2"
+version = "0.0.25"
+
+[artifacts.External_Audio_Processing2_aux2]
+enabled = true
+destination = "Plugin/External_Audio_Processing2.aux2"
+
+[artifacts.External_Audio_Processing2_aux2.profiles.debug]
+build = "msbuild aviutl2_External_Audio_Processing.vcxproj /p:Configuration=Debug /p:Platform=x64"
+source = "x64/Debug/External_Audio_Processing2.aux2"
+enabled = true
+
+[artifacts.External_Audio_Processing2_aux2.profiles.release]
+build = "msbuild aviutl2_External_Audio_Processing.vcxproj /p:Configuration=Release /p:Platform=x64"
+source = "x64/Release/External_Audio_Processing2.aux2"
+enabled = true
+
+[development]
+aviutl2_version = "2.00beta32"
+
+[preview]
+aviutl2_version = "2.00beta32"
+
+[release]
+output_dir = "release"
+zip_name = "{name}"
+profile = "release"
