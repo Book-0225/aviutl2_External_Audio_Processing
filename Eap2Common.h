@@ -98,13 +98,14 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
 struct ConfigEntry {
     std::wstring key;
     std::wstring defaultValue;
+    bool reload;
     std::function<void(const std::wstring&)> load;
     std::function<std::wstring()> save;
 
     template<typename T>
-    static ConfigEntry Create(std::wstring key, std::wstring def, T* target) {
+    static ConfigEntry Create(std::wstring key, std::wstring def, T* target, bool canReload) {
         auto entry = ConfigEntry{
-            key, def,
+            key, def, canReload,
             [target](const std::wstring& s) {
                 if constexpr (std::is_same_v<T, bool>) *target = (s == L"1");
                 else if constexpr (std::is_same_v<T, int32_t>) *target = std::stoi(s);
@@ -126,7 +127,7 @@ struct ConfigInfo {
     std::wstring version;
     std::vector<ConfigEntry> getEntries() {
         return {
-            ConfigEntry::Create(L"Version", plugin_version, &version)
+            ConfigEntry::Create(L"Version", plugin_version, &version, false)
         };
     }
 };
@@ -136,7 +137,7 @@ struct ModuleConfig {
     bool all_tool_disable;
     std::vector<ConfigEntry> getEntries() {
         return {
-            ConfigEntry::Create(L"AllToolDisable", L"0", &all_tool_disable),
+            ConfigEntry::Create(L"AllToolDisable", L"0", &all_tool_disable, false)
         };
     }
 };
@@ -146,7 +147,7 @@ struct VstConfig {
     bool forceResize;
     std::vector<ConfigEntry> getEntries() {
         return {
-            ConfigEntry::Create(L"ForceResize", L"0", &forceResize)
+            ConfigEntry::Create(L"ForceResize", L"0", &forceResize, true)
         };
     }
 };
@@ -160,6 +161,7 @@ struct AppSettings {
 extern AppSettings settings;
 
 void LoadConfig();
+void ReloadConfig();
 void SaveConfig();
 void ResetConfig();
 

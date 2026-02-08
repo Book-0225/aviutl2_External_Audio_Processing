@@ -45,6 +45,26 @@ void LoadConfig() {
     new_settings = settings;
 }
 
+void ReloadCategory(const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
+    for (auto& item : entries) {
+        if (item.reload) {
+            wchar_t buffer[MAX_PATH];
+            GetPrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), buffer, MAX_PATH, path.c_str());
+            item.load(buffer);
+        }
+    }
+}
+
+void ReloadConfig() {
+    std::filesystem::path path = GetConfigPath();
+    if (!std::filesystem::exists(path)) {
+        CreateConfig(path);
+        return;
+    }
+    ApplyToAllCategories(ReloadCategory, settings, path);
+    new_settings = settings;
+}
+
 void SaveConfig() {
     std::filesystem::path path = GetConfigPath();
     if (!std::filesystem::exists(path)) CreateConfig(path);

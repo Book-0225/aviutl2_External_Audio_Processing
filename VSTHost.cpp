@@ -772,8 +772,7 @@ void VstHost::Impl::ShowGui() {
 
             ViewRect currentSize;
             if (self->plugView->getSize(&currentSize) == kResultOk) {
-                if (currentSize.getWidth() != newSize.getWidth() ||
-                    currentSize.getHeight() != newSize.getHeight()) {
+                if (currentSize.getWidth() != newSize.getWidth() || currentSize.getHeight() != newSize.getHeight()) {
                     // Try to resize even if canResize() returns false
                     // Some plugins don't implement canResize() correctly
                     if (self->plugView->onSize(&newSize) == kResultOk) DbgPrint("[VST3 GUI] Resized to %dx%d", newSize.getWidth(), newSize.getHeight());

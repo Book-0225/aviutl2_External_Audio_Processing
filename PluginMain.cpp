@@ -4,7 +4,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.24"
+#define PLUGIN_VERSION L"v2-0.0.25"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -15,7 +15,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2003100
+#define MINIMUM_VERSION 2003200
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -91,9 +91,6 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
         g_hinstance = hinst;
         DisableThreadLibraryCalls(hinst);
     }
-
-    LoadConfig();
-
     return true;
 }
 
@@ -102,6 +99,8 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
         MessageBox(NULL, L"AviUtl2のバージョンが古すぎます。", L"EAP2 Error", MB_OK | MB_ICONERROR);
         return false;
     }
+
+    LoadConfig();
 
     if (FAILED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
         MessageBox(NULL, L"COM 初期化に失敗しました。", L"EAP2 Error", MB_OK | MB_ICONERROR);
@@ -184,6 +183,7 @@ EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
 
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->set_plugin_information(plugin_info);
+    host->register_config_menu(L"EAP2の設定を再読込", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定を再読込しますか？(一部は再起動後に反映)", L"EAP2 設定再読込", MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig(); });
     host->register_config_menu(L"EAP2の設定をリセット", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定をリセットしますか？(再起動後に反映)", L"EAP2 設定リセット", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig(); });
     host->register_filter_plugin(&filter_plugin_table_host);
     host->register_filter_plugin(&filter_plugin_table_host_media);
