@@ -1,4 +1,5 @@
 ﻿#include "Eap2Common.h"
+#include "Eap2Config.h"
 #include "NotesManager.h"
 #include "Avx2Utils.h"
 #include "PluginManager.h"
@@ -91,6 +92,7 @@ struct RenameParam {
 };
 
 static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
+    if (settings.general.auto_rename_disable) return;
     RenameParam* p = (RenameParam*)param;
     OBJECT_HANDLE obj = nullptr;
     int32_t max_layer = edit->info->layer_max;

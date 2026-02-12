@@ -1,4 +1,5 @@
 ﻿#include "Eap2Common.h"
+#include "Eap2Config.h"
 #include <string>
 #include <filesystem>
 #include <cmath>
@@ -38,7 +39,7 @@ struct ProcessedNote {
 struct VisualizerData {
     MidiParser parser;
     std::vector<ProcessedNote> notes;
-    std::wstring lastFilePath;
+    std::filesystem::path lastFilePath;
     bool isLoaded = false;
     void RebuildNotes() {
         notes.clear();
@@ -48,7 +49,8 @@ struct VisualizerData {
             uint8_t velocity;
             bool active;
         };
-        ActiveInfo activeNotes[16][128] = {0};
+        auto activeNotes = std::make_unique<ActiveInfo[]>(16 * 128);
+        std::memset(activeNotes.get(), 0, sizeof(ActiveInfo) * 16 * 128);
         for (const auto &ev : events)
         {
             uint8_t statusType = ev.status & 0xF0;
@@ -56,17 +58,17 @@ struct VisualizerData {
             uint8_t note = ev.data1;
             uint8_t vel = ev.data2;
             if (statusType == 0x90 && vel > 0) {
-                if (activeNotes[ch][note].active) {
-                    ProcessedNote pn = {activeNotes[ch][note].startTick, ev.absoluteTick, note, activeNotes[ch][note].velocity, ch};
+                if (activeNotes[ch * 128 + note].active) {
+                    ProcessedNote pn = {activeNotes[ch * 128 + note].startTick, ev.absoluteTick, note, activeNotes[ch * 128 + note].velocity, ch};
                     notes.push_back(pn);
                 }
-                activeNotes[ch][note] = {ev.absoluteTick, vel, true};
+                activeNotes[ch * 128 + note] = {ev.absoluteTick, vel, true};
             }
             else if ((statusType == 0x80) || (statusType == 0x90 && vel == 0)) {
-                if (activeNotes[ch][note].active) {
-                    ProcessedNote pn = {activeNotes[ch][note].startTick, ev.absoluteTick, note, activeNotes[ch][note].velocity, ch};
+                if (activeNotes[ch * 128 + note].active) {
+                    ProcessedNote pn = {activeNotes[ch * 128 + note].startTick, ev.absoluteTick, note, activeNotes[ch * 128 + note].velocity, ch};
                     notes.push_back(pn);
-                    activeNotes[ch][note].active = false;
+                    activeNotes[ch * 128 + note].active = false;
                 }
             }
         }
@@ -141,21 +143,13 @@ void DrawBox(PIXEL_RGBA *buf, int32_t w, int32_t h, int32_t x, int32_t y, int32_
                 int32_t dx = 0, dy = 0;
                 if (lx < r) dx = r - lx;
                 else if (lx >= rw - r) dx = lx - (rw - r - 1);
-                
                 if (ly < r) dy = r - ly;
                 else if (ly >= rh - r) dy = ly - (rh - r - 1);
-                
-                if (dx > 0 && dy > 0) {
-                    if (dx * dx + dy * dy > r2) continue;
-                }
+                if (dx > 0 && dy > 0) if (dx * dx + dy * dy > r2) continue;
             }
 
             bool isBorder = false;
-            if (borderThick > 0) {
-                if (lx < borderThick || lx >= rw - borderThick || ly < borderThick || ly >= rh - borderThick) {
-                    isBorder = true;
-                }
-            }
+            if (borderThick > 0) if (lx < borderThick || lx >= rw - borderThick || ly < borderThick || ly >= rh - borderThick) isBorder = true;
 
             if (isBorder) {
                 BlendPixel(buf, w, h, ix, iy, borderColor);
@@ -202,13 +196,13 @@ void DrawRing(PIXEL_RGBA *buf, int32_t w, int32_t h, int32_t cx, int32_t cy, flo
     }
 }
 
-FILTER_ITEM_FILE track_file = {L"MIDI File", L"", L"MIDI File (*.mid)\0*.mid;*.midi\0"};
-FILTER_ITEM_GROUP group_canvas = {L"表示設定"};
-FILTER_ITEM_TRACK track_width = {L"幅", 1280.0, 10.0, 4000.0, 1.0};
-FILTER_ITEM_TRACK track_height = {L"高さ", 720.0, 10.0, 4000.0, 1.0};
-FILTER_ITEM_COLOR color_bg = {L"背景色", 0x000000};
-FILTER_ITEM_TRACK track_bg_alpha = {L"背景透明度", 100.0, 0.0, 100.0, 1.0};
-FILTER_ITEM_GROUP group_view = {L"表示とスクロール"};
+FILTER_ITEM_FILE track_file(L"MIDI File", L"", L"MIDI File (*.mid)\0*.mid;*.midi\0");
+FILTER_ITEM_GROUP group_canvas(L"表示設定");
+FILTER_ITEM_TRACK track_width(L"幅", 1280.0, 10.0, 4000.0, 1.0);
+FILTER_ITEM_TRACK track_height(L"高さ", 720.0, 10.0, 4000.0, 1.0);
+FILTER_ITEM_COLOR color_bg(L"背景色", 0x000000);
+FILTER_ITEM_TRACK track_bg_alpha(L"背景透明度", 100.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_GROUP group_view(L"表示とスクロール");
 FILTER_ITEM_SELECT::ITEM list_scroll[] = {
     { L"右から左", 0 },
     { L"左から右", 1 },
@@ -216,7 +210,7 @@ FILTER_ITEM_SELECT::ITEM list_scroll[] = {
     { L"下から上", 3 },
     { nullptr }
 };
-FILTER_ITEM_SELECT select_scroll = {L"方向", 2, list_scroll};
+FILTER_ITEM_SELECT select_scroll(L"方向", 2, list_scroll);
 FILTER_ITEM_SELECT::ITEM list_reaction[] = {
     { L"通過", 0 },
     { L"消失+変色", 1 },
@@ -224,32 +218,33 @@ FILTER_ITEM_SELECT::ITEM list_reaction[] = {
     { L"消失", 3 },
     { nullptr }
 };
-FILTER_ITEM_SELECT select_reaction = {L"挙動", 0, list_reaction};
-FILTER_ITEM_TRACK track_zoom_time = {L"拡大率", 100.0, 1.0, 2000.0, 1.0};
-FILTER_ITEM_TRACK track_scroll_pos = {L"位置", 0.0, 0.0, 4000.0, 1.0};
-FILTER_ITEM_GROUP group_keys = {L"キーの範囲とサイズ"};
-FILTER_ITEM_TRACK track_key_min = {L"最小キー", 0, 0, 127, 1};
-FILTER_ITEM_TRACK track_key_max = {L"最大キー", 127, 0, 127, 1};
-FILTER_ITEM_CHECK check_auto_fit = {L"自動調整", true};
-FILTER_ITEM_TRACK track_key_size = {L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0};
-FILTER_ITEM_GROUP group_sync = {L"同期", false};
-FILTER_ITEM_TRACK track_offset = {L"オフセット", 0.0, -100.0, 100.0, 0.01};
+FILTER_ITEM_SELECT select_reaction(L"挙動", 0, list_reaction);
+FILTER_ITEM_TRACK track_zoom_time(L"拡大率", 100.0, 1.0, 2000.0, 1.0);
+FILTER_ITEM_TRACK track_scroll_pos(L"位置", 0.0, 0.0, 4000.0, 1.0);
+FILTER_ITEM_GROUP group_keys(L"キーの範囲とサイズ");
+FILTER_ITEM_TRACK track_key_min(L"最小キー", 0, 0, 127, 1);
+FILTER_ITEM_TRACK track_key_max(L"最大キー", 127, 0, 127, 1);
+FILTER_ITEM_CHECK check_auto_fit(L"自動調整", true);
+FILTER_ITEM_TRACK track_key_size(L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0);
+FILTER_ITEM_GROUP group_sync(L"同期", false);
+FILTER_ITEM_TRACK track_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01);
 FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
     { L"同期しない", 0 },
     { L"MIDIにBPMを同期", 1 },
+    { L"AviUtlにBPMを同期", 2 },
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 0, sync_mode_visualizer);
-FILTER_ITEM_TRACK track_manual_bpm = {L"BPM(手動)", 120.0, 1.0, 999.0, 0.1};
-FILTER_ITEM_TRACK track_manual_num = { L"分子(手動)", 4.0, 1.0, 32.0, 1.0 };
-FILTER_ITEM_TRACK track_manual_denom = { L"分母(手動)", 4.0, 1.0, 32.0, 1.0 };
-FILTER_ITEM_TRACK track_speed_mul = {L"速度", 1.0, 0.1, 10.0, 0.1};
-FILTER_ITEM_GROUP group_filter = {L"フィルタ", false};
-FILTER_ITEM_TRACK track_ch_target = {L"チャンネル", 0, 0, 16, 1};
-FILTER_ITEM_TRACK track_vel_min = {L"最小強度", 0, 0, 127, 1};
-FILTER_ITEM_CHECK check_hide_perc = {L"ドラムを無効", false};
-FILTER_ITEM_GROUP group_style = {L"ノートスタイル"};
-FILTER_ITEM_CHECK check_draw_notes = {L"ノートを描画", true};
+FILTER_ITEM_TRACK track_manual_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1);
+FILTER_ITEM_TRACK track_manual_num( L"分子(手動)", 4.0, 1.0, 32.0, 1.0 );
+FILTER_ITEM_TRACK track_manual_denom( L"分母(手動)", 4.0, 1.0, 32.0, 1.0 );
+FILTER_ITEM_TRACK track_speed_mul(L"速度", 1.0, 0.1, 10.0, 0.1);
+FILTER_ITEM_GROUP group_filter(L"フィルタ", false);
+FILTER_ITEM_TRACK track_ch_target(L"チャンネル", 0, 0, 16, 1);
+FILTER_ITEM_TRACK track_vel_min(L"最小強度", 0, 0, 127, 1);
+FILTER_ITEM_CHECK check_hide_perc(L"ドラムを無効", false);
+FILTER_ITEM_GROUP group_style(L"ノートスタイル");
+FILTER_ITEM_CHECK check_draw_notes(L"ノートを描画", true);
 FILTER_ITEM_SELECT::ITEM list_col_mode[] = {
     { L"単色", 0 },
     { L"虹色", 1 },
@@ -257,33 +252,33 @@ FILTER_ITEM_SELECT::ITEM list_col_mode[] = {
     { L"強弱", 3 },
     { nullptr }
 };
-FILTER_ITEM_SELECT select_col_mode = {L"カラーモード", 1, list_col_mode};
-FILTER_ITEM_COLOR color_base = {L"基本色", 0x00FF00};
-FILTER_ITEM_TRACK track_radius = {L"角の半径", 2.0, 0.0, 20.0, 1.0};
-FILTER_ITEM_CHECK check_gradient = {L"グラデーション", true};
-FILTER_ITEM_TRACK track_padding = {L"余白", 1.0, 0.0, 10.0, 1.0};
-FILTER_ITEM_GROUP group_border = {L"縁", false};
-FILTER_ITEM_CHECK check_border = {L"縁を描画", false};
-FILTER_ITEM_TRACK track_border_w = {L"縁幅", 1.0, 0.0, 10.0, 1.0};
-FILTER_ITEM_COLOR color_border = {L"縁色", 0xFFFFFF};
-FILTER_ITEM_TRACK track_note_alpha = {L"ノートの不透明度", 100.0, 0.0, 100.0, 1.0};
-FILTER_ITEM_GROUP group_kb = {L"装飾"};
-FILTER_ITEM_CHECK check_draw_kb = {L"キーボード", true};
-FILTER_ITEM_TRACK track_kb_width = {L"キーボード幅", 40.0, 0.0, 2000.0, 1.0};
-FILTER_ITEM_TRACK track_kb_black_ratio = {L"黒鍵割合", 0.65, 0.1, 1.0, 0.01};
-FILTER_ITEM_TRACK track_kb_led_pos = {L"LED位置", 85.0, 0.0, 100.0, 1.0};
-FILTER_ITEM_TRACK track_kb_led_size = {L"LEDサイズ", 60.0, 1.0, 100.0, 1.0};
-FILTER_ITEM_TRACK track_kb_led_alpha = {L"LED不透明度", 75.0, 0.0, 100.0, 1.0};
-FILTER_ITEM_COLOR color_grid = {L"グリッド色", 0xFFFFFF};
-FILTER_ITEM_TRACK track_grid_width = {L"グリッド幅", 1.0, 0.0, 10.0, 1.0};
-FILTER_ITEM_CHECK check_grid_h = {L"キーグリッド", true};
-FILTER_ITEM_CHECK check_grid_v = {L"ビートグリッド", false};
-FILTER_ITEM_GROUP group_effect = {L"エフェクト"};
-FILTER_ITEM_TRACK track_sink_depth = {L"沈み込み", 0.0, 0.0, 10.0, 1.0};
-FILTER_ITEM_TRACK track_ripple_size = {L"波紋サイズ", 0.0, 0.0, 1000.0, 1.0};
-FILTER_ITEM_TRACK track_ripple_time = {L"波紋時間", 1.0, 0.0, 10.0, 0.01};
-FILTER_ITEM_TRACK track_particle_amt = {L"パーティクル量", 10.0, 0.0, 5000.0, 1.0};
-FILTER_ITEM_TRACK track_particle_time = {L"パーティクル時間", 0.5, 0.0, 50.0, 0.01};
+FILTER_ITEM_SELECT select_col_mode(L"カラーモード", 1, list_col_mode);
+FILTER_ITEM_COLOR color_base(L"基本色", 0x00FF00);
+FILTER_ITEM_TRACK track_radius(L"角の半径", 2.0, 0.0, 20.0, 1.0);
+FILTER_ITEM_CHECK check_gradient(L"グラデーション", true);
+FILTER_ITEM_TRACK track_padding(L"余白", 1.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_GROUP group_border(L"縁", false);
+FILTER_ITEM_CHECK check_border(L"縁を描画", false);
+FILTER_ITEM_TRACK track_border_w(L"縁幅", 1.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_COLOR color_border(L"縁色", 0xFFFFFF);
+FILTER_ITEM_TRACK track_note_alpha(L"ノートの不透明度", 100.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_GROUP group_kb(L"装飾");
+FILTER_ITEM_CHECK check_draw_kb(L"キーボード", true);
+FILTER_ITEM_TRACK track_kb_width(L"キーボード幅", 40.0, 0.0, 2000.0, 1.0);
+FILTER_ITEM_TRACK track_kb_black_ratio(L"黒鍵割合", 0.65, 0.1, 1.0, 0.01);
+FILTER_ITEM_TRACK track_kb_led_pos(L"LED位置", 85.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK track_kb_led_size(L"LEDサイズ", 60.0, 1.0, 100.0, 1.0);
+FILTER_ITEM_TRACK track_kb_led_alpha(L"LED不透明度", 75.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_COLOR color_grid(L"グリッド色", 0xFFFFFF);
+FILTER_ITEM_TRACK track_grid_width(L"グリッド幅", 1.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_CHECK check_grid_h(L"キーグリッド", true);
+FILTER_ITEM_CHECK check_grid_v(L"ビートグリッド", false);
+FILTER_ITEM_GROUP group_effect(L"エフェクト");
+FILTER_ITEM_TRACK track_sink_depth(L"沈み込み", 0.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_TRACK track_ripple_size(L"波紋サイズ", 0.0, 0.0, 1000.0, 1.0);
+FILTER_ITEM_TRACK track_ripple_time(L"波紋時間", 1.0, 0.0, 10.0, 0.01);
+FILTER_ITEM_TRACK track_particle_amt(L"パーティクル量", 10.0, 0.0, 5000.0, 1.0);
+FILTER_ITEM_TRACK track_particle_time(L"パーティクル時間", 0.5, 0.0, 50.0, 0.01);
 struct MidiData {
     char uuid[40] = { 0 };
 };
@@ -363,6 +358,7 @@ struct RenameParam {
 };
 
 static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
+    if (settings.general.auto_rename_disable) return;
     RenameParam* p = (RenameParam*)param;
     OBJECT_HANDLE obj = nullptr;
     int32_t max_layer = edit->info->layer_max;
@@ -400,7 +396,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     std::string midi_visualizer_id;
     int64_t objId = video->object->id;
     VisualizerData &data = g_dataMap[objId];
-    LPCWSTR currentPathW = track_file.value;
+    std::filesystem::path currentPath = track_file.value;
     if (midi_visualizer_data_param.value->uuid[0] != '\0') {
         midi_visualizer_id = midi_visualizer_data_param.value->uuid;
     }
@@ -420,22 +416,19 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     else {
         return true;
     }
-    if (currentPathW && wcslen(currentPathW) > 0) {
-        if (data.lastFilePath != currentPathW) {
-            std::string pathUtf8 = StringUtils::WideToUtf8(currentPathW);
-            if (data.parser.Load(pathUtf8)) {
+    if (!currentPath.empty()) {
+        if (data.lastFilePath != currentPath) {
+            if (data.parser.Load(currentPath)) {
                 data.RebuildNotes();
                 data.isLoaded = true;
-                if (_wcsicmp(last_midi_path.value->last_midi_path, currentPathW)) g_main_thread_tasks.push_back([midi_visualizer_id, currentPathW, data] {
+                if (_wcsicmp(last_midi_path.value->last_midi_path, currentPath.c_str())) g_main_thread_tasks.push_back([midi_visualizer_id, currentPath, data] {
                     if (g_edit_handle) {
                         RenameParam rp;
                         rp.id = midi_visualizer_id;
                         rp.defaultName = GEN_TOOL_NAME(TOOL_NAME);
-                        std::filesystem::path newP(currentPathW);
-                        rp.newName = std::wstring(rp.defaultName) + L" (" + newP.filename().wstring() + L")";
+                        rp.newName = std::wstring(rp.defaultName) + L" (" + currentPath.filename().wstring() + L")";
                         if (!data.lastFilePath.empty()) {
-                            std::filesystem::path oldP(data.lastFilePath);
-                            rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + oldP.filename().wstring() + L")";
+                            rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + data.lastFilePath.filename().wstring() + L")";
                         }
                         else {
                             rp.oldNameCandidate = L"";
@@ -443,21 +436,19 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                         g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                     }
                     });
-                wcscpy_s(last_midi_path.value->last_midi_path, sizeof(last_midi_path.value->last_midi_path), currentPathW);
+                wcscpy_s(last_midi_path.value->last_midi_path, sizeof(last_midi_path.value->last_midi_path), currentPath.c_str());
             }
             else {
                 data.isLoaded = false;
             }
-            data.lastFilePath = currentPathW;
+            data.lastFilePath = currentPath;
         }
     }
     if (!data.isLoaded) return true;
     int32_t w = (int32_t)track_width.value;
     int32_t h = (int32_t)track_height.value;
     if (w <= 0 || h <= 0) return true;
-    if (data.imgBuf.size() != (size_t)(w * h)) {
-        data.imgBuf.resize(w * h);
-    }
+    data.imgBuf.resize(static_cast<size_t>(w) * h);
     std::vector<PIXEL_RGBA>& imgBuf = data.imgBuf;
     uint8_t bgAlpha = UINT8_MAX - (uint8_t)((track_bg_alpha.value / 100.0) * UINT8_MAX);
     PIXEL_RGBA bgCol = {(uint8_t)color_bg.value.b, (uint8_t)color_bg.value.g, (uint8_t)color_bg.value.r, bgAlpha};
@@ -470,13 +461,18 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
     double bpm = 120.0;
     if (select_bpm_sync_visualizer.value == 1) {
         currentTick = data.parser.GetTickAtTime(currentTime * speedMul);
-        auto tempos = data.parser.GetTempoEvents();
+        auto& tempos = data.parser.GetTempoEvents();
         uint32_t mpqn = 500000;
         for (const auto& t : tempos) {
             if (t.absoluteTick <= currentTick) mpqn = t.mpqn;
             else break;
         }
         if (mpqn > 0) bpm = 60000000.0 / mpqn;
+    }
+    else if (select_bpm_sync_visualizer.value == 2) {
+        bpm = g_shared_bpm.load();
+        if (bpm <= 0) bpm = 120;
+        currentTick = (int64_t)(currentTime * (bpm * tpqn / 60.0) * speedMul);
     }
     else {
         bpm = track_manual_bpm.value;
@@ -811,6 +807,9 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO *video) {
                 {
                 case 1:
                     measureLen = (int64_t)ts.numerator * tpqn * 4 / ts.denominator;
+                    break;
+                case 2:
+                    measureLen = g_shared_ts_num.load() * tpqn * 4 / g_shared_ts_denom.load();
                     break;
                 default:
                     measureLen = (int64_t)(track_manual_num.value * tpqn * 4 / track_manual_denom.value);

@@ -1,5 +1,4 @@
-﻿#define _USE_MATH_DEFINES
-#include "Eap2Common.h"
+﻿#include "Eap2Common.h"
 #include <cmath>
 #include <map>
 #include <algorithm>

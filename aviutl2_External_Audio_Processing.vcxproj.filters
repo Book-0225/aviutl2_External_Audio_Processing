@@ -34,6 +34,8 @@
     <ClCompile Include="ToolSpectralGate.cpp" />
     <ClCompile Include="ToolMidiVisualizer.cpp" />
     <ClCompile Include="Config.cpp" />
+    <ClCompile Include="ToolMidiGenerator.cpp" />
+    <ClCompile Include="ToolGenerator2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />
@@ -49,5 +51,8 @@
     <ClInclude Include="AVX2Utils.h" />
     <ClInclude Include="NotesManager.h" />
     <ClInclude Include="ToolParamListWindow.h" />
+    <ClInclude Include="Eap2Config.h" />
+    <ClInclude Include="Eap2Info.h" />
+    <ClInclude Include="SynthCommon.h" />
   </ItemGroup>
 </Project>

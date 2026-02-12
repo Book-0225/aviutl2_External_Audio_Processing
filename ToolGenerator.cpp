@@ -1,5 +1,5 @@
-﻿#define _USE_MATH_DEFINES
-#include "Eap2Common.h"
+﻿#include "Eap2Common.h"
+#include "Eap2Config.h"
 #include <cmath>
 #include <vector>
 #include <map>
@@ -76,6 +76,7 @@ struct RenameParam {
 };
 
 static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
+    if (settings.general.auto_rename_disable) return;
     RenameParam* p = (RenameParam*)param;
     OBJECT_HANDLE obj = nullptr;
     int32_t max_layer = edit->info->layer_max;
@@ -152,7 +153,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
                 rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
                 g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
             }
-            });
+                                      });
 
         gen_data.value->last_type = type;
     }

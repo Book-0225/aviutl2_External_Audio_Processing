@@ -1,4 +1,5 @@
-#include "Eap2Common.h"
+﻿#include "Eap2Common.h"
+#include "Eap2Config.h"
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -17,7 +18,7 @@ std::filesystem::path GetConfigPath() {
 
 template<typename Func>
 void ApplyToAllCategories(Func func, AppSettings& setting, const std::filesystem::path& path) {
-    auto categories = std::tie(setting.info, setting.module, setting.vst);
+    auto categories = std::tie(setting.info, setting.general, setting.module, setting.vst, setting.exp);
     std::apply([&](auto&... cat) {
         (func(cat.categoryName, cat.getEntries(), path), ...);
         }, categories);
@@ -79,4 +80,10 @@ void ResetConfig() {
         for (auto& e : entries) e.load(e.defaultValue);
         }, new_settings, path);
     CreateConfig(path);
+}
+
+void OpenConfig() {
+    std::filesystem::path path = GetConfigPath();
+    if (!std::filesystem::exists(path)) CreateConfig(path);
+    ShellExecute(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }

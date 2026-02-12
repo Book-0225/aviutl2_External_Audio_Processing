@@ -8,7 +8,7 @@ class VstHost : public IAudioPluginHost {
 public:
     VstHost(HINSTANCE hInstance);
     ~VstHost() override;
-    bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) override;
+    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) override;
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) override;
     void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) override;
     void ShowGui() override;
@@ -17,7 +17,7 @@ public:
     bool SetState(const std::string& state_b64) override;
     void Cleanup() override;
     bool IsGuiVisible() const override;
-    std::string GetPluginPath() const override;
+    std::filesystem::path GetPluginPath() const override;
     void SetParameter(uint32_t paramId, float value) override;
     int32_t GetLastTouchedParamID() override;
     void SetSampleRate(double sampleRate) override;

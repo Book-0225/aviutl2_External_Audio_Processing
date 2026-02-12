@@ -18,6 +18,7 @@
 #include <set>
 #include "StringUtils.h"
 #include "Eap2Common.h"
+#include "Eap2Config.h"
 #include "Avx2Utils.h"
 
 using namespace Steinberg;
@@ -138,7 +139,7 @@ struct VstHost::Impl {
     }
     ~Impl() { ReleasePlugin(); }
 
-    bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
+    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents);
     void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom);
     void ShowGui();
@@ -147,7 +148,7 @@ struct VstHost::Impl {
     bool SetState(const std::string& state_b64);
     void ReleasePlugin();
     bool IsGuiVisible() const { return guiWindow && IsWindow(guiWindow); }
-    std::string GetPluginPath() const { return currentPluginPath; }
+    std::filesystem::path GetPluginPath() const { return currentPluginPath; }
 
     struct PendingParamChange {
         ParamID id;
@@ -239,7 +240,7 @@ struct VstHost::Impl {
     HWND guiWindow = nullptr;
     FUnknownPtr<IPlugView> plugView;
     WindowController* windowController = nullptr;
-    std::string currentPluginPath;
+    std::filesystem::path currentPluginPath;
     double currentSampleRate = 44100.0;
     double currentBpm = 120.0;
     int32_t currentTsNum = 4;
@@ -275,12 +276,12 @@ struct VstHost::Impl {
     }
 };
 
-bool VstHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
+bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
     ReleasePlugin();
     componentHandler = owned(new HostComponentHandler());
     currentPluginPath = path;
     std::string error;
-    module = Module::create(path, error);
+    module = Module::create(path.string(), error);
     if (!module) return false;
 
     auto factory = module->getFactory();
@@ -818,7 +819,7 @@ void VstHost::Impl::ShowGui() {
     // Extract plugin name from path for window title
     std::wstring pluginName = L"VST3 Plugin";
     if (!currentPluginPath.empty()) {
-        std::wstring wPath = StringUtils::Utf8ToWide(currentPluginPath);
+        std::wstring wPath = currentPluginPath.wstring();
         size_t lastSlash = wPath.find_last_of(L"\\/");
         if (lastSlash != std::wstring::npos) {
             pluginName = wPath.substr(lastSlash + 1);
@@ -904,7 +905,7 @@ bool VstHost::Impl::SetState(const std::string& state_b64) {
 VstHost::VstHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 VstHost::~VstHost() = default;
 
-bool VstHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
+bool VstHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
     return m_impl->LoadPlugin(path, sampleRate, blockSize);
 }
 
@@ -927,7 +928,7 @@ std::string VstHost::GetState() { return m_impl->GetState(); }
 bool VstHost::SetState(const std::string& state_b64) { return m_impl->SetState(state_b64); }
 void VstHost::Cleanup() { m_impl->ReleasePlugin(); }
 bool VstHost::IsGuiVisible() const { return m_impl->IsGuiVisible(); }
-std::string VstHost::GetPluginPath() const { return m_impl->GetPluginPath(); }
+std::filesystem::path VstHost::GetPluginPath() const { return m_impl->GetPluginPath(); }
 void VstHost::SetParameter(uint32_t paramId, float value) {
     if (m_impl) {
         m_impl->SetParameter(paramId, value);

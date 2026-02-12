@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -13,7 +14,7 @@ public:
 
     virtual ~IAudioPluginHost() = default;
 
-    virtual bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) = 0;
+    virtual bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) = 0;
 
     virtual void ProcessAudio(
         const float* inL, const float* inR,
@@ -36,7 +37,7 @@ public:
 
     virtual void Cleanup() = 0;
     virtual bool IsGuiVisible() const = 0;
-    virtual std::string GetPluginPath() const = 0;
+    virtual std::filesystem::path GetPluginPath() const = 0;
 
     virtual void SetParameter(uint32_t paramId, float value) = 0;
     virtual int32_t GetLastTouchedParamID() = 0;

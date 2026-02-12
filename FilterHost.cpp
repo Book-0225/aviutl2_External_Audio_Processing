@@ -1,4 +1,5 @@
 ﻿#include "Eap2Common.h"
+#include "Eap2Config.h"
 #include <map>
 #include <set>
 #include <filesystem>
@@ -38,7 +39,7 @@ static std::map<std::string, DelayBuffer> g_delay_buffers;
 static std::mutex g_delay_buffers_mutex;
 
 struct MidiState {
-    std::string prev_path;
+    std::filesystem::path prev_path;
     MidiParser parser;
     std::map<uint8_t, int64_t> last_active_note_owners;
 };
@@ -105,6 +106,7 @@ FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\
 FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { L"同期しない", 0 },
     { L"MIDIにBPMを同期", 1 },
+    { L"AviUtlにBPMを同期", 2 },
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
@@ -319,6 +321,7 @@ struct RenameParam {
 };
 
 static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
+    if (settings.general.auto_rename_disable) return;
     RenameParam* p = (RenameParam*)param;
     OBJECT_HANDLE obj = nullptr;
     int32_t max_layer = edit->info->layer_max;
@@ -382,7 +385,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         last_recv_data.value->last_recv_id = last_recv_data.default_value.last_recv_id;
     }
 
-    std::wstring plugin_path_w = plugin_path_param.value;
+    std::filesystem::path plugin_path = plugin_path_param.value;
     float wet_val = 100.0f;
     float vol_val = 100.0f;
     bool apply_l = true;
@@ -399,7 +402,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
     bool needs_reinitialization = false;
     bool path_changed = false;
-    std::string current_plugin_path;
+    std::filesystem::path current_plugin_path;
 
     if (PluginManager::GetInstance().IsPendingReinitialization(effect_id)) return true;
 
@@ -412,7 +415,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             host->SetSampleRate(targetRate);
         }
     }
-    if (plugin_path_w.empty()) {
+    if (plugin_path.empty()) {
         if (host) needs_reinitialization = true;
     }
     else {
@@ -421,7 +424,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
         else {
             current_plugin_path = host->GetPluginPath();
-            if (current_plugin_path != StringUtils::WideToUtf8(plugin_path_w.c_str())) {
+            if (current_plugin_path != plugin_path) {
                 needs_reinitialization = true;
                 path_changed = true;
             }
@@ -432,26 +435,23 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         PluginManager::GetInstance().SetPendingReinitialization(effect_id, true);
 
         double sampleRate = audio->scene->sample_rate;
-        std::string new_path_utf8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
-        std::wstring current_midi_path_w = midi_path_param.value;
+        std::filesystem::path current_midi_path = midi_path_param.value;
         int32_t current_recv_id = static_cast<int32_t>(track_recv_id.value);
 
         if (is_object) {
-            if (_wcsicmp(last_plugin_data.value->last_plugin_path, plugin_path_w.c_str())) g_main_thread_tasks.push_back([instance_id, current_plugin_path, new_path_utf8, current_midi_path_w, current_recv_id] {
+            if (_wcsicmp(last_plugin_data.value->last_plugin_path, plugin_path.c_str())) g_main_thread_tasks.push_back([instance_id, current_plugin_path, plugin_path, current_midi_path, current_recv_id] {
                 if (g_edit_handle) {
                     RenameParam rp;
                     rp.id = instance_id;
                     rp.defaultName = filter_name_media;
-                    std::filesystem::path newP(new_path_utf8);
-                    std::wstring plugin_suffix = L" (" + newP.filename().wstring() + L")";
+                    std::wstring plugin_suffix = L" (" + plugin_path.filename().wstring() + L")";
                     std::wstring midi_suffix = L"";
-                    if (!current_midi_path_w.empty()) midi_suffix = L" [" + std::filesystem::path(current_midi_path_w).filename().wstring() + L"]";
+                    if (!current_midi_path.empty()) midi_suffix = L" [" + current_midi_path.filename().wstring() + L"]";
                     std::wstring id_suffix = L"";
                     if (current_recv_id >= 1) id_suffix = L" [ID:" + std::to_wstring(current_recv_id) + L"]";
                     rp.newName = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + id_suffix;
                     if (!current_plugin_path.empty()) {
-                        std::filesystem::path oldP(current_plugin_path);
-                        rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + oldP.filename().wstring() + L")" + midi_suffix + id_suffix;
+                        rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + current_plugin_path.filename().wstring() + L")" + midi_suffix + id_suffix;
                     }
                     else {
                         rp.oldNameCandidate = L"";
@@ -459,7 +459,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
                 });
-            wcscpy_s(last_plugin_data.value->last_plugin_path, sizeof(last_plugin_data.value->last_plugin_path), plugin_path_w.c_str());
+            wcscpy_s(last_plugin_data.value->last_plugin_path, sizeof(last_plugin_data.value->last_plugin_path), plugin_path.c_str());
         }
 
         if (path_changed) {
@@ -468,16 +468,16 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
 
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-        g_main_thread_tasks.push_back([effect_id, instance_id, new_path_utf8, sampleRate, path_changed]() {
+        g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path, sampleRate, path_changed]() {
             std::shared_ptr<IAudioPluginHost> new_host = nullptr;
 
-            if (!new_path_utf8.empty()) {
-                auto plugin_type = GetPluginTypeFromPath(std::filesystem::u8path(new_path_utf8).wstring());
+            if (!plugin_path.empty()) {
+                auto plugin_type = GetPluginTypeFromPath(plugin_path.wstring());
                 if (plugin_type != PluginType::Unknown) {
                     new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
                     if (new_host) {
                         if (sampleRate > 0) {
-                            if (new_host->LoadPlugin(new_path_utf8, sampleRate, MAX_BLOCK_SIZE)) {
+                            if (new_host->LoadPlugin(plugin_path, sampleRate, MAX_BLOCK_SIZE)) {
                                 std::string state_to_restore;
                                 if (!path_changed) state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
                                 if (!state_to_restore.empty()) new_host->SetState(state_to_restore);
@@ -608,8 +608,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (show_list_current && !show_list_prev) {
         ToolParamListWindow::GetInstance().SetOwner(instance_id);
         ToolParamListWindow::GetInstance().SetTargetVisible(true);
-        std::string pathUtf8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
-        std::string name = std::filesystem::path(pathUtf8).filename().string();
+        std::string name = plugin_path.filename().string();
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
         g_main_thread_tasks.push_back([effect_id, name]() {
             auto host = PluginManager::GetInstance().GetHost(effect_id);
@@ -656,23 +655,22 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         MidiState& ms = g_midi_state[instance_id];
         int32_t current_recv_id = static_cast<int32_t>(track_recv_id.value);
         if (is_object) {
-            std::wstring old_midi_path = last_midi_data.value->last_midi_path;
-            std::string cur_plugin_path_u8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
-            std::string cur_midi_path_u8 = StringUtils::WideToUtf8(midi_path_param.value);
-            if (_wcsicmp(last_midi_data.value->last_midi_path, midi_path_param.value)) g_main_thread_tasks.push_back([instance_id, cur_plugin_path_u8, cur_midi_path_u8, old_midi_path, current_recv_id] {
+            std::filesystem::path old_midi_path = last_midi_data.value->last_midi_path;
+            std::filesystem::path cur_midi_path = midi_path_param.value;
+            if (_wcsicmp(last_midi_data.value->last_midi_path, midi_path_param.value)) g_main_thread_tasks.push_back([instance_id, plugin_path, cur_midi_path, old_midi_path, current_recv_id] {
                 if (g_edit_handle) {
                     RenameParam rp;
                     rp.id = instance_id;
                     rp.defaultName = filter_name_media;
                     std::wstring plugin_suffix = L"";
-                    if (!cur_plugin_path_u8.empty()) plugin_suffix = L" (" + std::filesystem::u8path(cur_plugin_path_u8).filename().wstring() + L")";
+                    if (!plugin_path.empty()) plugin_suffix = L" (" + plugin_path.filename().wstring() + L")";
                     std::wstring midi_suffix = L"";
-                    if (!cur_midi_path_u8.empty()) midi_suffix = L" [" + std::filesystem::u8path(cur_midi_path_u8).filename().wstring() + L"]";
+                    if (!cur_midi_path.empty()) midi_suffix = L" [" + cur_midi_path.filename().wstring() + L"]";
                     std::wstring id_suffix = L"";
                     if (current_recv_id >= 1) id_suffix = L" [ID:" + std::to_wstring(current_recv_id) + L"]";
                     rp.newName = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + id_suffix;
                     std::wstring old_midi_suffix = L"";
-                    if (!old_midi_path.empty()) old_midi_suffix = L" [" + std::filesystem::path(old_midi_path).filename().wstring() + L"]";
+                    if (!old_midi_path.empty()) old_midi_suffix = L" [" + old_midi_path.filename().wstring() + L"]";
                     rp.oldNameCandidate = std::wstring(rp.defaultName) + plugin_suffix + old_midi_suffix + id_suffix;
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
@@ -680,22 +678,21 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
         }
 
-        std::string midi_path_u8 = StringUtils::WideToUtf8(midi_path_param.value);
+        std::filesystem::path midi_path = midi_path_param.value;
 
         if (is_object) {
             int32_t old_id = last_recv_data.value->last_recv_id;
-            std::string cur_plugin_path_u8 = StringUtils::WideToUtf8(plugin_path_w.c_str());
             int32_t current_recv_id = static_cast<int32_t>(track_recv_id.value);
 
-            if (last_recv_data.value->last_recv_id != current_recv_id) g_main_thread_tasks.push_back([instance_id, cur_plugin_path_u8, midi_path_u8, old_id, current_recv_id] {
+            if (last_recv_data.value->last_recv_id != current_recv_id) g_main_thread_tasks.push_back([instance_id, plugin_path, midi_path, old_id, current_recv_id] {
                 if (g_edit_handle) {
                     RenameParam rp;
                     rp.id = instance_id;
                     rp.defaultName = filter_name_media;
                     std::wstring plugin_suffix = L"";
-                    if (!cur_plugin_path_u8.empty()) plugin_suffix = L" (" + std::filesystem::u8path(cur_plugin_path_u8).filename().wstring() + L")";
+                    if (!plugin_path.empty()) plugin_suffix = L" (" + plugin_path.filename().wstring() + L")";
                     std::wstring midi_suffix = L"";
-                    if (!midi_path_u8.empty()) midi_suffix = L" [" + std::filesystem::u8path(midi_path_u8).filename().wstring() + L"]";
+                    if (!midi_path.empty()) midi_suffix = L" [" + midi_path.filename().wstring() + L"]";
                     std::wstring id_suffix = L"";
                     if (current_recv_id >= 1) id_suffix = L" [ID:" + std::to_wstring(current_recv_id) + L"]";
                     rp.newName = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + id_suffix;
@@ -708,9 +705,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             last_recv_data.value->last_recv_id = current_recv_id;
         }
 
-        if (ms.prev_path != midi_path_u8) {
-            ms.parser.Load(midi_path_u8);
-            ms.prev_path = midi_path_u8;
+        if (ms.prev_path != midi_path) {
+            ms.parser.Load(midi_path);
+            ms.prev_path = midi_path;
         }
 
         double current_time_sec = (double)current_pos / audio->scene->sample_rate;
@@ -721,6 +718,11 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 ts_num = ts_evt.numerator;
                 ts_denom = ts_evt.denominator;
             }
+        }
+        else if (sync_bpm == 2) {
+            bpm = g_shared_bpm.load();
+            ts_num = g_shared_ts_num.load();
+            ts_denom = g_shared_ts_denom.load();
         }
         else {
             bpm = track_bpm.value;

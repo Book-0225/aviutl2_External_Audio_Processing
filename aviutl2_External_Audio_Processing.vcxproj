@@ -23,6 +23,8 @@
     <ClCompile Include="ToolDynamics.cpp" />
     <ClCompile Include="ToolEQ.cpp" />
     <ClCompile Include="ToolChainSend.cpp" />
+    <ClCompile Include="ToolGenerator2.cpp" />
+    <ClCompile Include="ToolMidiGenerator.cpp" />
     <ClCompile Include="ToolNotesSend.cpp" />
     <ClCompile Include="ToolSpatial.cpp" />
     <ClCompile Include="ToolStereo.cpp" />
@@ -49,9 +51,12 @@
     <ClInclude Include="AudioPluginFactory.h" />
     <ClInclude Include="ChainManager.h" />
     <ClInclude Include="ClapHost.h" />
+    <ClInclude Include="Eap2Config.h" />
+    <ClInclude Include="Eap2Info.h" />
     <ClInclude Include="IAudioPluginHost.h" />
     <ClInclude Include="NotesManager.h" />
     <ClInclude Include="PluginType.h" />
+    <ClInclude Include="SynthCommon.h" />
     <ClInclude Include="VstHost.h" />
     <ClInclude Include="Eap2Common.h" />
     <ClInclude Include="PluginManager.h" />

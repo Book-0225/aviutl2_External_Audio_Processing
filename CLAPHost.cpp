@@ -1,6 +1,7 @@
 ﻿#include "ClapHost.h"
 #include "clap/all.h"
 #include <windows.h>
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <memory>
@@ -12,7 +13,7 @@ struct ClapHost::Impl {
     Impl(HINSTANCE hInst);
     ~Impl();
 
-    bool LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize);
+    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, const std::vector<MidiEvent>& midiEvents);
     void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom);
     void ShowGui();
@@ -28,7 +29,7 @@ struct ClapHost::Impl {
     int32_t GetLatencySamples();
     int32_t GetLastTouchedParamID();
     void SetParameter(uint32_t paramId, float value);
-    std::string m_pluginPath;
+    std::filesystem::path m_pluginPath;
     bool m_isGuiVisible = false;
 
     clap_host host = {};
@@ -121,20 +122,19 @@ static bool dummy_events_push(const clap_output_events_t*, const clap_event_head
 static const clap_input_events_t g_dummy_in = { nullptr, dummy_events_size, dummy_events_get };
 static const clap_output_events_t g_dummy_out = { nullptr, dummy_events_push };
 
-bool ClapHost::Impl::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) {
+bool ClapHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
     ReleasePlugin();
     currentSampleRate = sampleRate;
     currentBlockSize = blockSize;
 
-    std::filesystem::path p(path);
-    std::wstring wpath = p.wstring();
+    std::wstring wpath = path.wstring();
 
     hModule = LoadLibraryW(wpath.c_str());
     if (!hModule) return false;
 
     auto entry_proc = (clap_plugin_entry_t*)GetProcAddress(hModule, "clap_plugin_entry");
     if (!entry_proc) entry_proc = (clap_plugin_entry_t*)GetProcAddress(hModule, "clap_entry");
-    if (!entry_proc || !entry_proc->init(path.c_str())) {
+    if (!entry_proc || !entry_proc->init(path.string().c_str())) {
         ReleasePlugin();
         return false;
     }
@@ -418,7 +418,7 @@ ClapHost::Impl::~Impl() {
 
 ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
-bool ClapHost::LoadPlugin(const std::string& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
+bool ClapHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
 void ClapHost::SetSampleRate(double sampleRate) { m_impl->SetSampleRate(sampleRate); }
 double ClapHost::GetSampleRate() const { return m_impl->currentSampleRate; }
 void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, midiEvents); }
@@ -432,7 +432,7 @@ bool ClapHost::IsGuiVisible() const {
     return m_impl->m_isGuiVisible;
 }
 
-std::string ClapHost::GetPluginPath() const {
+std::filesystem::path ClapHost::GetPluginPath() const {
     return m_impl->m_pluginPath;
 }
 
