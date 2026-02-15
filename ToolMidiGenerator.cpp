@@ -8,7 +8,7 @@
 #include <cmath>
 #include <algorithm>
 
-#define TOOL_NAME L"MIDI Generator"
+constexpr auto TOOL_NAME = L"MIDI Generator";
 
 FILTER_ITEM_FILE midi_file(L"MIDI File", L"", L"MIDI File (*.mid)\0*.mid;*.midi\0");
 FILTER_ITEM_SELECT midi_type(L"Type", 0, gen_type_list);

@@ -4,7 +4,7 @@
 #include <map>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Chain Filter"
+constexpr auto TOOL_NAME = L"Chain Filter";
 
 FILTER_ITEM_TRACK cfilt_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK cfilt_base(L"Base Freq", 400.0, 20.0, 20000.0, 1.0);

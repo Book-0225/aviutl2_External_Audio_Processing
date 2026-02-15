@@ -11,7 +11,7 @@
 #include "Avx2Utils.h"
 #include "PluginManager.h"
 
-#define TOOL_NAME L"MIDI Visualizer"
+constexpr auto TOOL_NAME = L"MIDI Visualizer";
 
 struct PseudoRandom {
     uint32_t state;

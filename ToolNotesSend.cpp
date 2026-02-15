@@ -10,7 +10,7 @@
 #include <mutex>
 #include <algorithm>
 
-#define TOOL_NAME_MEDIA L"Notes Send (Media)"
+constexpr auto TOOL_NAME_MEDIA = L"Notes Send (Media)";
 
 FILTER_ITEM_TRACK notes_send_id(L"ID", 1.0, 1.0, NotesManager::MAX_ID, 1.0);
 FILTER_ITEM_SELECT::ITEM notes_list[] = {

@@ -7,7 +7,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Chain Comp"
+constexpr auto TOOL_NAME = L"Chain Comp";
 
 FILTER_ITEM_TRACK chain_comp_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK chain_comp_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);

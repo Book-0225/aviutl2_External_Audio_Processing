@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Phaser"
+constexpr auto TOOL_NAME = L"Phaser";
 
 FILTER_ITEM_TRACK ph_rate(L"Rate", 0.5, 0.01, 10.0, 0.01);
 FILTER_ITEM_TRACK ph_depth(L"Depth", 50.0, 0.0, 100.0, 0.1);

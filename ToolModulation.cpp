@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Modulation"
+constexpr auto TOOL_NAME = L"Modulation";
 
 FILTER_ITEM_CHECK mod_chorus(L"Chorus", true);
 FILTER_ITEM_CHECK mod_flanger(L"Flanger", false);

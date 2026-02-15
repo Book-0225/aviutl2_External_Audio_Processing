@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Spatial"
+constexpr auto TOOL_NAME = L"Spatial";
 
 FILTER_ITEM_TRACK sp_time(L"Delay Time", 0.0, 0.0, 1000.0, 1.0);
 FILTER_ITEM_TRACK sp_feedback(L"Feedback", 0.0, 0.0, 90.0, 1.0);

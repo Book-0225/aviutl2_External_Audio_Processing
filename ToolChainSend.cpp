@@ -4,7 +4,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Chain Send"
+constexpr auto TOOL_NAME = L"Chain Send";
 
 FILTER_ITEM_TRACK send_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK send_gain(L"Send Gain", 100.0, 0.0, 200.0, 0.1);

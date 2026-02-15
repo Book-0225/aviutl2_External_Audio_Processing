@@ -5,7 +5,7 @@
 #include <mutex>
 #include <cmath>
 
-#define TOOL_NAME L"Generator"
+constexpr auto TOOL_NAME = L"Generator";
 
 FILTER_ITEM_SELECT gen_type2(L"Type", 0, gen_type_list);
 FILTER_ITEM_TRACK gen_freq2(L"周波数", 440.0, 20.0, 20000.0, 1.0);

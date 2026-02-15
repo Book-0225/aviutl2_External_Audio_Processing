@@ -5,7 +5,7 @@
 #include <mutex>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"EQ"
+constexpr auto TOOL_NAME = L"EQ";
 
 FILTER_ITEM_GROUP cut_group(L"Cut Filters", false);
 FILTER_ITEM_TRACK eq_hpf(L"Low Cut", 0.0, 0.0, 2000.0, 1.0);

@@ -143,7 +143,7 @@ struct VstHost::Impl {
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents);
     void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom);
     void ShowGui();
-    void HideGui();
+    void HideGui() const;
     std::string GetState();
     bool SetState(const std::string& state_b64);
     void ReleasePlugin();
@@ -284,7 +284,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     module = Module::create(path.string(), error);
     if (!module) return false;
 
-    auto factory = module->getFactory();
+    auto& factory = module->getFactory();
     ClassInfo target;
     bool found = false;
     for (const auto& ci : factory.classInfos()) {
@@ -850,7 +850,7 @@ void VstHost::Impl::ShowGui() {
     ShowWindow(guiWindow, SW_SHOW);
 }
 
-void VstHost::Impl::HideGui() {
+void VstHost::Impl::HideGui() const {
     if (guiWindow) DestroyWindow(guiWindow);
 }
 

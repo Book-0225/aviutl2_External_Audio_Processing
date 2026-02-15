@@ -17,7 +17,7 @@
 致命的な不具合や破壊的変更などが起こりやすいと思われます。  
 使用する際はバックアップを取っておくことをおすすめします。
 
-- V0.0.1xでは、VST3プラグイン用の更新を優先して行っていますので、
+- V0.0.1x, v0.0.2xでは、VST3プラグイン用の更新を優先して行っていますので、
   CLAPプラグイン用の更新が遅れています。
   VST3プラグイン用の更新がある程度完了したら、CLAPプラグイン用の更新も順次行う予定です。
   それまでの間CLAPプラグインで一部の機能が使えない可能性や不安定な動作が発生する可能性があります。
@@ -143,7 +143,7 @@ v0.0.17以降のバージョンに移行してください。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta32以降(beta32で動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta33以降(beta33で動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
@@ -166,6 +166,17 @@ v0.0.17以降のバージョンに移行してください。
 2. `External_Audio_Processing2.au2pkg.zip`ファイルを、  
   AviUtl ExEdit2のウィンドウにドラッグアンドドロップしてください。
 
+### AviUtl2 カタログを利用する場合
+
+#### 注意事項
+
+- AviUtl2 カタログへの更新の登録は遅れる場合があります。
+
+#### 手順
+
+1. [AviUtl2 カタログ](https://github.com/Neosku/aviutl2-catalog) 内で`External Audio Processing 2`で検索します。
+2. インストールボタンを押すと導入出来ます。
+
 ## 設定項目
 
 ### 設定ファイル (v0.0.24で追加)
@@ -177,21 +188,65 @@ AviUtl ExEdit2上部の設定内のプラグイン設定にある`EAP2の設定�
 一部設定はAviUtl ExEdit2上部の設定内のプラグイン設定にある`EAP2の設定を再読込`を実行すると再起動なしでも反映されます。
 
 ```ini
-; デフォルト設定(v0.0.24時点)
+; デフォルト設定(v0.0.26時点)
 
 ; システムによって利用される設定(編集は非推奨)
 [Info]
 ; 設定ファイルが作成されたバージョン(ファイルの更新時には変更されません)
-Version=v2-0.0.24
+Version=v2-0.0.26
+; 設定ファイルが作成されたバージョンを読み込みやすくしたもの
+VersionData=00000000001a0000
+; プラグインの全体に影響する設定
+[General]
+; 0にすると自動のオブジェクト名変更が有効になる
+AutoRenameDisable=1
+; 1にすると実験的機能が有効になる
+EnableExperimental=0
 ; モジュールの設定
 [Module]
 ; 1にするとメインフィルタ以外の全てのツールを無効化する
 AllToolDisable=0
+; 1にするとメインフィルタを無効化する
+HostDisable=0
+; 1にするとChain系のツールを無効化する
+ChainToolDisable=0
+; 1にするとメインフィルタ(フィルタオブジェクト)を無効化する
+HostFilterDisable=0
+; 1にするとメインフィルタ(メディアオブジェクト)を無効化する
+HostMediaDisable=0
+; 以下は対応するツールを1にすると無効化する
+AutoWahDisable=0
+ChainCompDisable=0
+ChainDynamicEQDisable=0
+ChainFilterDisable=0
+ChainGateDisable=0
+ChainSendDisable=0
+DeEsserDisable=0
+DistortionDisable=0
+DynamicsDisable=0
+EQDisable=0
+GeneratorDisable=0
+MaximizerDisable=0
+ModulationDisable=0
+NotesSendDisable=0
+PhaserDisable=0
+PitchShiftDisable=0
+ReverbDisable=0
+SpatialDisable=0
+SpectralGateDisable=0
+StereoDisable=0
+UtilityDisable=0
 ; VSTプラグインに関する設定
 [VST]
 ; 1にすると全てのVSTプラグインで強制的なウィンドウのリサイズができるようになる
 ; Issue #1の問題が発生した際に1にすると改善すると思います
 ForceResize=0
+; 実験的機能(EnableExperimental=1のときのみ反映)
+[Experimental]
+; 1にすると開発中の新しいGeneratorを有効化する
+UseExperimentalGenerator=0
+; 1にすると開発中の新しいGeneratorの拡張機能であるMIDI Generatorを有効化する
+EnableExperimentalMIDIGenerator=0
 ```
 
 ### メインフィルタ
@@ -278,7 +333,7 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
   MIDIファイルを指定することで、VSTiプラグインに対してMIDIイベントを送信することができます。
 
 - `BPMの同期`(alpha版):  
-  MIDIファイルのテンポ情報に同期します。  
+  MIDIファイルまたはAviUtl ExEdit2のテンポ情報に同期します。  
   トラックバーのBPMを無視します。
 
 ### 内蔵メディアオブジェクト
@@ -358,7 +413,7 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
   ノートの表示開始位置のオフセットを指定します。
 
 - `BPMの同期`:  
-  MIDIファイルのテンポ情報に同期します。  
+  MIDIファイルまたはAviUtl ExEdit2のテンポ情報に同期します。  
   トラックバーのBPMを無視します。
 
 - `BPM(手動)`:  
@@ -843,6 +898,18 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
   フィルタが元の位置に戻るまでの時間を調整します。
 
 ## 改版履歴
+
+- **v0.0.26**
+  - [v0.0.23](https://github.com/Book-0225/aviutl2_External_Audio_Processing/releases/tag/v0.0.23) にて削除したAviUtl本体のBPMへの同期機能の再有効化  
+    (v2.00 beta33にて解決したため再度利用可能になりました)
+  - 設定項目の拡充
+  - 実験的な項目(詳細は未記載)の追加  
+    (設定から有効化出来ますが不具合が起こる可能性が高くなります)
+  - ファイルパス関連の問題を少し改善
+  - 設定ファイルを開くメニューの追加
+  - 本体のバージョンチェックをv2.00 beta33にて導入されたものに変更  
+    (v2.00 beta32以前で開かれた際に機能しないため古い独自チェックも当分は残します)
+  - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta33以降に変更
 
 - **v0.0.25**
   - 設定の読込タイミングを修正

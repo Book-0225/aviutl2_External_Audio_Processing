@@ -4,7 +4,7 @@
 #include <map>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Chain Dynamic EQ"
+constexpr auto TOOL_NAME = L"Chain Dynamic EQ";
 
 FILTER_ITEM_TRACK deq_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK deq_freq(L"Frequency", 1000.0, 20.0, 20000.0, 1.0);

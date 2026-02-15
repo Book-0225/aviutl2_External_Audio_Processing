@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Spectral Gate"
+constexpr auto TOOL_NAME = L"Spectral Gate";
 
 FILTER_ITEM_TRACK spec_gate_threshold(L"Threshold (dB)", -40.0, -80.0, 0.0, 0.1);
 FILTER_ITEM_TRACK spec_gate_attack(L"Attack (ms)", 10.0, 1.0, 500.0, 1.0);

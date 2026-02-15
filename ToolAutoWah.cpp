@@ -4,7 +4,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Auto Wah"
+constexpr auto TOOL_NAME = L"Auto Wah";
 
 FILTER_ITEM_TRACK wah_sens(L"Sensitivity", 50.0, 0.0, 100.0, 1.0);
 FILTER_ITEM_TRACK wah_base(L"Base Freq", 200.0, 50.0, 5000.0, 1.0);

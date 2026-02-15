@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Distortion"
+constexpr auto TOOL_NAME = L"Distortion";
 
 FILTER_ITEM_CHECK dist_overdrive(L"Overdrive", true);
 FILTER_ITEM_CHECK dist_fuzz(L"Fuzz", false);

@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <filesystem>
 #include <algorithm>
 #include "StringUtils.h"
 
@@ -15,20 +14,20 @@ struct ClapHost::Impl {
 
     bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize);
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, const std::vector<MidiEvent>& midiEvents);
-    void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom);
+    void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) const;
     void ShowGui();
     void HideGui();
-    std::string GetState();
-    bool SetState(const std::string& state_b64);
+    std::string GetState() const;
+    bool SetState(const std::string& state_b64) const;
     void ReleasePlugin();
     void Cleanup();
-    bool GuiResize(uint32_t width, uint32_t height);
-    int32_t GetParameterCount();
-    bool GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info);
-    uint32_t GetParameterID(int32_t index);
-    int32_t GetLatencySamples();
+    bool GuiResize(uint32_t width, uint32_t height) const;
+    int32_t GetParameterCount() const;
+    bool GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) const;
+    uint32_t GetParameterID(int32_t index) const;
+    int32_t GetLatencySamples() const;
     int32_t GetLastTouchedParamID();
-    void SetParameter(uint32_t paramId, float value);
+    void SetParameter(uint32_t paramId, float value) const;
     std::filesystem::path m_pluginPath;
     bool m_isGuiVisible = false;
 
@@ -54,12 +53,9 @@ struct ClapHost::Impl {
 
         if (plugin->stop_processing) plugin->stop_processing(plugin);
         plugin->deactivate(plugin);
-        if (plugin->activate(plugin, currentSampleRate, currentBlockSize, currentBlockSize)) {
-            if (plugin->start_processing) plugin->start_processing(plugin);
-        }
+        if (plugin->activate(plugin, currentSampleRate, currentBlockSize, currentBlockSize)) if (plugin->start_processing) plugin->start_processing(plugin);
     }
 };
-
 
 static void clap_log_callback(const clap_host_t* host, clap_log_severity severity, const char* msg) {
     DbgPrint("[CLAP] %hs \n", msg);
@@ -69,6 +65,7 @@ static bool clap_gui_resize(const clap_host_t* host, uint32_t width, uint32_t he
     auto self = static_cast<ClapHost::Impl*>(host->host_data);
     return self->GuiResize(width, height);
 }
+
 static const clap_host_log s_clap_log = {
     [](const clap_host_t*, clap_log_severity, const char* msg) {
         DbgPrint("[CLAP] %hs \n", msg);
@@ -92,12 +89,8 @@ static const clap_host_gui s_clap_gui = {
 };
 
 static const void* ClapHost_GetExtension(const clap_host_t* host, const char* id) {
-    if (strcmp(id, CLAP_EXT_LOG) == 0) {
-        return &s_clap_log;
-    }
-    if (strcmp(id, CLAP_EXT_GUI) == 0) {
-        return &s_clap_gui;
-    }
+    if (strcmp(id, CLAP_EXT_LOG) == 0) return &s_clap_log;
+    if (strcmp(id, CLAP_EXT_GUI) == 0) return &s_clap_gui;
     return nullptr;
 }
 
@@ -223,10 +216,8 @@ void ClapHost::Impl::ProcessAudio(const float* inL, const float* inR, float* out
     plugin->process(plugin, &process);
 }
 
-void ClapHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) {
-    if (isReady && plugin && plugin->reset) {
-        plugin->reset(plugin);
-    }
+void ClapHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) const {
+    if (isReady && plugin && plugin->reset) plugin->reset(plugin);
 }
 
 LRESULT CALLBACK ClapHostGuiProc(HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) {
@@ -241,9 +232,7 @@ LRESULT CALLBACK ClapHostGuiProc(HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) 
 
     case WM_DESTROY:
         if (self) {
-            if (self->plugin && self->extGui) {
-                self->extGui->destroy(self->plugin);
-            }
+            if (self->plugin && self->extGui) self->extGui->destroy(self->plugin);
             self->guiWindow = nullptr;
             self->m_isGuiVisible = false;
         }
@@ -297,7 +286,7 @@ void ClapHost::Impl::HideGui() {
     m_isGuiVisible = false;
 }
 
-bool ClapHost::Impl::GuiResize(uint32_t width, uint32_t height) {
+bool ClapHost::Impl::GuiResize(uint32_t width, uint32_t height) const {
     if (!guiWindow || !IsWindow(guiWindow)) return false;
     RECT rc = { 0, 0, (LONG)width, (LONG)height };
     AdjustWindowRect(&rc, GetWindowLong(guiWindow, GWL_STYLE), FALSE);
@@ -305,7 +294,7 @@ bool ClapHost::Impl::GuiResize(uint32_t width, uint32_t height) {
     return true;
 }
 
-std::string ClapHost::Impl::GetState() {
+std::string ClapHost::Impl::GetState() const {
     if (!plugin || !extState) return "";
     struct Ctx { std::vector<BYTE> data; };
     Ctx ctx;
@@ -320,7 +309,7 @@ std::string ClapHost::Impl::GetState() {
     return "";
 }
 
-bool ClapHost::Impl::SetState(const std::string& state_b64) {
+bool ClapHost::Impl::SetState(const std::string& state_b64) const {
     if (state_b64.rfind("CLAP:", 0) != 0 || !plugin || !extState) return false;
     auto data = StringUtils::Base64Decode(state_b64.substr(5));
     if (data.empty() && !state_b64.empty()) return false;
@@ -340,7 +329,7 @@ bool ClapHost::Impl::SetState(const std::string& state_b64) {
 
 void ClapHost::Impl::Cleanup() { ReleasePlugin(); }
 
-int32_t ClapHost::Impl::GetParameterCount() {
+int32_t ClapHost::Impl::GetParameterCount() const {
     if (!extParams) {
         DbgPrint("[CLAP] params extension not available\n");
         return 0;
@@ -348,7 +337,7 @@ int32_t ClapHost::Impl::GetParameterCount() {
     return static_cast<int32_t>(extParams->count(plugin));
 }
 
-bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) {
+bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) const {
     if (!extParams) {
         DbgPrint("[CLAP] params extension not available\n");
         return false;
@@ -369,7 +358,7 @@ bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::Parameter
     return true;
 }
 
-uint32_t ClapHost::Impl::GetParameterID(int32_t index) {
+uint32_t ClapHost::Impl::GetParameterID(int32_t index) const {
     if (!extParams) {
         DbgPrint("[CLAP] params extension not available\n");
         return 0;
@@ -384,7 +373,7 @@ uint32_t ClapHost::Impl::GetParameterID(int32_t index) {
     return static_cast<uint32_t>(clapInfo.id);
 }
 
-int32_t ClapHost::Impl::GetLatencySamples() {
+int32_t ClapHost::Impl::GetLatencySamples() const {
     if (!extLatency) {
         DbgPrint("[CLAP] latency extension not available\n");
         return 0;
@@ -402,7 +391,7 @@ int32_t ClapHost::Impl::GetLastTouchedParamID() {
     return lastTouchedParamID.exchange(-1);
 }
 
-void ClapHost::Impl::SetParameter(uint32_t paramId, float value) {
+void ClapHost::Impl::SetParameter(uint32_t paramId, float value) const {
     if (!extParams) {
         DbgPrint("[CLAP] params extension not available\n");
         return;
@@ -414,7 +403,6 @@ void ClapHost::Impl::SetParameter(uint32_t paramId, float value) {
 ClapHost::Impl::~Impl() {
     Cleanup();
 }
-
 
 ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;

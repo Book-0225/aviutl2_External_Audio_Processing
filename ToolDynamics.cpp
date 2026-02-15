@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Dynamics"
+constexpr auto TOOL_NAME = L"Dynamics";
 
 FILTER_ITEM_GROUP gate_group(L"Gate Settings", true);
 FILTER_ITEM_TRACK dyn_gate_thresh(L"Gate Threshold", -60.0, -90.0, 0.0, 0.1);

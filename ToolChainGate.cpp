@@ -7,7 +7,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Chain Gate"
+constexpr auto TOOL_NAME = L"Chain Gate";
 
 FILTER_ITEM_TRACK chain_gate_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
 FILTER_ITEM_TRACK chain_gate_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);

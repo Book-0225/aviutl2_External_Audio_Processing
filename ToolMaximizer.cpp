@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Maximizer"
+constexpr auto TOOL_NAME = L"Maximizer";
 
 FILTER_ITEM_TRACK max_threshold(L"Threshold", 0.0, -40.0, 0.0, 0.1);
 FILTER_ITEM_TRACK max_ceiling(L"Ceiling", -0.1, -20.0, 0.0, 0.1);

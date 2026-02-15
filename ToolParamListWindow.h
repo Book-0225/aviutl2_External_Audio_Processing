@@ -45,7 +45,7 @@ public:
         }
     }
 
-    void Close() {
+    void Close() const {
         if (m_hWnd && IsWindow(m_hWnd)) DestroyWindow(m_hWnd);
     }
 
@@ -182,7 +182,7 @@ private:
         ListView_InsertColumn(m_listView, 3, &lvc);
     }
 
-    void ResizeControls(int32_t width, int32_t height) {
+    void ResizeControls(int32_t width, int32_t height) const {
         if (m_listView) MoveWindow(m_listView, 0, 0, width, height, TRUE);
     }
 };

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "Avx2Utils.h" 
 
-#define TOOL_NAME L"Reverb"
+constexpr auto TOOL_NAME = L"Reverb";
 
 FILTER_ITEM_TRACK rev_time(L"Room Size", 50.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK rev_damping(L"Damping", 50.0, 0.0, 100.0, 0.1);

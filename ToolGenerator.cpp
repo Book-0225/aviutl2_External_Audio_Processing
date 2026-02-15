@@ -11,7 +11,7 @@
 #include "StringUtils.h"
 #include "PluginManager.h"
 
-#define TOOL_NAME L"Generator"
+constexpr auto TOOL_NAME = L"Generator";
 
 FILTER_ITEM_SELECT::ITEM gen_type_list[] = {
     { L"Sine", 0 },

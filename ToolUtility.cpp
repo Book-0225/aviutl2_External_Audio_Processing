@@ -3,7 +3,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Utility"
+constexpr auto TOOL_NAME = L"Utility";
 
 FILTER_ITEM_TRACK tool_gain(L"Gain", 100.0, 0.0, 500.0, 0.1);
 FILTER_ITEM_TRACK tool_pan(L"Pan(L-R)", 0.0, -100.0, 100.0, 0.1);

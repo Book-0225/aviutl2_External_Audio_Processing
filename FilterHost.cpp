@@ -15,8 +15,8 @@
 #include "Avx2Utils.h"
 #include "ToolParamListWindow.h"
 
-#define FILTER_NAME L"Host"
-#define FILTER_NAME_MEDIA L"Host (Media)"
+constexpr auto FILTER_NAME = L"Host";
+constexpr auto FILTER_NAME_MEDIA = L"Host (Media)";
 
 const int32_t MAX_BLOCK_SIZE = 2048;
 static const wchar_t* TARGET_FILTER_NAMES[] = { filter_name, filter_name_media };

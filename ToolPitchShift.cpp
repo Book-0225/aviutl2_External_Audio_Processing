@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "Avx2Utils.h"
 
-#define TOOL_NAME L"Pitch Shift"
+constexpr auto TOOL_NAME = L"Pitch Shift";
 
 FILTER_ITEM_TRACK ps_pitch(L"Pitch", 0.0, -12.0, 12.0, 0.1);
 FILTER_ITEM_TRACK ps_mix(L"Mix", 100.0, 0.0, 100.0, 0.1);
