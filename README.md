@@ -2,7 +2,7 @@
 
 **External Audio Processing 2**はAviUtl ExEdit2上でオーディオプラグイン（VST&reg;3 / CLAP）を利用可能にするためのフィルタプラグインです。
 
-![VST COMPATIBLE LOGO](./vst_logo.png)
+![VST COMPATIBLE LOGO](https://raw.githubusercontent.com/Book-0225/aviutl2_External_Audio_Processing/refs/heads/master/vst_logo.png)
 
 ## 注意事項
 
