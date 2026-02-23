@@ -6,7 +6,7 @@
 #define STR2(x) L#x
 
 #define VST_ATTRIBUTION L"VST is a registered trademark of Steinberg Media Technologies GmbH."
-#define PLUGIN_VERSION L"v2-0.0.26"
+#define PLUGIN_VERSION L"v2-0.0.27"
 #ifdef _DEBUG
 #define DEBUG_PREFIX L"-dev"
 #else
@@ -17,7 +17,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2003300
+#define MINIMUM_VERSION 2003400
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")

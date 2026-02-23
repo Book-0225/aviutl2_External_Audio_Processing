@@ -143,7 +143,7 @@ v0.0.17以降のバージョンに移行してください。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta33以降(beta33で動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta34以降(beta34で動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
@@ -247,6 +247,8 @@ ForceResize=0
 UseExperimentalGenerator=0
 ; 1にすると開発中の新しいGeneratorの拡張機能であるMIDI Generatorを有効化する
 EnableExperimentalMIDIGenerator=0
+; 1にすると開発中の新しいReverbを有効化する
+UseExperimentalReverb=1
 ```
 
 ### メインフィルタ
@@ -749,8 +751,18 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
 
 #### External Audio Processing 2 Pitch Shift
 
+- `アルゴリズム`:  
+  ピッチシフトに用いるアルゴリズムを選択します。
+
 - `Pitch`:  
   出力音声のピッチを調整します。
+
+- `再生速度補正`:  
+  再生速度によるピッチの変化を補正します。  
+  例: 再生速度200%のオブジェクトに`Pitch`を+1するとピッチは+13になりますが  
+  本パラメータを200にするとピッチが+1となります。  
+  `Pitch`が0の場合も使えます。  
+  本パラメータは`0`,`100`,`-100`の際無効化されます
 
 - `Mix`:  
   出力音声のピッチシフトの割合を調整します。
@@ -898,6 +910,11 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
   フィルタが元の位置に戻るまでの時間を調整します。
 
 ## 改版履歴
+
+- **v0.0.27**
+  - `Pitch Shift`に再生速度補正機能とアルゴリズム変更機能を追加
+  - 実験的な項目に新Reverbの追加
+  - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta34以降に変更
 
 - **v0.0.26**
   - [v0.0.23](https://github.com/Book-0225/aviutl2_External_Audio_Processing/releases/tag/v0.0.23) にて削除したAviUtl本体のBPMへの同期機能の再有効化  

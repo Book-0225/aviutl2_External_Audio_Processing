@@ -1,8 +1,9 @@
 #:schema ./.aviutl2-cli/aviutl2.schema.json
 # 設定ファイルについては https://github.com/sevenc-nanashi/aviutl2-cli を参照してください。
 [project]
+id = "Book-0225.EAP2"
 name = "External_Audio_Processing2"
-version = "0.0.26"
+version = "0.0.27"
 
 [artifacts.External_Audio_Processing2_aux2]
 enabled = true
@@ -19,10 +20,10 @@ source = "x64/Release/External_Audio_Processing2.aux2"
 enabled = true
 
 [development]
-aviutl2_version = "2.00beta33"
+aviutl2_version = "2.00beta34"
 
 [preview]
-aviutl2_version = "2.00beta33"
+aviutl2_version = "2.00beta34"
 
 [release]
 output_dir = "release"
