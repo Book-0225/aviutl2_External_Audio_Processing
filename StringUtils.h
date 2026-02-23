@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include "Eap2Common.h"
 #include <string>
 #include <vector>
 #include <charconv>

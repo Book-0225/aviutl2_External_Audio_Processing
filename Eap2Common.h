@@ -82,6 +82,7 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_gen;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_reverb2;
 
 void LoadConfig();
 void ReloadConfig();
@@ -92,6 +93,7 @@ void OpenConfig();
 void CleanupSpectralGateResources();
 void CleanupSpatialResources();
 void CleanupReverbResources();
+void CleanupReverbResources2();
 void CleanupPitchShiftResources();
 void CleanupPhaserResources();
 void CleanupModulationResources();

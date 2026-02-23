@@ -130,10 +130,12 @@ struct ExperimentalConfig{
     std::wstring categoryName = L"Experimental";
     bool use_experimental_generator;
     bool enable_experimental_midi_generator;
+    bool use_experimental_reverb;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"UseExperimentalGenerator", L"0", &use_experimental_generator, false),
-            ConfigEntry::Create(L"EnableExperimentalMIDIGenerator", L"0", &enable_experimental_midi_generator, false)
+            ConfigEntry::Create(L"EnableExperimentalMIDIGenerator", L"0", &enable_experimental_midi_generator, false),
+            ConfigEntry::Create(L"UseExperimentalReverb", L"0", &use_experimental_reverb, false)
         };
     }
 };

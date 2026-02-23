@@ -206,6 +206,7 @@ std::vector<T> GetModule(const std::array<T, N>& plugins, AppSettings setting) {
     if (setting.general.enable_experimental) {
         if (setting.exp.use_experimental_generator) std::replace(registry.begin(), registry.end(), &filter_plugin_table_generator, &filter_plugin_table_generator2);
         if (!setting.module.all_tool_disable && setting.exp.enable_experimental_midi_generator) registry.push_back(&filter_plugin_table_midi_gen);
+        if (setting.exp.use_experimental_reverb) std::replace(registry.begin(), registry.end(), &filter_plugin_table_reverb, &filter_plugin_table_reverb2);
     }
     return registry;
 }
@@ -268,6 +269,7 @@ void ToolCleanupResources() {
     CleanupSpectralGateResources();
     CleanupSpatialResources();
     CleanupReverbResources();
+    CleanupReverbResources2();
     CleanupPitchShiftResources();
     CleanupPhaserResources();
     CleanupModulationResources();

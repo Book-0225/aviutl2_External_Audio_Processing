@@ -1,0 +1,15 @@
+﻿#pragma once
+#define _USE_MATH_DEFINES
+#include <Windows.h>
+#include <array>
+#include <filesystem>
+#include <functional>
+#include <map>
+#include <mutex>
+#include <string>
+#include <ShlObj.h>
+#include <regex>
+#include "ChainManager.h"
+#include "MidiParser.h"
+#include "PluginManager.h"
+#include "StringUtils.h"

@@ -14,6 +14,10 @@
     <ClCompile Include="AudioPluginFactory.cpp" />
     <ClCompile Include="CLAPHost.cpp" />
     <ClCompile Include="Config.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="ToolAutoWah.cpp" />
     <ClCompile Include="ToolChainComp.cpp" />
     <ClCompile Include="ToolChainDynamicEQ.cpp" />
@@ -26,6 +30,7 @@
     <ClCompile Include="ToolGenerator2.cpp" />
     <ClCompile Include="ToolMidiGenerator.cpp" />
     <ClCompile Include="ToolNotesSend.cpp" />
+    <ClCompile Include="ToolReverb2.cpp" />
     <ClCompile Include="ToolSpatial.cpp" />
     <ClCompile Include="ToolStereo.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\common\memorystream.cpp" />
@@ -55,6 +60,7 @@
     <ClInclude Include="Eap2Info.h" />
     <ClInclude Include="IAudioPluginHost.h" />
     <ClInclude Include="NotesManager.h" />
+    <ClInclude Include="pch.h" />
     <ClInclude Include="PluginType.h" />
     <ClInclude Include="SynthCommon.h" />
     <ClInclude Include="VstHost.h" />
@@ -115,11 +121,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;AVIUTL2EXTERNALAUDIOPROCESSING_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -136,11 +143,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;AVIUTL2EXTERNALAUDIOPROCESSING_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
