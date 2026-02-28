@@ -143,7 +143,7 @@ v0.0.17以降のバージョンに移行してください。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta34以降(beta34で動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta34以降(beta34, beta35で動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
@@ -910,6 +910,9 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
   フィルタが元の位置に戻るまでの時間を調整します。
 
 ## 改版履歴
+
+- **v0.0.28(WIP)**
+  - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta35以降に変更
 
 - **v0.0.27**
   - `Pitch Shift`に再生速度補正機能とアルゴリズム変更機能を追加

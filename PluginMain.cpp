@@ -17,7 +17,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2003400
+#define MINIMUM_VERSION 2003500
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -47,6 +47,11 @@ constexpr wchar_t regex_info_name[] = REGEX_FILTER_NAME;
 constexpr wchar_t regex_tool_name[] = REGEX_TOOL_NAME;
 constexpr wchar_t label[] = FILTER_NAME_SHORT;
 constexpr wchar_t plugin_version[] = PLUGIN_VERSION;
+
+COMMON_PLUGIN_TABLE common_plugin_table = {
+    filter_name,
+    plugin_info,
+};
 
 static constexpr std::array all_plugins{
     &filter_plugin_table_host,
@@ -249,8 +254,7 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
         return false;
     }
 
-    g_hMessageWindow = CreateWindow(wc.lpszClassName, _T("EAP2 Message Window"), 
-                                    0, 0, 0, 0, 0, HWND_MESSAGE, NULL, g_hinstance, NULL);
+    g_hMessageWindow = CreateWindow(wc.lpszClassName, _T("EAP2 Message Window"),  0, 0, 0, 0, 0, HWND_MESSAGE, NULL, g_hinstance, NULL);
     if (!g_hMessageWindow) {
         UnregisterClass(_T("EAP2_MessageWindowClass"), g_hinstance);
         AudioPluginFactory::Uninitialize();
@@ -310,8 +314,11 @@ EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
     g_logger = logger;
 }
 
+EXTERN_C __declspec(dllexport) COMMON_PLUGIN_TABLE* GetCommonPluginTable(void) {
+    return &common_plugin_table;
+}
+
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
-    host->set_plugin_information(plugin_info);
     host->register_config_menu(L"EAP2の設定を再読込", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定を再読込しますか？(一部は再起動後に反映)", L"EAP2 設定再読込", MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig(); });
     host->register_config_menu(L"EAP2の設定をリセット", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定をリセットしますか？(再起動後に反映)", L"EAP2 設定リセット", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig(); });
     host->register_config_menu(L"EAP2の設定を開く", [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
