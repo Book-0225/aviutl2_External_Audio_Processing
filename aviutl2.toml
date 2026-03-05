@@ -20,10 +20,10 @@ source = "x64/Release/External_Audio_Processing2.aux2"
 enabled = true
 
 [development]
-aviutl2_version = "2.00beta34"
+aviutl2_version = "latest"
 
 [preview]
-aviutl2_version = "2.00beta34"
+aviutl2_version = "latest"
 
 [release]
 output_dir = "release"
