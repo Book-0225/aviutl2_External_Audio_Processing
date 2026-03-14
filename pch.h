@@ -13,3 +13,4 @@
 #include "MidiParser.h"
 #include "PluginManager.h"
 #include "StringUtils.h"
+#include "Avx2Utils.h"
