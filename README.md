@@ -141,9 +141,15 @@ v0.0.17以降のバージョンに移行してください。
 
 その結果、書き出し時の処理遅延がなくなり、冒頭のノイズや音途切れを防ぐことができます。
 
+### ホストプラグインや一部内蔵プラグインでサンプリングレートとフレームレートによっては正常に動作しない問題
+
+サンプリングレートをフレームレートで割った値が整数にならない場合一部正常に動作しないものがあります。
+
+パフォーマンスとの両立もあるので順次修正します。
+
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta34以降(beta34, beta35, beta36aで動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta34以降(beta34, beta35, beta36a, beta37で動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
