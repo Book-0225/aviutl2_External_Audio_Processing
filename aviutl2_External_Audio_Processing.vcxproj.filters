@@ -36,6 +36,8 @@
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="ToolMidiGenerator.cpp" />
     <ClCompile Include="ToolGenerator2.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="ToolReverb2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />
@@ -54,5 +56,6 @@
     <ClInclude Include="Eap2Config.h" />
     <ClInclude Include="Eap2Info.h" />
     <ClInclude Include="SynthCommon.h" />
+    <ClInclude Include="pch.h" />
   </ItemGroup>
 </Project>
