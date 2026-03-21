@@ -163,10 +163,10 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
         state = &g_gen_states[audio->object];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
-            std::abs(state->last_sample_index + total_samples - audio->object->sample_index) > 100) {
+            std::abs(state->last_sample_index - audio->object->sample_index) > 100) {
             state->clear();
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;

@@ -69,10 +69,10 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_dyn_state_mutex);
         state = &g_dyn_states[audio->object];
         if (state->last_sample_index != -1 &&
-            state->last_sample_index + total_samples != audio->object->sample_index) {
+            state->last_sample_index != audio->object->sample_index) {
             state->gate_gain = 1.0; state->comp_envelope = 0.0;
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;

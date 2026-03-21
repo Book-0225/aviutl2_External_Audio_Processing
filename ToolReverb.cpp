@@ -218,10 +218,10 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
         }
 
         if (state->last_sample_index != -1 &&
-            state->last_sample_index + total_samples != audio->object->sample_index) {
+            state->last_sample_index != audio->object->sample_index) {
             state->clear();
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     state->update_params(room_size, damping);

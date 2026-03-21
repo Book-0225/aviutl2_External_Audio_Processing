@@ -178,13 +178,13 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_eq_state_mutex);
         state = &g_eq_states[audio->object];
         if (state->last_sample_index != -1 &&
-            state->last_sample_index + total_samples != audio->object->sample_index) {
+            state->last_sample_index != audio->object->sample_index) {
             for (int32_t i = 0; i < FILTER_STAGES; ++i) {
                 state->filtersL[i].resetState();
                 state->filtersR[i].resetState();
             }
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;

@@ -62,12 +62,12 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     {
         std::lock_guard<std::mutex> lock(g_deess_mutex);
         state = &g_deess_states[audio->object];
-        if (state->last_sample_index != -1 && state->last_sample_index + total_samples != audio->object->sample_index) {
+        if (state->last_sample_index != -1 && state->last_sample_index != audio->object->sample_index) {
             state->scFilterL = DeesserBiquad(); state->scFilterR = DeesserBiquad();
             state->mainFilterL = DeesserBiquad(); state->mainFilterR = DeesserBiquad();
             state->envelope = 0.0f;
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
         state->initialized = true;
     }
 

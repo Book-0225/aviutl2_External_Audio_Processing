@@ -63,11 +63,11 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     {
         std::lock_guard<std::mutex> lock(g_dyneq_mutex);
         state = &g_dyneq_states[audio->object];
-        if (state->last_sample_index != -1 && state->last_sample_index + total_samples != audio->object->sample_index) {
+        if (state->last_sample_index != -1 && state->last_sample_index != audio->object->sample_index) {
             state->filterL = DynEqBiquad(); state->filterR = DynEqBiquad();
             state->envelope = 0.0;
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;

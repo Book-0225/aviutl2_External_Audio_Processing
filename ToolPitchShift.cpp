@@ -299,8 +299,8 @@ bool func_proc_audio_pitch_shift(FILTER_PROC_AUDIO* audio) {
             h->state->algo_id = algo;
             h->last_sample_index = -1;
         }
-        if (h->last_sample_index != -1 && h->last_sample_index + total_samples != audio->object->sample_index) h->state->clear();
-        h->last_sample_index = audio->object->sample_index;
+        if (h->last_sample_index != -1 && h->last_sample_index != audio->object->sample_index) h->state->clear();
+        h->last_sample_index = audio->object->sample_index + total_samples;
         handle = h;
     }
 

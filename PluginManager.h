@@ -36,8 +36,7 @@ private:
     PluginManager& operator=(const PluginManager&) = delete;
 
     struct LastAudioState {
-        int64_t sample_index;
-        int32_t sample_num;
+        int64_t sample_end;
     };
 
     std::mutex m_states_mutex;

@@ -54,11 +54,11 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_chain_state_mutex);
         state = &g_chain_states[audio->object];
         if (state->last_sample_index != -1 &&
-            state->last_sample_index + total_samples != audio->object->sample_index) {
+            state->last_sample_index != audio->object->sample_index) {
             state->gate_envelope = 0.0;
             state->missed_count.fill(0);
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;

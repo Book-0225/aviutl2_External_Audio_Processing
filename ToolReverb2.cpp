@@ -329,10 +329,10 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
 
         if (!state->initialized || state->current_sr != Fs) state->init(Fs);
         if (state->last_sample_index != -1 &&
-            state->last_sample_index + total_samples != audio->object->sample_index) {
+            state->last_sample_index != audio->object->sample_index) {
             state->clear();
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     std::vector<float> bufL, bufR;

@@ -226,7 +226,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     bool needs_reset = false;
     DbgPrint("ShouldReset: %lld %lld %d", effect_id, current_sample_index, current_sample_num);
     if (it != m_last_audio_states.end()) {
-        if (current_sample_index != it->second.sample_index + it->second.sample_num) {
+        if (current_sample_index != it->second.sample_end) {
             needs_reset = true;
         }
     } else {
@@ -238,7 +238,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
 
 void PluginManager::UpdateLastAudioState(int64_t effect_id, int64_t current_sample_index, int32_t current_sample_num) {
     std::lock_guard<std::mutex> lock(m_last_audio_state_mutex);
-    m_last_audio_states[effect_id] = { current_sample_index, current_sample_num };
+    m_last_audio_states[effect_id] = { current_sample_index + current_sample_num };
 }
 
 void PluginManager::UpdateMapping(const std::string& instance_id, int32_t sliderInfoIndex, int32_t vstParamID) {

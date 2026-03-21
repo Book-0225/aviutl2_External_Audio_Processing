@@ -89,10 +89,10 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
         state = &g_ph_states[audio->object];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
-            state->last_sample_index + total_samples != audio->object->sample_index) {
+            state->last_sample_index != audio->object->sample_index) {
             state->clear();
         }
-        state->last_sample_index = audio->object->sample_index;
+        state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
