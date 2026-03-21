@@ -1,13 +1,56 @@
 ﻿#pragma once
 #include "Eap2Info.h"
+#include <cwctype>
 #include <functional>
+#include <limits>
 #include <string>
+#include <vector>
+
+inline std::wstring TrimCopy(std::wstring s) {
+    auto is_space = [](wchar_t ch) { return std::iswspace(ch) != 0; };
+    while (!s.empty() && is_space(s.front())) s.erase(s.begin());
+    while (!s.empty() && is_space(s.back())) s.pop_back();
+    return s;
+}
+
+inline std::wstring ToLowerCopy(std::wstring s) {
+    for (auto& ch : s) ch = static_cast<wchar_t>(std::towlower(ch));
+    return s;
+}
+
+inline bool TryParseBool(const std::wstring& raw, bool& out) {
+    std::wstring s = ToLowerCopy(TrimCopy(raw));
+    if (s == L"1" || s == L"true" || s == L"on" || s == L"yes") {
+        out = true;
+        return true;
+    }
+    if (s == L"0" || s == L"false" || s == L"off" || s == L"no") {
+        out = false;
+        return true;
+    }
+    return false;
+}
+
+inline bool TryParseInt32(const std::wstring& raw, int32_t& out, int32_t minValue, int32_t maxValue) {
+    try {
+        std::wstring s = TrimCopy(raw);
+        size_t pos = 0;
+        long value = std::stol(s, &pos, 10);
+        if (pos != s.size()) return false;
+        if (value < minValue || value > maxValue) return false;
+        out = static_cast<int32_t>(value);
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
 
 struct ConfigEntry {
     std::wstring key;
     std::wstring defaultValue;
     bool reload;
-    std::function<void(const std::wstring&)> load;
+    std::function<bool(const std::wstring&)> load;
     std::function<std::wstring()> save;
 
     template<typename T>
@@ -15,10 +58,32 @@ struct ConfigEntry {
         auto entry = ConfigEntry{
             key, def, canReload,
             [target](const std::wstring& s) {
-                if constexpr (std::is_same_v<T, bool>) *target = (s == L"1");
-                else if constexpr (std::is_same_v<T, int32_t>) *target = std::stoi(s);
-                else if constexpr (std::is_same_v<T, std::wstring>) *target = s;
-                else if constexpr (std::is_same_v<T, Version>) target->from_hex_wstring(s);
+                if constexpr (std::is_same_v<T, bool>) {
+                    bool value = false;
+                    if (!TryParseBool(s, value)) return false;
+                    *target = value;
+                    return true;
+                }
+                else if constexpr (std::is_same_v<T, int32_t>) {
+                    int32_t value = 0;
+                    if (!TryParseInt32(s, value, (std::numeric_limits<int32_t>::min)(), (std::numeric_limits<int32_t>::max)())) return false;
+                    *target = value;
+                    return true;
+                }
+                else if constexpr (std::is_same_v<T, std::wstring>) {
+                    *target = s;
+                    return true;
+                }
+                else if constexpr (std::is_same_v<T, Version>) {
+                    try {
+                        target->from_hex_wstring(s);
+                        return true;
+                    }
+                    catch (...) {
+                        return false;
+                    }
+                }
+                return false;
             },
             [target]() {
                 if constexpr (std::is_same_v<T, bool>) return *target ? L"1" : L"0";
