@@ -151,7 +151,7 @@ v0.0.28で修正しました。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta38以降(beta38で動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta38以降(beta38, beta38aで動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。
