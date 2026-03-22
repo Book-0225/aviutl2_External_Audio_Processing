@@ -532,7 +532,7 @@ namespace Avx2Utils {
         float particleLife;
     };
 
-    inline int ComputeParticleBatchAVX2(const ParticleBatchParams& p, float* out_x, float* out_y, float* out_age) {
+    inline int32_t ComputeParticleBatchAVX2(const ParticleBatchParams& p, float* out_x, float* out_y, float* out_age) {
         __m256 v_gravity = _mm256_set1_ps(p.gravity);
         __m256 v_life = _mm256_set1_ps(p.particleLife);
         __m256 v_zero = _mm256_setzero_ps();
