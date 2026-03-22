@@ -3,7 +3,7 @@
 [project]
 id = "Book-0225.EAP2"
 name = "External_Audio_Processing2"
-version = "0.0.27"
+version = "0.0.28"
 
 [artifacts.External_Audio_Processing2_aux2]
 enabled = true
@@ -27,5 +27,6 @@ aviutl2_version = "latest"
 
 [release]
 output_dir = "release"
+package_template = "package.txt"
 zip_name = "{name}"
 profile = "release"
