@@ -1,0 +1,12 @@
+[External_Audio_Processing2.aux2]
+EAP2の設定を再読込=Reload settings EAP2
+EAP2の設定を再読込しますか？(一部は再起動後に反映)=Reload EAP2 settings? (Some changes will take effect after restart)
+EAP2 設定再読込=Reload EAP2 Settings
+EAP2の設定をリセット=Reset EAP2 Settings
+EAP2の設定をリセットしますか？(再起動後に反映)=Reset EAP2 settings? (Changes will take effect after restart)
+EAP2 設定リセット=Reset EAP2 Settings
+EAP2の設定を開く=Open EAP2 Settings
+AviUtl2のバージョンが古すぎます。=AviUtl2 version is too old.
+COM 初期化に失敗しました。=Failed to initialize COM.
+Audio Plugin Factory の初期化に失敗しました。=Failed to initialize Audio Plugin Factory.
+メッセージウィンドウの作成に失敗しました。=Failed to create message window.

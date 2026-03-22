@@ -12,6 +12,7 @@
 #include "filter2.h"
 #include "plugin2.h"
 #include "logger2.h"
+#include "config2.h"
 
 #define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() { \
     static std::wstring s = std::regex_replace(SRC_STR, std::wregex(REGEX_PATTERN), REPLACEMENT); \
@@ -44,6 +45,15 @@ extern LOG_HANDLE* g_logger;
 
 extern HINSTANCE g_hinstance;
 extern EDIT_HANDLE* g_edit_handle;
+extern CONFIG_HANDLE* g_config_handle;
+
+inline LPCWSTR TrText(LPCWSTR text) {
+    if (!text || !g_config_handle || !g_config_handle->translate) {
+        return text;
+    }
+    LPCWSTR translated = g_config_handle->translate(g_config_handle, text);
+    return translated ? translated : text;
+}
 
 extern std::atomic<double> g_shared_bpm;
 extern std::atomic<int32_t> g_shared_ts_num;

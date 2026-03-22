@@ -29,7 +29,7 @@ std::filesystem::path GetConfigPath() {
 
 void ShowConfigLoadWarning(const ConfigLoadReport& report) {
     if (!report.has_error) return;
-    std::wstring message = L"設定ファイル内に無効な値が見つかったため、該当する項目はデフォルト設定で読み込まれました。\n\n";
+    std::wstring message = TrText(L"設定ファイル内に無効な値が見つかったため、該当する項目はデフォルト設定で読み込まれました。");
     constexpr size_t max_lines = 10;
     for (size_t i = 0; i < report.messages.size() && i < max_lines; ++i) message += report.messages[i] + L"\n";
     if (report.messages.size() > max_lines) message += L"...";

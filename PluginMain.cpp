@@ -121,6 +121,7 @@ static constexpr std::array chain_plugins{
 HINSTANCE g_hinstance = NULL;
 EDIT_HANDLE* g_edit_handle = nullptr;
 LOG_HANDLE* g_logger = nullptr;
+CONFIG_HANDLE* g_config_handle = nullptr;
 
 std::mutex g_task_queue_mutex;
 std::vector<std::function<void()>> g_main_thread_tasks;
@@ -132,7 +133,6 @@ std::atomic<int32_t> g_shared_ts_denom{ 4 };
 UINT_PTR g_timer_id = 87655;
 HWND g_hMessageWindow = NULL;
 const uint32_t WM_APP_EXECUTE_TASKS = WM_APP + 100;
-
 
 LRESULT CALLBACK MessageWndProc(HWND hWnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
     if (msg == WM_APP_EXECUTE_TASKS) {
@@ -227,20 +227,20 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     // RequiredVersion()実装前のバージョン用
     if (version < 2003300) {
-        MessageBox(NULL, L"AviUtl2のバージョンが古すぎます。", L"EAP2 Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, TrText(L"AviUtl2のバージョンが古すぎます。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
     LoadConfig();
     
     if (FAILED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
-        MessageBox(NULL, L"COM 初期化に失敗しました。", L"EAP2 Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, TrText(L"COM 初期化に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
     if (!AudioPluginFactory::Initialize(g_hinstance)) {
         CoUninitialize();
-        MessageBox(NULL, L"Audio Plugin Factory の初期化に失敗しました。", L"EAP2 Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, TrText(L"Audio Plugin Factory の初期化に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -259,7 +259,7 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
         UnregisterClass(_T("EAP2_MessageWindowClass"), g_hinstance);
         AudioPluginFactory::Uninitialize();
         CoUninitialize();
-        MessageBox(NULL, L"メッセージウィンドウの作成に失敗しました。", L"EAP2 Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, TrText(L"メッセージウィンドウの作成に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -314,14 +314,22 @@ EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
     g_logger = logger;
 }
 
+EXTERN_C __declspec(dllexport) void InitializeConfig(CONFIG_HANDLE* handle) {
+    g_config_handle = handle;
+}
+
 EXTERN_C __declspec(dllexport) COMMON_PLUGIN_TABLE* GetCommonPluginTable(void) {
     return &common_plugin_table;
 }
 
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
-    host->register_config_menu(L"EAP2の設定を再読込", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定を再読込しますか？(一部は再起動後に反映)", L"EAP2 設定再読込", MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig(); });
-    host->register_config_menu(L"EAP2の設定をリセット", [](HWND hwnd, HINSTANCE dllhinst) { if (MessageBox(NULL, L"EAP2の設定をリセットしますか？(再起動後に反映)", L"EAP2 設定リセット", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig(); });
-    host->register_config_menu(L"EAP2の設定を開く", [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
+    host->register_config_menu(TrText(L"EAP2の設定を再読込"), [](HWND hwnd, HINSTANCE dllhinst) {
+        if (MessageBox(hwnd, TrText(L"EAP2の設定を再読込しますか？(一部は再起動後に反映)"), TrText(L"EAP2 設定再読込"), MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig();
+    });
+    host->register_config_menu(TrText(L"EAP2の設定をリセット"), [](HWND hwnd, HINSTANCE dllhinst) {
+        if (MessageBox(hwnd, TrText(L"EAP2の設定をリセットしますか？(再起動後に反映)"), TrText(L"EAP2 設定リセット"), MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig();
+    });
+    host->register_config_menu(TrText(L"EAP2の設定を開く"), [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
     for (auto& plugin : GetModule(all_plugins, settings)) host->register_filter_plugin(plugin);
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
