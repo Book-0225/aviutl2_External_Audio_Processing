@@ -1,10 +1,11 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Phaser";
 
@@ -22,7 +23,7 @@ void* filter_items_phaser[] = {
 };
 
 class PhaserAPF {
-public:
+  public:
     float x_z1 = 0.0f;
     float y_z1 = 0.0f;
 
@@ -53,14 +54,23 @@ struct PhaserState {
     int64_t last_sample_index = -1;
 
     void init() {
-        for (int32_t i = 0; i < STAGES; ++i) { filtersL[i].clear(); filtersR[i].clear(); }
-        last_feedbackL = 0.0f; last_feedbackR = 0.0f;
-        phase = 0.0; initialized = true;
+        for (int32_t i = 0; i < STAGES; ++i) {
+            filtersL[i].clear();
+            filtersR[i].clear();
+        }
+        last_feedbackL = 0.0f;
+        last_feedbackR = 0.0f;
+        phase = 0.0;
+        initialized = true;
     }
     void clear() {
         if (initialized) {
-            for (int32_t i = 0; i < STAGES; ++i) { filtersL[i].clear(); filtersR[i].clear(); }
-            last_feedbackL = 0.0f; last_feedbackR = 0.0f;
+            for (int32_t i = 0; i < STAGES; ++i) {
+                filtersL[i].clear();
+                filtersR[i].clear();
+            }
+            last_feedbackL = 0.0f;
+            last_feedbackR = 0.0f;
             phase = 0.0;
         }
     }

@@ -1,7 +1,7 @@
 #pragma once
 #include <Windows.h>
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 
 #if _MSC_VER >= 1950
 #define VS_VERSION 2026
@@ -31,9 +31,9 @@ struct Version {
 
     uint64_t pack() const {
         return (static_cast<uint64_t>(major) << 48) |
-            (static_cast<uint64_t>(minor) << 32) |
-            (static_cast<uint64_t>(patch) << 16) |
-            (static_cast<uint64_t>(letter));
+               (static_cast<uint64_t>(minor) << 32) |
+               (static_cast<uint64_t>(patch) << 16) |
+               (static_cast<uint64_t>(letter));
     }
 
     std::string to_hex_string() const {
@@ -81,8 +81,7 @@ inline Version parseVersion(std::wstring_view v) {
         res.patch = static_cast<uint16_t>(std::stoi(ws, &pos));
         if (pos < ws.size()) res.letter = static_cast<uint16_t>(ws[pos]);
         else res.letter = 0;
-    }
-    catch (...) {
+    } catch (...) {
     }
     return res;
 }

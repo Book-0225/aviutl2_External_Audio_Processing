@@ -1,8 +1,9 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
-#include <vector>
+#include "Eap2Common.h"
+
 #include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Chain Send";
 
@@ -48,16 +49,13 @@ bool func_proc_audio_chain_send(FILTER_PROC_AUDIO* audio) {
         auto& chain = ChainManager::chains[id_idx];
         const auto& ids = chain.effect_id;
         auto it = std::find(ids.begin(), ids.end(), audio->object->effect_id);
-        if (it != ids.end())
-        {
+        if (it != ids.end()) {
             auto data_idx = std::distance(ids.begin(), it);
             chain.level[data_idx] = max_peak;
             chain.update_count[data_idx]++;
-        }
-        else {
+        } else {
             auto free_it = std::find(ids.begin(), ids.end(), -1);
-            if (free_it != ids.end())
-            {
+            if (free_it != ids.end()) {
                 auto free_idx = std::distance(ids.begin(), free_it);
                 chain.effect_id[free_idx] = audio->object->effect_id;
                 chain.level[free_idx] = max_peak;

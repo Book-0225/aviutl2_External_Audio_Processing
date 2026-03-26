@@ -1,7 +1,8 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
 #include <cmath>
 #include <map>
-#include "Avx2Utils.h"
 
 constexpr auto TOOL_NAME = L"DeEsser";
 
@@ -23,8 +24,10 @@ struct DeesserBiquad {
     inline float process_ret(float in, float b0, float b1, float b2, float a1, float a2) {
         float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
         if (std::abs(out) < 1e-20f) out = 0.0f;
-        x2 = x1; x1 = in;
-        y2 = y1; y1 = out;
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
         return out;
     }
 };
@@ -63,8 +66,10 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_deess_mutex);
         state = &g_deess_states[audio->object];
         if (state->last_sample_index != -1 && state->last_sample_index != audio->object->sample_index) {
-            state->scFilterL = DeesserBiquad(); state->scFilterR = DeesserBiquad();
-            state->mainFilterL = DeesserBiquad(); state->mainFilterR = DeesserBiquad();
+            state->scFilterL = DeesserBiquad();
+            state->scFilterR = DeesserBiquad();
+            state->mainFilterL = DeesserBiquad();
+            state->mainFilterR = DeesserBiquad();
             state->envelope = 0.0f;
         }
         state->last_sample_index = audio->object->sample_index + total_samples;
@@ -78,7 +83,8 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
         bufR.resize(total_samples);
     }
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
-    if (channels >= 2) audio->get_sample_data(bufR.data(), 1); else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
+    if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
+    else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     float omega_sc = 2.0f * (float)M_PI * freq / (float)sr;
     float sn_sc = std::sin(omega_sc);
@@ -95,8 +101,11 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     float cs = std::cos(omega);
     float alpha = sn / (2.0f * q);
 
-    float c_b0 = state->cur_b0; float c_b1 = state->cur_b1; float c_b2 = state->cur_b2;
-    float c_a1 = state->cur_a1; float c_a2 = state->cur_a2;
+    float c_b0 = state->cur_b0;
+    float c_b1 = state->cur_b1;
+    float c_b2 = state->cur_b2;
+    float c_a1 = state->cur_a1;
+    float c_a2 = state->cur_a2;
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
         int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
@@ -137,8 +146,11 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
         }
     }
 
-    state->cur_b0 = c_b0; state->cur_b1 = c_b1; state->cur_b2 = c_b2;
-    state->cur_a1 = c_a1; state->cur_a2 = c_a2;
+    state->cur_b0 = c_b0;
+    state->cur_b1 = c_b1;
+    state->cur_b2 = c_b2;
+    state->cur_a1 = c_a1;
+    state->cur_a2 = c_a2;
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);

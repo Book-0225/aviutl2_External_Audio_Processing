@@ -1,8 +1,10 @@
 ﻿#include "AudioPluginFactory.h"
-#include "VstHost.h"
+
 #include "ClapHost.h"
-#include "public.sdk/source/vst/hosting/plugprovider.h"
+#include "VstHost.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
+#include "public.sdk/source/vst/hosting/plugprovider.h"
+
 #include <atomic>
 
 using namespace Steinberg;
@@ -10,44 +12,48 @@ using namespace Steinberg::Vst;
 
 namespace {
 
-    class MyHostApplication : public IHostApplication {
-    public:
-        tresult PLUGIN_API getName(String128 name) override {
-            str8ToStr16(name, "AviUtl2 VST3 Host", 128);
+class MyHostApplication : public IHostApplication {
+  public:
+    tresult PLUGIN_API getName(String128 name) override {
+        str8ToStr16(name, "AviUtl2 VST3 Host", 128);
+        return kResultOk;
+    }
+
+    tresult PLUGIN_API createInstance(TUID cid, TUID iid, void** obj) override {
+        if (FUnknownPrivate::iidEqual(cid, IMessage::iid)) {
+            *obj = new HostMessage;
             return kResultOk;
         }
+        *obj = nullptr;
+        return kNoInterface;
+    }
 
-        tresult PLUGIN_API createInstance(TUID cid, TUID iid, void** obj) override {
-            if (FUnknownPrivate::iidEqual(cid, IMessage::iid)) {
-                *obj = new HostMessage;
-                return kResultOk;
-            }
-            *obj = nullptr;
-            return kNoInterface;
+    tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) override {
+        if (FUnknownPrivate::iidEqual(_iid, IHostApplication::iid) ||
+            FUnknownPrivate::iidEqual(_iid, FUnknown::iid)) {
+            *obj = static_cast<IHostApplication*>(this);
+            addRef();
+            return kResultOk;
         }
-
-        tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) override {
-            if (FUnknownPrivate::iidEqual(_iid, IHostApplication::iid) ||
-                FUnknownPrivate::iidEqual(_iid, FUnknown::iid)) {
-                *obj = static_cast<IHostApplication*>(this);
-                addRef();
-                return kResultOk;
-            }
-            *obj = nullptr;
-            return kNoInterface;
+        *obj = nullptr;
+        return kNoInterface;
+    }
+    uint32_t PLUGIN_API addRef() override { return ++refCount; }
+    uint32_t PLUGIN_API release() override {
+        if (--refCount == 0) {
+            delete this;
+            return 0;
         }
-        uint32_t PLUGIN_API addRef() override { return ++refCount; }
-        uint32_t PLUGIN_API release() override {
-            if (--refCount == 0) { delete this; return 0; }
-            return refCount;
-        }
-    private:
-        std::atomic<uint32_t> refCount{ 1 };
-    };
+        return refCount;
+    }
 
-    FUnknownPtr<MyHostApplication> g_host_app_context;
+  private:
+    std::atomic<uint32_t> refCount{ 1 };
+};
 
-}
+FUnknownPtr<MyHostApplication> g_host_app_context;
+
+} // namespace
 
 bool AudioPluginFactory::Initialize(HINSTANCE hInst) {
     if (!g_host_app_context) {
@@ -64,13 +70,13 @@ void AudioPluginFactory::Uninitialize() {
 
 std::unique_ptr<IAudioPluginHost> AudioPluginFactory::Create(PluginType type, HINSTANCE hInst) {
     switch (type) {
-    case PluginType::VST3:
-        return std::make_unique<VstHost>(hInst);
+        case PluginType::VST3:
+            return std::make_unique<VstHost>(hInst);
 
-    case PluginType::CLAP:
-        return std::make_unique<ClapHost>(hInst);
+        case PluginType::CLAP:
+            return std::make_unique<ClapHost>(hInst);
 
-    default:
-        return nullptr;
+        default:
+            return nullptr;
     }
 }

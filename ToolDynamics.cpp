@@ -1,10 +1,11 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Dynamics";
 
@@ -70,7 +71,8 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
         state = &g_dyn_states[audio->object];
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {
-            state->gate_gain = 1.0; state->comp_envelope = 0.0;
+            state->gate_gain = 1.0;
+            state->comp_envelope = 0.0;
         }
         state->last_sample_index = audio->object->sample_index + total_samples;
     }

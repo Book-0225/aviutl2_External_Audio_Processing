@@ -1,9 +1,10 @@
-﻿#include "Eap2Common.h"
-#include <vector>
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h" 
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Reverb";
 
@@ -24,7 +25,7 @@ const int32_t MAX_BUFFER_SIZE = 48000 * 4;
 const int32_t PROCESS_BLOCK_SIZE = 64;
 
 class CombFilter {
-public:
+  public:
     std::vector<float> buffer;
     int32_t buf_size = 0;
     int32_t write_pos = 0;
@@ -70,7 +71,7 @@ public:
 };
 
 class AllPassFilter {
-public:
+  public:
     std::vector<float> buffer;
     int32_t buf_size = 0;
     int32_t write_pos = 0;
@@ -162,8 +163,14 @@ struct ReverbState {
 
     void clear() {
         if (!initialized) return;
-        for (int32_t i = 0; i < NUM_COMBS; ++i) { combsL[i].clear(); combsR[i].clear(); }
-        for (int32_t i = 0; i < NUM_ALLPASS; ++i) { allpassL[i].clear(); allpassR[i].clear(); }
+        for (int32_t i = 0; i < NUM_COMBS; ++i) {
+            combsL[i].clear();
+            combsR[i].clear();
+        }
+        for (int32_t i = 0; i < NUM_ALLPASS; ++i) {
+            allpassL[i].clear();
+            allpassR[i].clear();
+        }
         Avx2Utils::FillBufferAVX2(pre_delay_bufL.data(), pre_delay_bufL.size(), 0.0f);
         Avx2Utils::FillBufferAVX2(pre_delay_bufR.data(), pre_delay_bufR.size(), 0.0f);
         pre_delay_write_pos = 0;
@@ -176,8 +183,7 @@ static std::map<const void*, ReverbState> g_rev_states;
 inline void ProcessPreDelayBlock(
     float* out, const float* in,
     std::vector<float>& buf, int32_t& w_pos,
-    int32_t delay_samples, int32_t count)
-{
+    int32_t delay_samples, int32_t count) {
     const int32_t buf_size = static_cast<int32_t>(buf.size());
     int32_t r_pos = w_pos - delay_samples;
     if (r_pos < 0) r_pos += buf_size;

@@ -28,7 +28,7 @@ struct TimeSignatureEvent {
 };
 
 class MidiParser {
-public:
+  public:
     MidiParser();
     ~MidiParser();
 
@@ -51,7 +51,7 @@ public:
         return (msb << 7) | lsb;
     }
 
-private:
+  private:
     void BuildTempoMap();
 
     uint16_t m_tpqn = 480;

@@ -1,14 +1,15 @@
 ﻿#pragma once
-#include <windows.h>
-#include <commctrl.h>
-#include <string>
-#include <vector>
-#include <memory>
-#include <atomic>
 #include "IAudioPluginHost.h"
 
+#include <atomic>
+#include <commctrl.h>
+#include <memory>
+#include <string>
+#include <vector>
+#include <windows.h>
+
 class ToolParamListWindow {
-public:
+  public:
     static ToolParamListWindow& GetInstance() {
         static ToolParamListWindow instance;
         return instance;
@@ -29,15 +30,15 @@ public:
         WNDCLASSEX wc = { 0 };
         wc.cbSize = sizeof(WNDCLASSEX);
         wc.lpfnWndProc = WndProc;
-        wc.hInstance = GetModuleHandle(NULL);
+        wc.hInstance = GetModuleHandle(nullptr);
         wc.lpszClassName = className.c_str();
-        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
         RegisterClassEx(&wc);
 
         std::wstring windowTitle = L"Parameter List - " + std::wstring(titleSuffix.begin(), titleSuffix.end());
         m_hWnd = CreateWindowEx(0, className.c_str(), windowTitle.c_str(),
-            WS_OVERLAPPED | WS_CAPTION, CW_USEDEFAULT, CW_USEDEFAULT, 500, 600,
-            NULL, NULL, GetModuleHandle(NULL), this);
+                                WS_OVERLAPPED | WS_CAPTION, CW_USEDEFAULT, CW_USEDEFAULT, 500, 600,
+                                nullptr, nullptr, GetModuleHandle(nullptr), this);
 
         if (m_hWnd) {
             ShowWindow(m_hWnd, SW_SHOW);
@@ -64,19 +65,19 @@ public:
                 LVITEM lvi = { 0 };
                 lvi.mask = LVIF_TEXT;
                 lvi.iItem = i;
-                lvi.pszText = (LPWSTR)indexStr.c_str();
+                lvi.pszText = reinterpret_cast<LPWSTR>(indexStr.data());
                 ListView_InsertItem(m_listView, &lvi);
 
                 std::string nameUtf8 = info.name;
                 std::wstring nameWide(nameUtf8.begin(), nameUtf8.end());
-                ListView_SetItemText(m_listView, i, 1, (LPWSTR)nameWide.c_str());
+                ListView_SetItemText(m_listView, i, 1, reinterpret_cast<LPWSTR>(nameWide.data()));
 
                 std::wstring stepStr = std::to_wstring(info.step);
-                ListView_SetItemText(m_listView, i, 2, (LPWSTR)stepStr.c_str());
+                ListView_SetItemText(m_listView, i, 2, reinterpret_cast<LPWSTR>(stepStr.data()));
 
                 std::string unitUtf8 = info.unit;
                 std::wstring unitWide(unitUtf8.begin(), unitUtf8.end());
-                ListView_SetItemText(m_listView, i, 3, (LPWSTR)unitWide.c_str());
+                ListView_SetItemText(m_listView, i, 3, reinterpret_cast<LPWSTR>(unitWide.data()));
             }
         }
     }
@@ -103,7 +104,7 @@ public:
         return m_ownerId == id;
     }
 
-private:
+  private:
     ToolParamListWindow() = default;
     ~ToolParamListWindow() { Close(); }
 
@@ -117,31 +118,30 @@ private:
     static LRESULT CALLBACK WndProc(HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) {
         ToolParamListWindow* self = nullptr;
         if (msg == WM_CREATE) {
-            CREATESTRUCT* cs = (CREATESTRUCT*)lp;
-            self = (ToolParamListWindow*)cs->lpCreateParams;
-            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)self);
+            CREATESTRUCT* cs = reinterpret_cast<CREATESTRUCT*>(lp);
+            self = reinterpret_cast<ToolParamListWindow*>(cs->lpCreateParams);
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
             self->m_hWnd = hWnd;
             self->CreateControls(hWnd);
-        }
-        else {
-            self = (ToolParamListWindow*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+        } else {
+            self = reinterpret_cast<ToolParamListWindow*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
         }
 
         switch (msg) {
-        case WM_SIZE:
-            if (self) self->ResizeControls(LOWORD(lp), HIWORD(lp));
-            break;
-        case WM_CLOSE:
-            DestroyWindow(hWnd);
-            break;
-        case WM_DESTROY:
-            if (self) {
-                self->m_hWnd = nullptr;
-                self->m_listView = nullptr;
-            }
-            break;
-        default:
-            return DefWindowProc(hWnd, msg, wp, lp);
+            case WM_SIZE:
+                if (self) self->ResizeControls(LOWORD(lp), HIWORD(lp));
+                break;
+            case WM_CLOSE:
+                DestroyWindow(hWnd);
+                break;
+            case WM_DESTROY:
+                if (self) {
+                    self->m_hWnd = nullptr;
+                    self->m_listView = nullptr;
+                }
+                break;
+            default:
+                return DefWindowProc(hWnd, msg, wp, lp);
         }
         return 0;
     }
@@ -151,9 +151,9 @@ private:
         GetClientRect(parent, &rc);
 
         m_listView = CreateWindowEx(0, WC_LISTVIEW, L"",
-            WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
-            0, 0, rc.right, rc.bottom,
-            parent, NULL, GetModuleHandle(NULL), NULL);
+                                    WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
+                                    0, 0, rc.right, rc.bottom,
+                                    parent, nullptr, GetModuleHandle(nullptr), nullptr);
 
         ListView_SetExtendedListViewStyle(m_listView, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 

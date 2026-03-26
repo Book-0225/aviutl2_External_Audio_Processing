@@ -1,8 +1,9 @@
 ﻿#pragma once
 #include "Eap2Common.h"
-#include <cmath>
-#include <array>
+
 #include <algorithm>
+#include <array>
+#include <cmath>
 
 static const int32_t BLOCK_SIZE = 64;
 
@@ -43,7 +44,9 @@ struct FastRNG {
     uint32_t state = 123456789;
     inline uint32_t next() {
         uint32_t x = state;
-        x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
         return state = x;
     }
     inline float nextFloat() {
@@ -57,16 +60,20 @@ struct StereoSample {
 
     StereoSample operator*(float a) const { return { l * a, r * a }; }
     StereoSample operator+(const StereoSample& b) const { return { l + b.l, r + b.r }; }
-    void operator+=(const StereoSample& b) { l += b.l; r += b.r; }
+    void operator+=(const StereoSample& b) {
+        l += b.l;
+        r += b.r;
+    }
     StereoSample operator/(float c) const { return { l / c, r / c }; }
 };
 
 inline double poly_blep(double t, double dt) {
     if (t < dt) {
-        t /= dt; return t + t - t * t - 1.0;
-    }
-    else if (t > 1.0 - dt) {
-        t = (t - 1.0) / dt; return t * t + t + t + 1.0;
+        t /= dt;
+        return t + t - t * t - 1.0;
+    } else if (t > 1.0 - dt) {
+        t = (t - 1.0) / dt;
+        return t * t + t + t + 1.0;
     }
     return 0.0;
 }
@@ -101,7 +108,8 @@ struct SvfFilter {
     float r_ic1 = 0, r_ic2 = 0;
 
     StereoSample processStereo(StereoSample in, float cutoff, float q) {
-        if (cutoff > 0.49f) cutoff = 0.49f; if (cutoff < 0.0001f) cutoff = 0.0001f;
+        if (cutoff > 0.49f) cutoff = 0.49f;
+        if (cutoff < 0.0001f) cutoff = 0.0001f;
         double g = std::tan(M_PI * cutoff);
         double k = 1.0f / q;
         double a1 = 1.0f / (1.0f + g * (g + k));
@@ -116,7 +124,7 @@ struct SvfFilter {
         double r_v1 = a1 * r_ic1 + a2 * r_v3;
         double r_v2 = r_ic2 + a2 * r_ic1 + a3 * r_v3;
         r_ic1 = 2.0f * static_cast<float>(r_v1) - r_ic1;
-        r_ic2 = 2.0f * static_cast<float>(r_v2)-r_ic2;
+        r_ic2 = 2.0f * static_cast<float>(r_v2) - r_ic2;
         return { static_cast<float>(l_v2), static_cast<float>(r_v2) };
     }
 };
@@ -126,16 +134,26 @@ struct DelayLine {
     std::array<float, MAX_DELAY> buffer{};
     size_t write_ptr = 0;
     size_t length = 0;
-    void set_length(size_t len) { length = (std::min)(len, MAX_DELAY); if (length < 2)length = 2; }
-    void clear() { std::fill(buffer.begin(), buffer.end(), 0.0f); write_ptr = 0; }
+    void set_length(size_t len) {
+        length = (std::min)(len, MAX_DELAY);
+        if (length < 2) length = 2;
+    }
+    void clear() {
+        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        write_ptr = 0;
+    }
     float process_karplus(float damping) {
-        if (length == 0)return 0;
+        if (length == 0) return 0;
         size_t r = (write_ptr + 1) % length;
         float out = (buffer[write_ptr] + buffer[r]) * 0.5f * damping;
-        buffer[write_ptr] = out; write_ptr++; if (write_ptr >= length)write_ptr = 0;
+        buffer[write_ptr] = out;
+        write_ptr++;
+        if (write_ptr >= length) write_ptr = 0;
         return buffer[r];
     }
-    void fill_noise(FastRNG& rng) { for (size_t i = 0; i < length; ++i) buffer[i] = rng.nextFloat(); }
+    void fill_noise(FastRNG& rng) {
+        for (size_t i = 0; i < length; ++i) buffer[i] = rng.nextFloat();
+    }
 };
 
 struct VoiceState {
@@ -158,7 +176,9 @@ struct VoiceState {
     SvfFilter filter;
 
     void init() {
-        phase = 0.0; phase_L = 0.0; phase_R = 0.0;
+        phase = 0.0;
+        phase_L = 0.0;
+        phase_R = 0.0;
         phase_inc = 0.0;
         b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0;
         string_delay.clear();
@@ -224,83 +244,83 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
     double t = state.phase;
     double dt = state.phase_inc;
     switch (p.type) {
-    case GEN_SINE: {
-        float v = static_cast<float>(std::sin(t * M_PI * 2));
-        sample = { v, v };
-        break;
-    }
-    case GEN_SQUARE: {
-        float v = (t < 0.5) ? 1.0f : -1.0f;
-        v += static_cast<float>(poly_blep(t, dt));
-        v -= static_cast<float>(poly_blep(std::fmod(t + 0.5, 1.0), dt));
-        sample = { v, v };
-        break;
-    }
-    case GEN_TRIANGLE: {
-        float v = static_cast<float>(-1.0f + (2.0f * t));
-        v = 2.0f * (std::abs(v) - 0.5f);
-        v *= 2.0f;
-        sample = { v, v };
-        break;
-    }
-    case GEN_SAW: {
-        float v = static_cast<float>(1.0f - 2.0f * t);
-        v -= static_cast<float>(poly_blep(t, dt));
-        sample = { v, v };
-        break;
-    }
-    case GEN_NOISE: {
-        float v = state.rng.nextFloat();
-        sample = { v, v };
-        break;
-    }
-    case GEN_PINK: {
-        float w = state.rng.nextFloat();
-        state.b0 = 0.99886f * state.b0 + w * 0.0555179f;
-        state.b1 = 0.99332f * state.b1 + w * 0.0750759f;
-        state.b2 = 0.96900f * state.b2 + w * 0.1538520f;
-        state.b3 = 0.86650f * state.b3 + w * 0.3104856f;
-        state.b4 = 0.55000f * state.b4 + w * 0.5329522f;
-        state.b5 = -0.7616f * state.b5 - w * 0.0168980f;
-        float v = (state.b0 + state.b1 + state.b2 + state.b3 + state.b4 + state.b5 + state.b6 + w * 0.5362f) * 0.11f;
-        sample = { v, v };
-        state.b6 = w * 0.115926f;
-        break;
-    }
-    case GEN_KARPLUS: {
-        float damping = 0.98f + (0.019f * p.timbre);
-        float v = state.string_delay.process_karplus(damping);
-        sample = { v, v };
-        break;
-    }
-    case GEN_FM: {
-        double idx = 2.0 + (p.timbre * 10.0);
-        double mod = std::sin(t * M_PI * 4.0);
-        float v = static_cast<float>(std::sin(t * M_PI * 2 + mod * idx));
-        sample = { v, v };
-        break;
-    }
-    case GEN_SUPERSAW: {
-        float vC = static_cast<float>(1.0f - 2.0f * t);
-        vC -= static_cast<float>(poly_blep(t, dt));
-        double detune = 1.002 + (p.detune * 0.02);
-        state.phase_L += state.phase_inc * (1.0 / detune);
-        state.phase_L -= std::floor(state.phase_L);
-        float vL = static_cast<float>(1.0f - 2.0f * state.phase_L);
-        vL -= static_cast<float>(poly_blep(state.phase_L, state.phase_inc / detune));
-        state.phase_R += state.phase_inc * detune;
-        state.phase_R -= std::floor(state.phase_R);
-        float vR = static_cast<float>(1.0f - 2.0f * state.phase_R);
-        vR -= static_cast<float>(poly_blep(state.phase_R, state.phase_inc * detune));
-        sample.l = (vC * 0.5f + vL * 0.5f) * 0.7f;
-        sample.r = (vC * 0.5f + vR * 0.5f) * 0.7f;
-        break;
-    }
-    default: {
-        float v = static_cast<float>(std::sin(t * M_PI * 2));
-        sample = { v, v };
-        break;
-    }
+        case GEN_SINE: {
+            float v = static_cast<float>(std::sin(t * M_PI * 2));
+            sample = { v, v };
+            break;
+        }
+        case GEN_SQUARE: {
+            float v = (t < 0.5) ? 1.0f : -1.0f;
+            v += static_cast<float>(poly_blep(t, dt));
+            v -= static_cast<float>(poly_blep(std::fmod(t + 0.5, 1.0), dt));
+            sample = { v, v };
+            break;
+        }
+        case GEN_TRIANGLE: {
+            float v = static_cast<float>(-1.0f + (2.0f * t));
+            v = 2.0f * (std::abs(v) - 0.5f);
+            v *= 2.0f;
+            sample = { v, v };
+            break;
+        }
+        case GEN_SAW: {
+            float v = static_cast<float>(1.0f - 2.0f * t);
+            v -= static_cast<float>(poly_blep(t, dt));
+            sample = { v, v };
+            break;
+        }
+        case GEN_NOISE: {
+            float v = state.rng.nextFloat();
+            sample = { v, v };
+            break;
+        }
+        case GEN_PINK: {
+            float w = state.rng.nextFloat();
+            state.b0 = 0.99886f * state.b0 + w * 0.0555179f;
+            state.b1 = 0.99332f * state.b1 + w * 0.0750759f;
+            state.b2 = 0.96900f * state.b2 + w * 0.1538520f;
+            state.b3 = 0.86650f * state.b3 + w * 0.3104856f;
+            state.b4 = 0.55000f * state.b4 + w * 0.5329522f;
+            state.b5 = -0.7616f * state.b5 - w * 0.0168980f;
+            float v = (state.b0 + state.b1 + state.b2 + state.b3 + state.b4 + state.b5 + state.b6 + w * 0.5362f) * 0.11f;
+            sample = { v, v };
+            state.b6 = w * 0.115926f;
+            break;
+        }
+        case GEN_KARPLUS: {
+            float damping = 0.98f + (0.019f * p.timbre);
+            float v = state.string_delay.process_karplus(damping);
+            sample = { v, v };
+            break;
+        }
+        case GEN_FM: {
+            double idx = 2.0 + (p.timbre * 10.0);
+            double mod = std::sin(t * M_PI * 4.0);
+            float v = static_cast<float>(std::sin(t * M_PI * 2 + mod * idx));
+            sample = { v, v };
+            break;
+        }
+        case GEN_SUPERSAW: {
+            float vC = static_cast<float>(1.0f - 2.0f * t);
+            vC -= static_cast<float>(poly_blep(t, dt));
+            double detune = 1.002 + (p.detune * 0.02);
+            state.phase_L += state.phase_inc * (1.0 / detune);
+            state.phase_L -= std::floor(state.phase_L);
+            float vL = static_cast<float>(1.0f - 2.0f * state.phase_L);
+            vL -= static_cast<float>(poly_blep(state.phase_L, state.phase_inc / detune));
+            state.phase_R += state.phase_inc * detune;
+            state.phase_R -= std::floor(state.phase_R);
+            float vR = static_cast<float>(1.0f - 2.0f * state.phase_R);
+            vR -= static_cast<float>(poly_blep(state.phase_R, state.phase_inc * detune));
+            sample.l = (vC * 0.5f + vL * 0.5f) * 0.7f;
+            sample.r = (vC * 0.5f + vR * 0.5f) * 0.7f;
+            break;
+        }
+        default: {
+            float v = static_cast<float>(std::sin(t * M_PI * 2));
+            sample = { v, v };
+            break;
+        }
     }
     state.phase += state.phase_inc;
     state.phase -= std::floor(state.phase);

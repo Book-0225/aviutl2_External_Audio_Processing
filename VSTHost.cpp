@@ -1,69 +1,81 @@
 ﻿#include "VstHost.h"
-#include "public.sdk/source/vst/hosting/module.h"
-#include "public.sdk/source/vst/hosting/plugprovider.h"
-#include "public.sdk/source/vst/hosting/parameterchanges.h"
-#include "pluginterfaces/vst/ivstaudioprocessor.h"
-#include "pluginterfaces/vst/ivsteditcontroller.h"
-#include "pluginterfaces/vst/ivstcomponent.h"
-#include "pluginterfaces/vst/ivstprocesscontext.h"
-#include "pluginterfaces/vst/ivstevents.h"
-#include "pluginterfaces/vst/vsttypes.h"
-#include "pluginterfaces/gui/iplugview.h"
-#include "public.sdk/source/common/memorystream.h"
-#include <windows.h>
-#include <chrono>
-#include <vector>
-#include <string>
-#include <mutex>
-#include <set>
-#include "StringUtils.h"
+
+#include "Avx2Utils.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
-#include "Avx2Utils.h"
+#include "StringUtils.h"
+#include "pluginterfaces/gui/iplugview.h"
+#include "pluginterfaces/vst/ivstaudioprocessor.h"
+#include "pluginterfaces/vst/ivstcomponent.h"
+#include "pluginterfaces/vst/ivsteditcontroller.h"
+#include "pluginterfaces/vst/ivstevents.h"
+#include "pluginterfaces/vst/ivstprocesscontext.h"
+#include "pluginterfaces/vst/vsttypes.h"
+#include "public.sdk/source/common/memorystream.h"
+#include "public.sdk/source/vst/hosting/module.h"
+#include "public.sdk/source/vst/hosting/parameterchanges.h"
+#include "public.sdk/source/vst/hosting/plugprovider.h"
+
+#include <chrono>
+#include <mutex>
+#include <set>
+#include <string>
+#include <vector>
+#include <windows.h>
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
 
-
 class WindowController : public IPlugFrame {
-public:
-    WindowController(IPlugView* view, HWND parent) : plugView(view), parentWindow(parent), m_refCount(1) {}
+  public:
+    WindowController(IPlugView* view, HWND parent)
+        : plugView(view), parentWindow(parent), m_refCount(1) {}
     ~WindowController() {}
-    void connect() { if (plugView) plugView->setFrame(this); }
-    void disconnect() { if (plugView) plugView->setFrame(nullptr); }
+    void connect() {
+        if (plugView) plugView->setFrame(this);
+    }
+    void disconnect() {
+        if (plugView) plugView->setFrame(nullptr);
+    }
 
     tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) override {
         if (FUnknownPrivate::iidEqual(_iid, IPlugFrame::iid) || FUnknownPrivate::iidEqual(_iid, FUnknown::iid)) {
-            *obj = this; addRef(); return kResultTrue;
+            *obj = this;
+            addRef();
+            return kResultTrue;
         }
-        *obj = nullptr; return kNoInterface;
+        *obj = nullptr;
+        return kNoInterface;
     }
     uint32_t PLUGIN_API addRef() override { return ++m_refCount; }
     uint32_t PLUGIN_API release() override {
-        if (--m_refCount == 0) { delete this; return 0; }
+        if (--m_refCount == 0) {
+            delete this;
+            return 0;
+        }
         return m_refCount;
     }
     tresult PLUGIN_API resizeView(IPlugView* view, ViewRect* newSize) override {
         if (view == plugView && newSize && parentWindow) {
-            RECT rc = { 0, 0, (LONG)(newSize->right - newSize->left), (LONG)(newSize->bottom - newSize->top) };
+            RECT rc = { 0, 0, static_cast<long>(newSize->right - newSize->left), static_cast<long>(newSize->bottom - newSize->top) };
             DWORD style = GetWindowLong(parentWindow, GWL_STYLE);
             DWORD exStyle = GetWindowLong(parentWindow, GWL_EXSTYLE);
             AdjustWindowRectEx(&rc, style, FALSE, exStyle);
-            SetWindowPos(parentWindow, NULL, 0, 0, rc.right - rc.left, rc.bottom - rc.top, SWP_NOMOVE | SWP_NOZORDER);
+            SetWindowPos(parentWindow, nullptr, 0, 0, rc.right - rc.left, rc.bottom - rc.top, SWP_NOMOVE | SWP_NOZORDER);
             if (plugView) plugView->onSize(newSize);
         }
         return kResultTrue;
     }
-private:
+
+  private:
     IPlugView* plugView = nullptr;
     HWND parentWindow = nullptr;
     std::atomic<uint32_t> m_refCount{ 1 };
 };
 
-class HostComponentHandler : public IComponentHandler
-{
-public:
+class HostComponentHandler : public IComponentHandler {
+  public:
     std::atomic<int32_t> lastTouchedParamID{ -1 };
     tresult PLUGIN_API beginEdit(ParamID tag) override { return kResultOk; }
     tresult PLUGIN_API performEdit(ParamID tag, ParamValue valueNormalized) override {
@@ -74,16 +86,20 @@ public:
     tresult PLUGIN_API restartComponent(int32_t flags) override { return kResultOk; }
     tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override {
         QUERY_INTERFACE(iid, obj, IComponentHandler::iid, IComponentHandler)
-            QUERY_INTERFACE(iid, obj, FUnknown::iid, FUnknown)
-            * obj = nullptr;
+        QUERY_INTERFACE(iid, obj, FUnknown::iid, FUnknown)
+        *obj = nullptr;
         return kNoInterface;
     }
     uint32_t PLUGIN_API addRef() override { return ++refCount; }
     uint32_t PLUGIN_API release() override {
-        if (--refCount == 0) { delete this; return 0; }
+        if (--refCount == 0) {
+            delete this;
+            return 0;
+        }
         return refCount;
     }
-private:
+
+  private:
     std::atomic<uint32_t> refCount{ 1 };
 };
 
@@ -94,21 +110,20 @@ static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
 
     __try {
         return processor->process(data);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
         DbgPrint("[EAP2 Error] Access Violation inside VST3::process()");
         return kResultFalse;
     }
 }
 
 class EventList : public IEventList {
-public:
+  public:
     EventList() {}
     virtual ~EventList() {}
 
-    int32_t PLUGIN_API getEventCount() override { return (int32_t)events.size(); }
+    int32_t PLUGIN_API getEventCount() override { return static_cast<int32_t>(events.size()); }
     tresult PLUGIN_API getEvent(int32_t index, Event& e) override {
-        if (index < 0 || index >= (int32_t)events.size()) return kResultFalse;
+        if (index < 0 || index >= static_cast<int32_t>(events.size())) return kResultFalse;
         e = events[index];
         return kResultOk;
     }
@@ -119,22 +134,26 @@ public:
 
     tresult PLUGIN_API queryInterface(const TUID _iid, void** obj) override {
         if (FUnknownPrivate::iidEqual(_iid, IEventList::iid) || FUnknownPrivate::iidEqual(_iid, FUnknown::iid)) {
-            *obj = this; addRef(); return kResultTrue;
+            *obj = this;
+            addRef();
+            return kResultTrue;
         }
-        *obj = nullptr; return kNoInterface;
+        *obj = nullptr;
+        return kNoInterface;
     }
     uint32_t PLUGIN_API addRef() override { return 1; }
     uint32_t PLUGIN_API release() override { return 1; }
 
     void clear() { events.clear(); }
 
-private:
+  private:
     std::vector<Event> events;
 };
 
 struct VstHost::Impl {
     std::vector<float> dummyBuffer;
-    Impl(HINSTANCE hInst) : hInstance(hInst), isReady(false) {
+    Impl(HINSTANCE hInst)
+        : hInstance(hInst), isReady(false) {
         dummyBuffer.assign(4096, 0.0f);
     }
     ~Impl() { ReleasePlugin(); }
@@ -199,15 +218,15 @@ struct VstHost::Impl {
 
     void SetParameter(uint32_t paramId, float value) {
         if (controller) {
-            controller->setParamNormalized(paramId, (ParamValue)value);
+            controller->setParamNormalized(paramId, static_cast<ParamValue>(value));
         }
 
         std::lock_guard<std::mutex> lock(paramQueueMutex);
-        paramQueue.push_back({ paramId, (ParamValue)value });
+        paramQueue.push_back({ paramId, static_cast<ParamValue>(value) });
     }
 
     float* GetDummyBuffer(int32_t requiredSize) {
-        if (dummyBuffer.size() < (size_t)requiredSize) {
+        if (dummyBuffer.size() < static_cast<size_t>(requiredSize)) {
             dummyBuffer.assign(requiredSize + 1024, 0.0f);
         }
         return dummyBuffer.data();
@@ -291,29 +310,42 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         if (ci.category() == "Audio Module Class" ||
             ci.category() == "Instrument Module Class" ||
             ci.category() == "MIDI Module Class") {
-            target = ci; found = true; break;
+            target = ci;
+            found = true;
+            break;
         }
     }
-    if (!found) { module.reset(); return false; }
+    if (!found) {
+        module.reset();
+        return false;
+    }
 
     provider = new PlugProvider(factory, target, true);
-    if (!provider) { module.reset(); return false; }
+    if (!provider) {
+        module.reset();
+        return false;
+    }
 
     component = provider->getComponent();
     controller = provider->getController();
-    if (!component || !controller) { ReleasePlugin(); return false; }
+    if (!component || !controller) {
+        ReleasePlugin();
+        return false;
+    }
 
     if (controller) {
         controller->setComponentHandler(componentHandler);
     }
-    if (component->queryInterface(IAudioProcessor::iid, (void**)&processor) != kResultOk) {
-        ReleasePlugin(); return false;
+    if (component->queryInterface(IAudioProcessor::iid, reinterpret_cast<void**>(&processor)) != kResultOk) {
+        ReleasePlugin();
+        return false;
     }
 
     component->setActive(true);
     ProcessSetup setup{ kRealtime, kSample32, blockSize, sampleRate };
     if (processor->setupProcessing(setup) != kResultOk) {
-        ReleasePlugin(); return false;
+        ReleasePlugin();
+        return false;
     }
 
     int32_t numIn = component->getBusCount(kAudio, kInput);
@@ -397,8 +429,8 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 
             Event e = {};
             e.type = Event::kNoteOffEvent;
-            e.noteOff.channel = (int16)channel;
-            e.noteOff.pitch = (int16)pitch;
+            e.noteOff.channel = static_cast<int16_t>(channel);
+            e.noteOff.pitch = static_cast<int16_t>(pitch);
             e.noteOff.velocity = 0.0f;
             e.noteOff.noteId = -1;
             e.sampleOffset = 0;
@@ -426,8 +458,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                 eventList.addEvent(e);
 
                 activeNotes.insert((e.noteOn.channel << 8) | e.noteOn.pitch);
-            }
-            else if ((me.status & 0xF0) == 0x80 || ((me.status & 0xF0) == 0x90 && me.data2 == 0)) {
+            } else if ((me.status & 0xF0) == 0x80 || ((me.status & 0xF0) == 0x90 && me.data2 == 0)) {
                 e.type = Event::kNoteOffEvent;
                 e.noteOff.channel = me.status & 0x0F;
                 e.noteOff.pitch = me.data1;
@@ -473,8 +504,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     for (int32_t ch = 2; ch < info.channelCount; ++ch) {
                         inPtrs[i][ch] = silence;
                     }
-                }
-                else {
+                } else {
                     for (int32_t ch = 0; ch < info.channelCount; ++ch) {
                         inPtrs[i][ch] = silence;
                     }
@@ -510,8 +540,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     for (int32_t ch = 2; ch < info.channelCount; ++ch) {
                         outPtrs[i][ch] = silence;
                     }
-                }
-                else {
+                } else {
                     for (int32_t ch = 0; ch < info.channelCount; ++ch) {
                         outPtrs[i][ch] = silence;
                     }
@@ -525,12 +554,12 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 
     ProcessContext ctx{};
     ctx.state = ProcessContext::kPlaying |
-        ProcessContext::kProjectTimeMusicValid |
-        ProcessContext::kTempoValid |
-        ProcessContext::kTimeSigValid |
-        ProcessContext::kBarPositionValid |
-        ProcessContext::kCycleValid |
-        ProcessContext::kSystemTimeValid;
+                ProcessContext::kProjectTimeMusicValid |
+                ProcessContext::kTempoValid |
+                ProcessContext::kTimeSigValid |
+                ProcessContext::kBarPositionValid |
+                ProcessContext::kCycleValid |
+                ProcessContext::kSystemTimeValid;
     ctx.sampleRate = currentSampleRate;
     ctx.projectTimeSamples = currentSampleIndex;
     ctx.tempo = bpm;
@@ -541,12 +570,12 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     currentTsDenom = tsDenom;
     if (bpm > 0.0) {
         double samplesPerBeat = (currentSampleRate * 60.0) / bpm;
-        double ppq = (double)currentSampleIndex / samplesPerBeat;
+        double ppq = currentSampleIndex / samplesPerBeat;
         ctx.projectTimeMusic = ppq;
         if (tsNum > 0 && tsDenom > 0) {
-            double quarterNotesPerBar = (double)tsNum * 4.0 / (double)tsDenom;
-            int64_t currentBarIndex = (int64_t)(ppq / quarterNotesPerBar);
-            ctx.barPositionMusic = (double)currentBarIndex * quarterNotesPerBar;
+            double quarterNotesPerBar = tsNum * 4.0 / tsDenom;
+            int64_t currentBarIndex = static_cast<int64_t>(ppq / quarterNotesPerBar);
+            ctx.barPositionMusic = currentBarIndex * quarterNotesPerBar;
             ctx.cycleStartMusic = ctx.barPositionMusic;
             ctx.cycleEndMusic = ctx.barPositionMusic + quarterNotesPerBar;
         }
@@ -559,10 +588,9 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     if (result == kResultOk) {
         if (initialMute) {
             Avx2Utils::FillBufferAVX2(outL, numSamples, 0.0f);
-            if (numChannels > 1)  Avx2Utils::FillBufferAVX2(outR, numSamples, 0.0f);
+            if (numChannels > 1) Avx2Utils::FillBufferAVX2(outR, numSamples, 0.0f);
             initialMute = false;
-        }
-        else {
+        } else {
             int32_t numOutParams = outParamChanges.getParameterCount();
             if (numOutParams > 0) {
                 std::lock_guard<std::mutex> lock(outputParamMutex);
@@ -579,8 +607,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                 }
             }
         }
-    }
-    else {
+    } else {
         if (outL != inL) Avx2Utils::CopyBufferAVX2(outL, inL, numSamples);
         if (numChannels > 1 && outR != inR) Avx2Utils::CopyBufferAVX2(outR, inR, numSamples);
     }
@@ -615,20 +642,20 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
     initialMute = true;
 
     EventList resetEventList;
-    
+
     for (int32_t channel = 0; channel < 16; ++channel) {
         for (int32_t pitch = 0; pitch < 128; ++pitch) {
             Event e = {};
             e.type = Event::kNoteOffEvent;
-            e.noteOff.channel = (int16)channel;
-            e.noteOff.pitch = (int16)pitch;
+            e.noteOff.channel = static_cast<int16_t>(channel);
+            e.noteOff.pitch = static_cast<int16_t>(pitch);
             e.noteOff.velocity = 0.0f;
             e.noteOff.noteId = -1;
             e.sampleOffset = 0;
             resetEventList.addEvent(e);
         }
     }
-    
+
     int32_t flushBlocks = 20;
     int32_t blockSize = currentBlockSize;
     float* silence = GetDummyBuffer(blockSize);
@@ -687,12 +714,12 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
 
         ProcessContext ctx{};
         ctx.state = ProcessContext::kPlaying |
-            ProcessContext::kProjectTimeMusicValid |
-            ProcessContext::kTempoValid |
-            ProcessContext::kTimeSigValid |
-            ProcessContext::kBarPositionValid |
-            ProcessContext::kCycleValid |
-            ProcessContext::kSystemTimeValid;
+                    ProcessContext::kProjectTimeMusicValid |
+                    ProcessContext::kTempoValid |
+                    ProcessContext::kTimeSigValid |
+                    ProcessContext::kBarPositionValid |
+                    ProcessContext::kCycleValid |
+                    ProcessContext::kSystemTimeValid;
         ctx.sampleRate = currentSampleRate;
         ctx.projectTimeSamples = currentSampleIndex;
         ctx.tempo = currentBpm;
@@ -700,12 +727,12 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
         ctx.timeSigDenominator = currentTsDenom;
         if (currentBpm > 0.0) {
             double samplesPerBeat = (currentSampleRate * 60.0) / currentBpm;
-            double ppq = (double)currentSampleIndex / samplesPerBeat;
+            double ppq = static_cast<double>(currentSampleIndex) / samplesPerBeat;
             ctx.projectTimeMusic = ppq;
             if (currentTsNum > 0 && currentTsDenom > 0) {
                 double quarterNotesPerBar = (double)currentTsNum * 4.0 / (double)currentTsDenom;
-                int64_t currentBarIndex = (int64_t)(ppq / quarterNotesPerBar);
-                ctx.barPositionMusic = (double)currentBarIndex * quarterNotesPerBar;
+                int64_t currentBarIndex = static_cast<int64_t>(ppq / quarterNotesPerBar);
+                ctx.barPositionMusic = static_cast<double>(currentBarIndex) * quarterNotesPerBar;
                 ctx.cycleStartMusic = ctx.barPositionMusic;
                 ctx.cycleEndMusic = ctx.barPositionMusic + quarterNotesPerBar;
             }
@@ -714,13 +741,15 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
         data.processContext = &ctx;
         SafeProcessCall(processor, data);
     }
-    
+
     resetEventList.clear();
 }
 
 void VstHost::Impl::ShowGui() {
     if (guiWindow && IsWindow(guiWindow)) {
-        ShowWindow(guiWindow, SW_SHOW); SetForegroundWindow(guiWindow); return;
+        ShowWindow(guiWindow, SW_SHOW);
+        SetForegroundWindow(guiWindow);
+        return;
     }
     if (!controller) return;
 
@@ -730,7 +759,8 @@ void VstHost::Impl::ShowGui() {
         return;
     }
 
-    ViewRect vr; plugView->getSize(&vr);
+    ViewRect vr;
+    plugView->getSize(&vr);
 
     // Check if plugin supports resizing (for logging purposes)
     bool canResize = (plugView->canResize() == kResultTrue);
@@ -746,12 +776,11 @@ void VstHost::Impl::ShowGui() {
     wc.lpfnWndProc = [](HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) -> LRESULT {
         VstHost::Impl* self = nullptr;
         if (msg == WM_CREATE) {
-            self = (VstHost::Impl*)((CREATESTRUCT*)lp)->lpCreateParams;
-            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)self);
-            SetTimer(hWnd, 1001, 30, NULL);
-        }
-        else {
-            self = (VstHost::Impl*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+            self = reinterpret_cast<VstHost::Impl*>((reinterpret_cast<CREATESTRUCT*>(lp))->lpCreateParams);
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+            SetTimer(hWnd, 1001, 30, nullptr);
+        } else {
+            self = reinterpret_cast<VstHost::Impl*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
         }
 
         if (msg == WM_TIMER && wp == 1001) {
@@ -800,11 +829,11 @@ void VstHost::Impl::ShowGui() {
             }
         }
         return DefWindowProc(hWnd, msg, wp, lp);
-        };
+    };
     wc.hInstance = hInstance;
     wc.lpszClassName = L"VstHostGuiWindowClass";
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
 
     // Register window class only if not already registered
     WNDCLASS existingClass;
@@ -830,8 +859,8 @@ void VstHost::Impl::ShowGui() {
     }
 
     guiWindow = CreateWindowEx(0, wc.lpszClassName, pluginName.c_str(), windowStyle,
-        CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
-        nullptr, nullptr, hInstance, this);
+                               CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
+                               nullptr, nullptr, hInstance, this);
     if (!guiWindow) {
         DbgPrint("[VST3 GUI] Failed to create window (Error: %d)", GetLastError());
         plugView.reset();
@@ -869,12 +898,11 @@ std::string VstHost::Impl::GetState() {
         MemoryStream full;
         int32_t b;
         full.write(&cs, sizeof(cs), &b);
-        if (cs > 0) full.write(cStream.getData(), (int32_t)cs, &b);
+        if (cs > 0) full.write(cStream.getData(), static_cast<int32_t>(cs), &b);
         full.write(&ts, sizeof(ts), &b);
-        if (ts > 0) full.write(tStream.getData(), (int32_t)ts, &b);
-        return "VST3_DUAL:" + StringUtils::Base64Encode((const BYTE*)full.getData(), (DWORD)full.getSize());
-    }
-    catch (...) {
+        if (ts > 0) full.write(tStream.getData(), static_cast<int32_t>(ts), &b);
+        return "VST3_DUAL:" + StringUtils::Base64Encode(reinterpret_cast<const BYTE*>(full.getData()), static_cast<DWORD>(full.getSize()));
+    } catch (...) {
         DbgPrint("[EAP2 Error] Exception inside VST3 GetState");
         return "";
     }
@@ -889,20 +917,23 @@ bool VstHost::Impl::SetState(const std::string& state_b64) {
     int64 cs = 0, ts = 0;
     stream.read(&cs, sizeof(cs), &br);
     if (cs > 0 && component) {
-        std::vector<BYTE> d(cs); stream.read(d.data(), (int32_t)cs, &br);
+        std::vector<BYTE> d(cs);
+        stream.read(d.data(), static_cast<int32_t>(cs), &br);
         MemoryStream s(d.data(), cs);
         if (component->setState(&s) != kResultOk) return false;
     }
     stream.read(&ts, sizeof(ts), &br);
     if (ts > 0 && controller) {
-        std::vector<BYTE> d(ts); stream.read(d.data(), (int32_t)ts, &br);
+        std::vector<BYTE> d(ts);
+        stream.read(d.data(), static_cast<int32_t>(ts), &br);
         MemoryStream s(d.data(), ts);
         if (controller->setState(&s) != kResultOk) return false;
     }
     return true;
 }
 
-VstHost::VstHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
+VstHost::VstHost(HINSTANCE hInstance)
+    : m_impl(std::make_unique<Impl>(hInstance)) {}
 VstHost::~VstHost() = default;
 
 bool VstHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
@@ -921,14 +952,30 @@ void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, floa
     m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, currentSampleIndex, bpm, tsNum, tsDenom, midiEvents);
 }
 
-void VstHost::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) { m_impl->Reset(currentSampleIndex, bpm, timeSigNum, timeSigDenom); }
-void VstHost::ShowGui() { m_impl->ShowGui(); }
-void VstHost::HideGui() { m_impl->HideGui(); }
-std::string VstHost::GetState() { return m_impl->GetState(); }
-bool VstHost::SetState(const std::string& state_b64) { return m_impl->SetState(state_b64); }
-void VstHost::Cleanup() { m_impl->ReleasePlugin(); }
-bool VstHost::IsGuiVisible() const { return m_impl->IsGuiVisible(); }
-std::filesystem::path VstHost::GetPluginPath() const { return m_impl->GetPluginPath(); }
+void VstHost::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) {
+    m_impl->Reset(currentSampleIndex, bpm, timeSigNum, timeSigDenom);
+}
+void VstHost::ShowGui() {
+    m_impl->ShowGui();
+}
+void VstHost::HideGui() {
+    m_impl->HideGui();
+}
+std::string VstHost::GetState() {
+    return m_impl->GetState();
+}
+bool VstHost::SetState(const std::string& state_b64) {
+    return m_impl->SetState(state_b64);
+}
+void VstHost::Cleanup() {
+    m_impl->ReleasePlugin();
+}
+bool VstHost::IsGuiVisible() const {
+    return m_impl->IsGuiVisible();
+}
+std::filesystem::path VstHost::GetPluginPath() const {
+    return m_impl->GetPluginPath();
+}
 void VstHost::SetParameter(uint32_t paramId, float value) {
     if (m_impl) {
         m_impl->SetParameter(paramId, value);

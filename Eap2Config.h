@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "Eap2Info.h"
+
 #include <cwctype>
 #include <functional>
 #include <limits>
@@ -40,8 +41,7 @@ inline bool TryParseInt32(const std::wstring& raw, int32_t& out, int32_t minValu
         if (value < minValue || value > maxValue) return false;
         out = static_cast<int32_t>(value);
         return true;
-    }
-    catch (...) {
+    } catch (...) {
         return false;
     }
 }
@@ -53,7 +53,7 @@ struct ConfigEntry {
     std::function<bool(const std::wstring&)> load;
     std::function<std::wstring()> save;
 
-    template<typename T>
+    template <typename T>
     static ConfigEntry Create(std::wstring key, std::wstring def, T* target, bool canReload) {
         auto entry = ConfigEntry{
             key, def, canReload,
@@ -63,23 +63,19 @@ struct ConfigEntry {
                     if (!TryParseBool(s, value)) return false;
                     *target = value;
                     return true;
-                }
-                else if constexpr (std::is_same_v<T, int32_t>) {
+                } else if constexpr (std::is_same_v<T, int32_t>) {
                     int32_t value = 0;
                     if (!TryParseInt32(s, value, (std::numeric_limits<int32_t>::min)(), (std::numeric_limits<int32_t>::max)())) return false;
                     *target = value;
                     return true;
-                }
-                else if constexpr (std::is_same_v<T, std::wstring>) {
+                } else if constexpr (std::is_same_v<T, std::wstring>) {
                     *target = s;
                     return true;
-                }
-                else if constexpr (std::is_same_v<T, Version>) {
+                } else if constexpr (std::is_same_v<T, Version>) {
                     try {
                         target->from_hex_wstring(s);
                         return true;
-                    }
-                    catch (...) {
+                    } catch (...) {
                         return false;
                     }
                 }
@@ -111,8 +107,8 @@ struct ConfigInfo {
 
 struct GeneralConfig {
     std::wstring categoryName = L"General";
-    bool auto_rename_disable;
-    bool enable_experimental;
+    bool auto_rename_disable = false;
+    bool enable_experimental = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AutoRenameDisable", L"1", &auto_rename_disable, true),
@@ -123,32 +119,32 @@ struct GeneralConfig {
 
 struct ModuleConfig {
     std::wstring categoryName = L"Module";
-    bool all_tool_disable;
-    bool host_disable;
-    bool chain_tool_disable;
-    bool host_filter_disable;
-    bool host_media_disable;
-    bool auto_wah_disable;
-    bool chain_comp_disable;
-    bool chain_dynamic_eq_disable;
-    bool chain_filter_disable;
-    bool chain_gate_disable;
-    bool chain_send_disable;
-    bool deesser_disable;
-    bool distortion_disable;
-    bool dynamics_disable;
-    bool eq_disable;
-    bool generator_disable;
-    bool maximizer_disable;
-    bool modulation_disable;
-    bool notes_send_disable;
-    bool phaser_disable;
-    bool pitch_shift_disable;
-    bool reverb_disable;
-    bool spatial_disable;
-    bool spectral_gate_disable;
-    bool stereo_disable;
-    bool utility_disable;
+    bool all_tool_disable = false;
+    bool host_disable = false;
+    bool chain_tool_disable = false;
+    bool host_filter_disable = false;
+    bool host_media_disable = false;
+    bool auto_wah_disable = false;
+    bool chain_comp_disable = false;
+    bool chain_dynamic_eq_disable = false;
+    bool chain_filter_disable = false;
+    bool chain_gate_disable = false;
+    bool chain_send_disable = false;
+    bool deesser_disable = false;
+    bool distortion_disable = false;
+    bool dynamics_disable = false;
+    bool eq_disable = false;
+    bool generator_disable = false;
+    bool maximizer_disable = false;
+    bool modulation_disable = false;
+    bool notes_send_disable = false;
+    bool phaser_disable = false;
+    bool pitch_shift_disable = false;
+    bool reverb_disable = false;
+    bool spatial_disable = false;
+    bool spectral_gate_disable = false;
+    bool stereo_disable = false;
+    bool utility_disable = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AllToolDisable", L"0", &all_tool_disable, false),
@@ -183,7 +179,7 @@ struct ModuleConfig {
 
 struct VstConfig {
     std::wstring categoryName = L"VST";
-    bool forceResize;
+    bool forceResize = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"ForceResize", L"0", &forceResize, true)
@@ -191,11 +187,11 @@ struct VstConfig {
     }
 };
 
-struct ExperimentalConfig{
+struct ExperimentalConfig {
     std::wstring categoryName = L"Experimental";
-    bool use_experimental_generator;
-    bool enable_experimental_midi_generator;
-    bool use_experimental_reverb;
+    bool use_experimental_generator = false;
+    bool enable_experimental_midi_generator = false;
+    bool use_experimental_reverb = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"UseExperimentalGenerator", L"0", &use_experimental_generator, false),

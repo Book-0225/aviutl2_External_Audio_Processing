@@ -1,7 +1,8 @@
-﻿#include "Eap2Common.h"
-#include "Avx2Utils.h"
-#include <vector>
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
 #include <algorithm>
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Stereo";
 
@@ -51,8 +52,7 @@ bool func_proc_audio_stereo(FILTER_PROC_AUDIO* audio) {
         float coeff_swap = term_common - term_diff;
 
         Avx2Utils::MatrixMixStereoAVX2(bufL.data(), bufR.data(), bufL.data(), bufR.data(), total_samples, coeff_same, coeff_swap, coeff_swap, coeff_same);
-    }
-    else {
+    } else {
         Avx2Utils::ScaleBufferAVX2(bufL.data(), bufL.data(), total_samples, mid_ratio);
         Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
     }

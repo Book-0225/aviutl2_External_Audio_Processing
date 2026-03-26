@@ -1,9 +1,10 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
 #include "SynthCommon.h"
-#include "Avx2Utils.h"
+
+#include <cmath>
 #include <map>
 #include <mutex>
-#include <cmath>
 
 constexpr auto TOOL_NAME = L"Generator";
 

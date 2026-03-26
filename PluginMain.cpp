@@ -1,6 +1,7 @@
-﻿#include "Eap2Common.h"
+﻿#include "AudioPluginFactory.h"
+#include "Eap2Common.h"
 #include "Eap2Config.h"
-#include "AudioPluginFactory.h"
+
 #include <unordered_set>
 
 #define STR2(x) L#x
@@ -82,27 +83,27 @@ static constexpr std::array all_plugins{
 
 static constexpr std::array tool_plugins{
     &filter_plugin_table_utility,
-    & filter_plugin_table_eq,
-    & filter_plugin_table_stereo,
-    & filter_plugin_table_dynamics,
-    & filter_plugin_table_spatial,
-    & filter_plugin_table_modulation,
-    & filter_plugin_table_distortion,
-    & filter_plugin_table_maximizer,
-    & filter_plugin_table_chain_send,
-    & filter_plugin_table_chain_comp,
-    & filter_plugin_table_chain_gate,
-    & filter_plugin_table_chain_dyn_eq,
-    & filter_plugin_table_chain_filter,
-    & filter_plugin_table_reverb,
-    & filter_plugin_table_phaser,
-    & filter_plugin_table_generator,
-    & filter_plugin_table_pitch_shift,
-    & filter_plugin_table_autowah,
-    & filter_plugin_table_deesser,
-    & filter_plugin_table_spectral_gate,
-    & filter_plugin_table_midi_visualizer,
-    & filter_plugin_table_notes_send_media
+    &filter_plugin_table_eq,
+    &filter_plugin_table_stereo,
+    &filter_plugin_table_dynamics,
+    &filter_plugin_table_spatial,
+    &filter_plugin_table_modulation,
+    &filter_plugin_table_distortion,
+    &filter_plugin_table_maximizer,
+    &filter_plugin_table_chain_send,
+    &filter_plugin_table_chain_comp,
+    &filter_plugin_table_chain_gate,
+    &filter_plugin_table_chain_dyn_eq,
+    &filter_plugin_table_chain_filter,
+    &filter_plugin_table_reverb,
+    &filter_plugin_table_phaser,
+    &filter_plugin_table_generator,
+    &filter_plugin_table_pitch_shift,
+    &filter_plugin_table_autowah,
+    &filter_plugin_table_deesser,
+    &filter_plugin_table_spectral_gate,
+    &filter_plugin_table_midi_visualizer,
+    &filter_plugin_table_notes_send_media
 };
 
 static constexpr std::array host_plugins{
@@ -118,7 +119,7 @@ static constexpr std::array chain_plugins{
     &filter_plugin_table_chain_filter
 };
 
-HINSTANCE g_hinstance = NULL;
+HINSTANCE g_hinstance = nullptr;
 EDIT_HANDLE* g_edit_handle = nullptr;
 LOG_HANDLE* g_logger = nullptr;
 CONFIG_HANDLE* g_config_handle = nullptr;
@@ -131,7 +132,7 @@ std::atomic<int32_t> g_shared_ts_num{ 4 };
 std::atomic<int32_t> g_shared_ts_denom{ 4 };
 
 UINT_PTR g_timer_id = 87655;
-HWND g_hMessageWindow = NULL;
+HWND g_hMessageWindow = nullptr;
 const uint32_t WM_APP_EXECUTE_TASKS = WM_APP + 100;
 
 LRESULT CALLBACK MessageWndProc(HWND hWnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
@@ -163,8 +164,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
     g_execution_queue.insert(
         g_execution_queue.end(),
         std::make_move_iterator(g_main_thread_tasks.begin()),
-        std::make_move_iterator(g_main_thread_tasks.end())
-    );
+        std::make_move_iterator(g_main_thread_tasks.end()));
     g_main_thread_tasks.clear();
 
     if (g_hMessageWindow) PostMessage(g_hMessageWindow, WM_APP_EXECUTE_TASKS, 0, 0);
@@ -178,7 +178,7 @@ std::vector<T> GetModule(const std::array<T, N>& plugins, AppSettings setting) {
             if constexpr (std::is_pointer_v<decltype(target)>) disable_set.insert(target);
             else disable_set.insert(std::begin(target), std::end(target));
         }
-        };
+    };
     add_if(setting.module.all_tool_disable, tool_plugins);
     add_if(setting.module.host_disable, host_plugins);
     add_if(setting.module.chain_tool_disable, chain_plugins);
@@ -207,7 +207,8 @@ std::vector<T> GetModule(const std::array<T, N>& plugins, AppSettings setting) {
     add_if(setting.module.utility_disable, &filter_plugin_table_utility);
     std::vector<T> registry;
     registry.reserve(plugins.size());
-    for (const auto& p : plugins) if (disable_set.find(p) == disable_set.end()) registry.push_back(p);
+    for (const auto& p : plugins)
+        if (disable_set.find(p) == disable_set.end()) registry.push_back(p);
     if (setting.general.enable_experimental) {
         if (setting.exp.use_experimental_generator) std::replace(registry.begin(), registry.end(), &filter_plugin_table_generator, &filter_plugin_table_generator2);
         if (!setting.module.all_tool_disable && setting.exp.enable_experimental_midi_generator) registry.push_back(&filter_plugin_table_midi_gen);
@@ -227,20 +228,20 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     // RequiredVersion()実装前のバージョン用
     if (version < 2003300) {
-        MessageBox(NULL, TrText(L"AviUtl2のバージョンが古すぎます。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
+        MessageBox(nullptr, TrText(L"AviUtl2のバージョンが古すぎます。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
     LoadConfig();
-    
-    if (FAILED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
-        MessageBox(NULL, TrText(L"COM 初期化に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
+
+    if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {
+        MessageBox(nullptr, TrText(L"COM 初期化に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
     if (!AudioPluginFactory::Initialize(g_hinstance)) {
         CoUninitialize();
-        MessageBox(NULL, TrText(L"Audio Plugin Factory の初期化に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
+        MessageBox(nullptr, TrText(L"Audio Plugin Factory の初期化に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -254,17 +255,17 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
         return false;
     }
 
-    g_hMessageWindow = CreateWindow(wc.lpszClassName, _T("EAP2 Message Window"),  0, 0, 0, 0, 0, HWND_MESSAGE, NULL, g_hinstance, NULL);
+    g_hMessageWindow = CreateWindow(wc.lpszClassName, _T("EAP2 Message Window"), 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
     if (!g_hMessageWindow) {
         UnregisterClass(_T("EAP2_MessageWindowClass"), g_hinstance);
         AudioPluginFactory::Uninitialize();
         CoUninitialize();
-        MessageBox(NULL, TrText(L"メッセージウィンドウの作成に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
+        MessageBox(nullptr, TrText(L"メッセージウィンドウの作成に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
         return false;
     }
 
-    SetTimer(NULL, g_timer_id, 50, TimerProc);
-    
+    SetTimer(nullptr, g_timer_id, 50, TimerProc);
+
     DbgPrint("EAP2 Initialized Successfully.");
     return true;
 }
@@ -294,11 +295,11 @@ void ToolCleanupResources() {
 }
 
 EXTERN_C __declspec(dllexport) void UninitializePlugin() {
-    KillTimer(NULL, g_timer_id);
+    KillTimer(nullptr, g_timer_id);
 
     if (g_hMessageWindow) {
         DestroyWindow(g_hMessageWindow);
-        g_hMessageWindow = NULL;
+        g_hMessageWindow = nullptr;
     }
     UnregisterClass(_T("EAP2_MessageWindowClass"), g_hinstance);
     CleanupMainFilterResources();
@@ -306,7 +307,7 @@ EXTERN_C __declspec(dllexport) void UninitializePlugin() {
     CoUninitialize();
 
     // SaveConfig(); 将来的にAviUtl内で設定を変更出来るようにした時用
-    
+
     DbgPrint("EAP2 Uninitialized.");
 }
 

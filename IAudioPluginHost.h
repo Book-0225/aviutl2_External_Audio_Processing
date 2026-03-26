@@ -4,7 +4,7 @@
 #include <vector>
 
 class IAudioPluginHost {
-public:
+  public:
     struct MidiEvent {
         int32_t deltaFrames;
         uint8_t status;
@@ -25,8 +25,7 @@ public:
         double bpm,
         int32_t timeSigNum,
         int32_t timeSigDenom,
-        const std::vector<MidiEvent>& midiEvents
-    ) = 0;
+        const std::vector<MidiEvent>& midiEvents) = 0;
     virtual void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) = 0;
 
     virtual void ShowGui() = 0;
@@ -45,7 +44,6 @@ public:
     virtual void SetSampleRate(double sampleRate) = 0;
     virtual double GetSampleRate() const = 0;
 
-
     virtual int32_t GetLatencySamples() = 0;
 
     struct ParameterInfo {
@@ -56,5 +54,4 @@ public:
     virtual int32_t GetParameterCount() = 0;
     virtual bool GetParameterInfo(int32_t index, ParameterInfo& info) = 0;
     virtual uint32_t GetParameterID(int32_t index) = 0;
-
 };

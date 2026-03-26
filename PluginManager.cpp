@@ -1,4 +1,5 @@
 ﻿#include "PluginManager.h"
+
 #include "StringUtils.h"
 
 PluginManager& PluginManager::GetInstance() {
@@ -10,9 +11,7 @@ static bool IsValidStateData(const std::string& state) {
     if (state.empty()) return false;
     bool is_vst3 = (state.rfind("VST3_DUAL:", 0) == 0);
     bool is_clap = (state.rfind("CLAP:", 0) == 0);
-    if (!is_vst3 && !is_clap) {
-        return false;
-    }
+    if (!is_vst3 && !is_clap) return false;
     std::string b64_part = state.substr(is_vst3 ? 10 : 5);
     std::vector<BYTE> data = StringUtils::Base64Decode(b64_part);
     if (data.empty()) return false;
@@ -20,7 +19,7 @@ static bool IsValidStateData(const std::string& state) {
         if (data.size() < 16) return false;
         int64_t* sizes = reinterpret_cast<int64_t*>(data.data());
         int64_t compSize = sizes[0];
-        if (compSize < 0 || compSize >(int64_t)data.size()) return false;
+        if (compSize < 0 || compSize > static_cast<int64_t>(data.size())) return false;
     }
 
     return true;
@@ -45,11 +44,13 @@ void PluginManager::CleanupResources() {
 
 std::string PluginManager::PrepareProjectState(const std::set<std::string>& active_ids) {
     std::scoped_lock lock(m_states_mutex, m_instance_ownership_mutex);
-    for (auto it = m_plugin_state_database.begin(); it != m_plugin_state_database.end(); ) {
-        if (active_ids.find(it->first) == active_ids.end()) it = m_plugin_state_database.erase(it); else ++it;
+    for (auto it = m_plugin_state_database.begin(); it != m_plugin_state_database.end();) {
+        if (active_ids.find(it->first) == active_ids.end()) it = m_plugin_state_database.erase(it);
+        else ++it;
     }
-    for (auto it = m_instance_id_to_effect_id_map.begin(); it != m_instance_id_to_effect_id_map.end(); ) {
-        if (active_ids.find(it->first) == active_ids.end()) it = m_instance_id_to_effect_id_map.erase(it); else ++it;
+    for (auto it = m_instance_id_to_effect_id_map.begin(); it != m_instance_id_to_effect_id_map.end();) {
+        if (active_ids.find(it->first) == active_ids.end()) it = m_instance_id_to_effect_id_map.erase(it);
+        else ++it;
     }
     for (const auto& instance_id : active_ids) {
         auto ownership_it = m_instance_id_to_effect_id_map.find(instance_id);
@@ -63,8 +64,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
             if (!live_state.empty()) {
                 m_plugin_state_database[instance_id] = live_state;
             }
-        }
-        catch (...) {
+        } catch (...) {
             DbgPrint("[EAP2 Warning] Failed to save state for Instance: %hs", instance_id.c_str());
         }
     }
@@ -127,16 +127,14 @@ void PluginManager::LoadProjectState(const std::string& data) {
                                 int32_t idx = std::stoi(std::string(kv.substr(0, eq)));
                                 int32_t pid = std::stol(std::string(kv.substr(eq + 1)));
                                 if (idx >= 0 && idx < 4) mapping[idx] = pid;
-                            }
-                            catch (...) {}
+                            } catch (...) {}
                         }
                         if (map_end == map_part.length()) break;
                         map_start = map_end + 1;
                     }
                     m_param_mappings[key] = mapping;
                 }
-            }
-            else {
+            } else {
                 DbgPrint("[EAP2 Warning] Corrupted state data detected and discarded for ID: %hs", key.c_str());
             }
         }
@@ -152,8 +150,7 @@ void PluginManager::RegisterOrUpdateInstance(std::string& instance_id, int64_t e
 
     if (it == m_instance_id_to_effect_id_map.end()) {
         m_instance_id_to_effect_id_map[instance_id] = effect_id;
-    }
-    else if (it->second != effect_id) {
+    } else if (it->second != effect_id) {
         is_copy = true;
         std::string old_instance_id = instance_id;
         std::string new_instance_id = StringUtils::GenerateUUID();

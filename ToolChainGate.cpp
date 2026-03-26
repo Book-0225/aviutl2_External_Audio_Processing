@@ -1,11 +1,12 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Chain Gate";
 
@@ -86,15 +87,13 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
                     levels[i] = (double)chain.level[i];
                     state->last_update_count[i] = chain.update_count[i];
                     state->missed_count[i] = 0;
-                }
-                else {
+                } else {
                     if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
                     if (state->missed_count[i] >= 10) chain.effect_id[i] = -1;
                     if (state->missed_count[i] <= 1) levels[i] = (double)chain.level[i];
                     else levels[i] = 0.0;
                 }
-            }
-            else {
+            } else {
                 levels[i] = 0.0;
                 state->missed_count[i] = 0;
             }

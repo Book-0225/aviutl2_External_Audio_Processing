@@ -1,10 +1,11 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Maximizer";
 
@@ -33,15 +34,19 @@ struct MaximizerState {
     int64_t last_sample_index = -1;
 
     void init() {
-        bufferL.assign(MAX_LOOKAHEAD_BUFFER, 0.0f); bufferR.assign(MAX_LOOKAHEAD_BUFFER, 0.0f);
-        write_pos = 0; envelope = 0.0; initialized = true;
+        bufferL.assign(MAX_LOOKAHEAD_BUFFER, 0.0f);
+        bufferR.assign(MAX_LOOKAHEAD_BUFFER, 0.0f);
+        write_pos = 0;
+        envelope = 0.0;
+        initialized = true;
     }
 
     void clear() {
         if (initialized) {
             Avx2Utils::FillBufferAVX2(bufferL.data(), bufferL.size(), 0.0f);
             Avx2Utils::FillBufferAVX2(bufferR.data(), bufferR.size(), 0.0f);
-            write_pos = 0; envelope = 0.0;
+            write_pos = 0;
+            envelope = 0.0;
         }
     }
 };
@@ -122,8 +127,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
 
             if (in_peak > current_env) {
                 current_env = in_peak;
-            }
-            else {
+            } else {
                 current_env = in_peak + release_coef * (current_env - in_peak);
             }
 

@@ -1,12 +1,13 @@
 ﻿#include "Eap2Common.h"
 #include "MidiParser.h"
 #include "SynthCommon.h"
-#include <map>
-#include <vector>
-#include <mutex>
-#include <filesystem>
-#include <cmath>
+
 #include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <map>
+#include <mutex>
+#include <vector>
 
 constexpr auto TOOL_NAME = L"MIDI Generator";
 
@@ -48,7 +49,7 @@ void* filter_items_midi_gen[] = {
 };
 
 class MidiPlayer {
-public:
+  public:
     MidiParser parser;
     std::filesystem::path currentPath;
     std::vector<VoiceState> voices;
@@ -85,11 +86,24 @@ public:
 
     VoiceState* AllocVoice(int32_t note, float velocity, double time) {
         VoiceState* target = nullptr;
-        for (auto& v : voices) if (!v.active) { target = &v; break; }
-        if (!target) for (auto& v : voices) if (v.noteOffTime >= 0.0) { target = &v; break; }
+        for (auto& v : voices)
+            if (!v.active) {
+                target = &v;
+                break;
+            }
+        if (!target)
+            for (auto& v : voices)
+                if (v.noteOffTime >= 0.0) {
+                    target = &v;
+                    break;
+                }
         if (!target) {
             double oldest = 1e16;
-            for (auto& v : voices) if (v.noteOnTime < oldest) { oldest = v.noteOnTime; target = &v; }
+            for (auto& v : voices)
+                if (v.noteOnTime < oldest) {
+                    oldest = v.noteOnTime;
+                    target = &v;
+                }
         }
         if (target) {
             target->init();
@@ -122,7 +136,10 @@ public:
         int64_t current_tick = TimeToTickFunc(current_time_sec);
         if (current_tick <= 0) return;
         const auto& events = parser.GetEvents();
-        struct NoteInfo { int32_t velocity; int64_t onTick; };
+        struct NoteInfo {
+            int32_t velocity;
+            int64_t onTick;
+        };
         std::map<int, NoteInfo> active_notes;
         for (size_t i = 0; i < events.size(); ++i) {
             const auto& ev = events[i];
@@ -135,8 +152,7 @@ public:
             if (status == 0x90) {
                 if (ev.data2 > 0) active_notes[ev.data1] = { ev.data2, ev.absoluteTick };
                 else active_notes.erase(ev.data1);
-            }
-            else if (status == 0x80) {
+            } else if (status == 0x80) {
                 active_notes.erase(ev.data1);
             }
         }
@@ -153,15 +169,12 @@ public:
         if (status == 0x90) {
             if (ev.data2 > 0) AllocVoice(ev.data1, ev.data2 / 127.0f, time);
             else NoteOff(ev.data1, time);
-        }
-        else if (status == 0x80) {
+        } else if (status == 0x80) {
             NoteOff(ev.data1, time);
-        }
-        else if (status == 0xE0) {
+        } else if (status == 0xE0) {
             int32_t val = MidiParser::CombineBytes14(ev.data1, ev.data2);
             currentPitchBend = val;
-        }
-        else if (status == 0xB0) {
+        } else if (status == 0xB0) {
             if (ev.data1 == 1) currentModWheel = ev.data2 / 127.0f;
             else if (ev.data1 == 7) currentVolume = ev.data2 / 127.0f;
             else if (ev.data1 == 10) currentPan = ev.data2 / 127.0f;
@@ -221,8 +234,8 @@ bool func_proc_audio_midi(FILTER_PROC_AUDIO* audio) {
         double midi_time = (t_sec - offset_sec);
         if (midi_time < 0) return -1;
         if (mode == 1) return player->parser.GetTickAtTime(midi_time);
-        else return (int64_t)(midi_time * tick_factor);
-        };
+        else return static_cast<int64_t>(midi_time * tick_factor);
+    };
 
     if (seek_detected || current_obj_sample_index == 0) {
         double current_abs_time = (double)current_obj_sample_index / Fs;

@@ -1,10 +1,11 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Modulation";
 
@@ -41,14 +42,18 @@ struct ModulationState {
     int64_t last_sample_index = -1;
 
     void init() {
-        bufferL.assign(MAX_BUFFER_SIZE, 0.0f); bufferR.assign(MAX_BUFFER_SIZE, 0.0f);
-        write_pos = 0; phase = 0.0; initialized = true;
+        bufferL.assign(MAX_BUFFER_SIZE, 0.0f);
+        bufferR.assign(MAX_BUFFER_SIZE, 0.0f);
+        write_pos = 0;
+        phase = 0.0;
+        initialized = true;
     }
     void clear() {
         if (initialized) {
             Avx2Utils::FillBufferAVX2(bufferL.data(), bufferL.size(), 0.0f);
             Avx2Utils::FillBufferAVX2(bufferR.data(), bufferR.size(), 0.0f);
-            write_pos = 0; phase = 0.0;
+            write_pos = 0;
+            phase = 0.0;
         }
     }
 };
@@ -146,8 +151,10 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
 
                 float next_l = p_dry_L[k] + delayed_l * feedback;
                 float next_r = p_dry_R[k] + delayed_r * feedback;
-                if (next_l > 2.0f) next_l = 2.0f; else if (next_l < -2.0f) next_l = -2.0f;
-                if (next_r > 2.0f) next_r = 2.0f; else if (next_r < -2.0f) next_r = -2.0f;
+                if (next_l > 2.0f) next_l = 2.0f;
+                else if (next_l < -2.0f) next_l = -2.0f;
+                if (next_r > 2.0f) next_r = 2.0f;
+                else if (next_r < -2.0f) next_r = -2.0f;
 
                 bL[w_pos] = next_l;
                 bR[w_pos] = next_r;
@@ -169,8 +176,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
             Avx2Utils::MixAudioAVX2(p_dry_L, temp_wet_L, block_count, 1.0f - mix, mix, 1.0f);
             Avx2Utils::MixAudioAVX2(p_dry_R, temp_wet_R, block_count, 1.0f - mix, mix, 1.0f);
 
-        }
-        else {
+        } else {
             for (int32_t k = 0; k < block_count; ++k) {
                 bL[w_pos] = p_dry_L[k];
                 bR[w_pos] = p_dry_R[k];

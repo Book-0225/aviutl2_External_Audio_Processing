@@ -58,4 +58,7 @@
     <ClInclude Include="SynthCommon.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include=".clang-format" />
+  </ItemGroup>
 </Project>

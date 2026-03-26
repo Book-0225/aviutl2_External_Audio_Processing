@@ -1,15 +1,16 @@
 ﻿#pragma once
 #include "Eap2Common.h"
 #include "IAudioPluginHost.h"
-#include <map>
-#include <set>
-#include <mutex>
-#include <string>
-#include <memory>
+
 #include <array>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
 
 class PluginManager {
-public:
+  public:
     static PluginManager& GetInstance();
 
     void CleanupResources();
@@ -29,7 +30,7 @@ public:
     int32_t GetMappedParamID(const std::string& instance_id, int32_t sliderInfoIndex);
     void ClearMapping(const std::string& instance_id);
 
-private:
+  private:
     PluginManager() = default;
     ~PluginManager() = default;
     PluginManager(const PluginManager&) = delete;

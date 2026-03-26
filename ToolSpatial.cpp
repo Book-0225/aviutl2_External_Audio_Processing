@@ -1,9 +1,10 @@
-﻿#include "Eap2Common.h"
-#include <vector>
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Spatial";
 
@@ -47,8 +48,7 @@ static std::map<const void*, SpatialState> g_sp_states;
 
 inline void ReadRingBufferBlock(
     float* out, const std::vector<float>& buf,
-    int32_t w_pos, int32_t delay_samples, int32_t count)
-{
+    int32_t w_pos, int32_t delay_samples, int32_t count) {
     const int32_t buf_size = static_cast<int32_t>(buf.size());
     int32_t r_pos = w_pos - delay_samples;
     if (r_pos < 0) r_pos += buf_size;
@@ -63,8 +63,7 @@ inline void ReadRingBufferBlock(
 
 inline void WriteRingBufferBlock(
     std::vector<float>& buf, const float* in,
-    int32_t w_pos, int32_t count)
-{
+    int32_t w_pos, int32_t count) {
     const int32_t buf_size = static_cast<int32_t>(buf.size());
     int32_t first_chunk = (std::min)(count, buf_size - w_pos);
 
@@ -74,7 +73,6 @@ inline void WriteRingBufferBlock(
         Avx2Utils::CopyBufferAVX2(buf.data(), in + first_chunk, count - first_chunk);
     }
 }
-
 
 bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -146,8 +144,7 @@ bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
             ReadRingBufferBlock(temp_delay_L, state->bufferL, current_w_pos, pseudo_samples, block_count);
             ReadRingBufferBlock(temp_delay_R, state->bufferR, current_w_pos, pseudo_samples, block_count);
             Avx2Utils::MatrixMixStereoAVX2(temp_in_R, temp_dummy, temp_delay_L, temp_delay_R, block_count, 0.5f, 0.5f, 0.0f, 0.0f);
-        }
-        else {
+        } else {
             Avx2Utils::CopyBufferAVX2(temp_in_L, pL, block_count);
             Avx2Utils::CopyBufferAVX2(temp_in_R, pR, block_count);
         }
@@ -168,8 +165,7 @@ bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
             Avx2Utils::AccumulateScaledAVX2(pL, temp_delay_L, block_count, wet_ratio);
             Avx2Utils::ScaleBufferAVX2(pR, temp_in_R, block_count, dry_ratio);
             Avx2Utils::AccumulateScaledAVX2(pR, temp_delay_R, block_count, wet_ratio);
-        }
-        else {
+        } else {
             WriteRingBufferBlock(state->bufferL, temp_in_L, current_w_pos, block_count);
             WriteRingBufferBlock(state->bufferR, temp_in_R, current_w_pos, block_count);
             Avx2Utils::CopyBufferAVX2(pL, temp_in_L, block_count);

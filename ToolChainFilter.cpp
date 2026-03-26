@@ -1,8 +1,9 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
+#include "Eap2Common.h"
+
 #include <cmath>
 #include <map>
-#include "Avx2Utils.h"
 
 constexpr auto TOOL_NAME = L"Chain Filter";
 
@@ -29,8 +30,10 @@ struct ChainFilterBiquad {
         float in = sample;
         float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
         if (std::abs(out) < 1e-20f) out = 0.0f;
-        x2 = x1; x1 = in;
-        y2 = y1; y1 = out;
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
         sample = out;
     }
 };
@@ -90,15 +93,13 @@ bool func_proc_audio_chain_filter(FILTER_PROC_AUDIO* audio) {
                     levels[i] = (double)chain.level[i];
                     state->last_update_count[i] = chain.update_count[i];
                     state->missed_count[i] = 0;
-                }
-                else {
+                } else {
                     if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
                     if (state->missed_count[i] >= 10) chain.effect_id[i] = -1;
                     if (state->missed_count[i] <= 1) levels[i] = (double)chain.level[i];
                     else levels[i] = 0.0;
                 }
-            }
-            else {
+            } else {
                 levels[i] = 0.0;
                 state->missed_count[i] = 0;
             }
@@ -113,7 +114,8 @@ bool func_proc_audio_chain_filter(FILTER_PROC_AUDIO* audio) {
         bufR.resize(total_samples);
     }
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
-    if (channels >= 2) audio->get_sample_data(bufR.data(), 1); else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
+    if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
+    else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     double current_env = state->envelope;
     double trigger_abs = sidechain_input;
@@ -158,8 +160,11 @@ bool func_proc_audio_chain_filter(FILTER_PROC_AUDIO* audio) {
     {
         std::lock_guard<std::mutex> lock(g_cfilt_mutex);
         state->envelope = current_env;
-        state->c_b0 = c_b0; state->c_b1 = c_b1; state->c_b2 = c_b2;
-        state->c_a1 = c_a1; state->c_a2 = c_a2;
+        state->c_b0 = c_b0;
+        state->c_b1 = c_b1;
+        state->c_b2 = c_b2;
+        state->c_a1 = c_a1;
+        state->c_a2 = c_a2;
     }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);

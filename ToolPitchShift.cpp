@@ -1,12 +1,13 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
 #include <complex>
-#include <vector>
 #include <map>
-#include <mutex>
 #include <memory>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <mutex>
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Pitch Shift";
 
@@ -90,7 +91,7 @@ struct GranularState : public IPitchShiftState {
                     const float frac = static_cast<float>(idx - ii);
                     const int32_t ii1 = (ii + 1 < buf_sz) ? ii + 1 : 0;
                     return buf[ii] * (1.0f - frac) + buf[ii1] * frac;
-                    };
+                };
                 double rda = w_pos - r_pos_a * win_size;
                 double rdb = w_pos - r_pos_b * win_size;
                 wet_L[k] = circ(bL, rda) * ga + circ(bL, rdb) * gb;
@@ -210,61 +211,62 @@ struct PhaseVocoderState : public IPitchShiftState {
         const float ola_gain = 2.0f / 3.0f;
 
         auto do_channel = [&](const std::vector<float>& in_buf, std::vector<float>& ana_phase, std::vector<float>& syn_phase, std::vector<float>& out_buf) {
-                const int32_t frame_start = (in_write - FFT_SIZE + IN_SIZE) % IN_SIZE;
-                for (int32_t j = 0; j < FFT_SIZE; ++j) fft_buf[j] = { in_buf[(frame_start + j) % IN_SIZE] * hann[j], 0.0f };
-                fft_inplace(fft_buf.data(), FFT_SIZE, false);
+            const int32_t frame_start = (in_write - FFT_SIZE + IN_SIZE) % IN_SIZE;
+            for (int32_t j = 0; j < FFT_SIZE; ++j) fft_buf[j] = { in_buf[(frame_start + j) % IN_SIZE] * hann[j], 0.0f };
+            fft_inplace(fft_buf.data(), FFT_SIZE, false);
+            for (int32_t k = 0; k < NUM_BINS; ++k) {
+                const float phase = std::arg(fft_buf[k]);
+                mag[k] = std::abs(fft_buf[k]);
+                const float delta = wrap_phase(phase - ana_phase[k] - static_cast<float>(k) * freq_per_bin);
+                ana_phase[k] = phase;
+                ifreq[k] = static_cast<float>(k) + delta / freq_per_bin;
+            }
+            {
+                peaks_buf.clear();
+                if (mag[0] >= mag[1]) peaks_buf.push_back(0);
+                for (int32_t k = 1; k < NUM_BINS - 1; ++k)
+                    if (mag[k] >= mag[k - 1] && mag[k] >= mag[k + 1]) peaks_buf.push_back(k);
+                if (mag[NUM_BINS - 1] >= mag[NUM_BINS - 2]) peaks_buf.push_back(NUM_BINS - 1);
+                if (peaks_buf.empty()) peaks_buf.push_back(0);
+                int32_t pi = 0;
                 for (int32_t k = 0; k < NUM_BINS; ++k) {
-                    const float phase = std::arg(fft_buf[k]);
-                    mag[k] = std::abs(fft_buf[k]);
-                    const float delta = wrap_phase(phase - ana_phase[k] - static_cast<float>(k) * freq_per_bin);
-                    ana_phase[k] = phase;
-                    ifreq[k] = static_cast<float>(k) + delta / freq_per_bin;
+                    while (pi + 1 < static_cast<int32_t>(peaks_buf.size()) && std::abs(k - peaks_buf[pi + 1]) < std::abs(k - peaks_buf[pi])) ++pi;
+                    peak_owner[k] = peaks_buf[pi];
                 }
-                {
-                    peaks_buf.clear();
-                    if (mag[0] >= mag[1]) peaks_buf.push_back(0);
-                    for (int32_t k = 1; k < NUM_BINS - 1; ++k) if (mag[k] >= mag[k - 1] && mag[k] >= mag[k + 1]) peaks_buf.push_back(k);
-                    if (mag[NUM_BINS - 1] >= mag[NUM_BINS - 2]) peaks_buf.push_back(NUM_BINS - 1);
-                    if (peaks_buf.empty()) peaks_buf.push_back(0);
-                    int32_t pi = 0;
-                    for (int32_t k = 0; k < NUM_BINS; ++k) {
-                        while (pi + 1 < static_cast<int32_t>(peaks_buf.size()) && std::abs(k - peaks_buf[pi + 1]) < std::abs(k - peaks_buf[pi])) ++pi;
-                        peak_owner[k] = peaks_buf[pi];
-                    }
-                }
-                std::fill(out_mag.begin(), out_mag.end(), 0.0f);
-                std::fill(out_ifreq.begin(), out_ifreq.end(), 0.0f);
-                for (int32_t out_k = 0; out_k < NUM_BINS; ++out_k) {
-                    const float in_k_f = static_cast<float>(out_k) / pitch_rate;
-                    const int32_t in_k0 = static_cast<int32_t>(in_k_f);
-                    if (in_k0 < 0 || in_k0 >= NUM_BINS) continue;
-                    const float frac = in_k_f - static_cast<float>(in_k0);
-                    const int32_t in_k1 = (in_k0 + 1 < NUM_BINS) ? in_k0 + 1 : in_k0;
-                    out_mag[out_k]  = mag[in_k0] * (1.0f - frac) + mag[in_k1] * frac;
-                    const int32_t in_peak = peak_owner[in_k0];
-                    out_ifreq[out_k] = ifreq[in_peak] * pitch_rate;
-                }
-                for (int32_t k = 0; k < NUM_BINS; ++k) {
-                    syn_phase[k] = wrap_phase(syn_phase[k] + out_ifreq[k] * freq_per_bin);
-                    pass1_syn_phase[k] = syn_phase[k];
-                }
-                for (int32_t out_k = 0; out_k < NUM_BINS; ++out_k) {
-                    const float in_k_f = static_cast<float>(out_k) / pitch_rate;
-                    const int32_t in_k0 = (std::max)(0, (std::min)(NUM_BINS - 1, static_cast<int32_t>(in_k_f)));
-                    const int32_t in_peak = peak_owner[in_k0];
-                    const int32_t out_peak = (std::max)(0, (std::min)(NUM_BINS - 1, static_cast<int32_t>(std::round(static_cast<float>(in_peak) * pitch_rate))));
-                    if (out_k == out_peak) continue;
-                    const float rel_phase = ana_phase[in_k0] - ana_phase[in_peak];
-                    syn_phase[out_k] = wrap_phase(pass1_syn_phase[out_peak] + rel_phase);
-                }
-                for (int32_t k = 0; k < NUM_BINS; ++k) fft_buf[k] = std::polar(out_mag[k], syn_phase[k]);
-                for (int32_t k = NUM_BINS; k < FFT_SIZE; ++k) fft_buf[k] = std::conj(fft_buf[FFT_SIZE - k]);
-                fft_inplace(fft_buf.data(), FFT_SIZE, true);
-                for (int32_t j = 0; j < FFT_SIZE; ++j) {
-                    const int32_t p = (out_write_pos + j) % OUT_SIZE;
-                    out_buf[p] += fft_buf[j].real() * hann[j] * ola_gain;
-                }
-            };
+            }
+            std::fill(out_mag.begin(), out_mag.end(), 0.0f);
+            std::fill(out_ifreq.begin(), out_ifreq.end(), 0.0f);
+            for (int32_t out_k = 0; out_k < NUM_BINS; ++out_k) {
+                const float in_k_f = static_cast<float>(out_k) / pitch_rate;
+                const int32_t in_k0 = static_cast<int32_t>(in_k_f);
+                if (in_k0 < 0 || in_k0 >= NUM_BINS) continue;
+                const float frac = in_k_f - static_cast<float>(in_k0);
+                const int32_t in_k1 = (in_k0 + 1 < NUM_BINS) ? in_k0 + 1 : in_k0;
+                out_mag[out_k] = mag[in_k0] * (1.0f - frac) + mag[in_k1] * frac;
+                const int32_t in_peak = peak_owner[in_k0];
+                out_ifreq[out_k] = ifreq[in_peak] * pitch_rate;
+            }
+            for (int32_t k = 0; k < NUM_BINS; ++k) {
+                syn_phase[k] = wrap_phase(syn_phase[k] + out_ifreq[k] * freq_per_bin);
+                pass1_syn_phase[k] = syn_phase[k];
+            }
+            for (int32_t out_k = 0; out_k < NUM_BINS; ++out_k) {
+                const float in_k_f = static_cast<float>(out_k) / pitch_rate;
+                const int32_t in_k0 = (std::max)(0, (std::min)(NUM_BINS - 1, static_cast<int32_t>(in_k_f)));
+                const int32_t in_peak = peak_owner[in_k0];
+                const int32_t out_peak = (std::max)(0, (std::min)(NUM_BINS - 1, static_cast<int32_t>(std::round(static_cast<float>(in_peak) * pitch_rate))));
+                if (out_k == out_peak) continue;
+                const float rel_phase = ana_phase[in_k0] - ana_phase[in_peak];
+                syn_phase[out_k] = wrap_phase(pass1_syn_phase[out_peak] + rel_phase);
+            }
+            for (int32_t k = 0; k < NUM_BINS; ++k) fft_buf[k] = std::polar(out_mag[k], syn_phase[k]);
+            for (int32_t k = NUM_BINS; k < FFT_SIZE; ++k) fft_buf[k] = std::conj(fft_buf[FFT_SIZE - k]);
+            fft_inplace(fft_buf.data(), FFT_SIZE, true);
+            for (int32_t j = 0; j < FFT_SIZE; ++j) {
+                const int32_t p = (out_write_pos + j) % OUT_SIZE;
+                out_buf[p] += fft_buf[j].real() * hann[j] * ola_gain;
+            }
+        };
         do_channel(in_L, ana_phase_L, syn_phase_L, out_L);
         do_channel(in_R, ana_phase_R, syn_phase_R, out_R);
         out_write_pos = (out_write_pos + HOP_SIZE) % OUT_SIZE;
@@ -288,8 +290,7 @@ struct PhaseVocoderState : public IPitchShiftState {
                 out_R[out_read] = 0.0f;
                 out_read = (out_read + 1) % OUT_SIZE;
                 --out_available;
-            }
-            else {
+            } else {
                 wet_l = wet_r = 0.0f;
             }
             dryL[i] = dryL[i] * (1.0f - mix) + wet_l * mix;

@@ -1,12 +1,13 @@
 ﻿#pragma once
 #include "IAudioPluginHost.h"
-#include <windows.h>
+
 #include <filesystem>
-#include <string>
 #include <memory>
+#include <string>
+#include <windows.h>
 
 class ClapHost : public IAudioPluginHost {
-public:
+  public:
     ClapHost(HINSTANCE hInstance);
     ~ClapHost() override;
     bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) override;

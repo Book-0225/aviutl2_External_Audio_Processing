@@ -1,7 +1,8 @@
-﻿#include "Eap2Common.h"
-#include <vector>
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
 #include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Utility";
 
@@ -67,22 +68,21 @@ bool func_proc_audio_utility(FILTER_PROC_AUDIO* audio) {
 
     if (channels >= 2) {
         switch (mono_mode) {
-        case 1:
-            Avx2Utils::MatrixMixStereoAVX2(
-                bufL.data(), bufR.data(),
-                bufL.data(), bufR.data(),
-                total_samples,
-                0.5f, 0.5f, 0.5f, 0.5f
-            );
-            break;
-        case 2:
-            Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
-            break;
-        case 3:
-            Avx2Utils::CopyBufferAVX2(bufL.data(), bufR.data(), total_samples);
-            break;
-        default:
-            break;
+            case 1:
+                Avx2Utils::MatrixMixStereoAVX2(
+                    bufL.data(), bufR.data(),
+                    bufL.data(), bufR.data(),
+                    total_samples,
+                    0.5f, 0.5f, 0.5f, 0.5f);
+                break;
+            case 2:
+                Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
+                break;
+            case 3:
+                Avx2Utils::CopyBufferAVX2(bufL.data(), bufR.data(), total_samples);
+                break;
+            default:
+                break;
         }
     }
 

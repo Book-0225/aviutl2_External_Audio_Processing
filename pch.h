@@ -1,4 +1,5 @@
 ﻿#pragma once
+// clang-format off
 #define _USE_MATH_DEFINES
 #include <Windows.h>
 #include <array>

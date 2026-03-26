@@ -1,9 +1,10 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
 
 constexpr auto TOOL_NAME = L"Spectral Gate";
 
@@ -25,7 +26,7 @@ struct HighpassFilter {
     float a1 = 0.0f, b0 = 0.0f, b1 = 0.0f;
 
     void design(float cutoff_freq, double sample_rate) {
-        float omega = 2.0f * (float)M_PI * cutoff_freq / (float)sample_rate;
+        float omega = 2.0f * static_cast<float>(M_PI) * cutoff_freq / static_cast<float>(sample_rate);
         float sin_omega = std::sin(omega);
         float cos_omega = std::cos(omega);
         float alpha = sin_omega / (2.0f * 0.707107f);
@@ -64,14 +65,14 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     float attack_ms = (float)spec_gate_attack.value;
     float release_ms = (float)spec_gate_release.value;
     float mix = (float)spec_gate_mix.value / 100.0f;
-    
+
     double sr = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
     SpectralGateState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_spectral_gate_mutex);
         state = &g_spectral_gate_states[audio->object];
-        
+
         if (!state->initialized || state->last_sample_index != audio->object->sample_index) {
             state->hpL.design(100.0f, sr);
             state->hpR.design(100.0f, sr);
@@ -87,7 +88,7 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     int32_t channels = (std::min)(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     thread_local std::vector<float> envL_buf, envR_buf, max_env_buf, gate_envelope;
-    
+
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
         bufR.resize(total_samples);
@@ -118,14 +119,14 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
 
     Avx2Utils::FillBufferAVX2(gate_envelope.data(), total_samples, state->envelope);
     Avx2Utils::EnvelopeFollowerAVX2(gate_envelope.data(), max_env_buf.data(), total_samples, attack_coeff, release_coeff);
-    
+
     state->envelope = gate_envelope[total_samples - 1];
 
     Avx2Utils::ThresholdAVX2(max_env_buf.data(), gate_envelope.data(), total_samples, threshold_linear);
 
     std::vector<float> temp_wet_L(bufL.begin(), bufL.end());
     std::vector<float> temp_wet_R(bufR.begin(), bufR.end());
-    
+
     Avx2Utils::MultiplyBufferAVX2(temp_wet_L.data(), temp_wet_L.data(), max_env_buf.data(), total_samples);
     if (channels >= 2) {
         Avx2Utils::MultiplyBufferAVX2(temp_wet_R.data(), temp_wet_R.data(), max_env_buf.data(), total_samples);

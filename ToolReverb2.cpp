@@ -1,10 +1,11 @@
-﻿#include "Eap2Common.h"
-#include <vector>
-#include <map>
-#include <mutex>
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
 #include <algorithm>
 #include <cmath>
-#include "Avx2Utils.h"
+#include <map>
+#include <mutex>
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Reverb";
 
@@ -35,14 +36,15 @@ float Lerp(float a, float b, float t) {
 }
 
 class OnePoleLPF {
-public:
+  public:
     float store = 0.0f;
     float a0 = 1.0f;
     float b1 = 0.0f;
 
     void set_cutoff(float cutoff, float sample_rate) {
         if (cutoff >= sample_rate * 0.49f) {
-            a0 = 1.0f; b1 = 0.0f;
+            a0 = 1.0f;
+            b1 = 0.0f;
             return;
         }
         float costh = 2.0f - cosf(2.0f * 3.14159f * cutoff / sample_rate);
@@ -62,7 +64,7 @@ public:
 };
 
 class ModDelayLine {
-public:
+  public:
     std::vector<float> buffer;
     int32_t size = 0;
     int32_t w_pos = 0;
@@ -99,14 +101,14 @@ public:
         float r_pos_f = (w_pos + future_offset) - delay_samples;
         while (r_pos_f < 0.0f) r_pos_f += size;
         while (r_pos_f >= (float)size) r_pos_f -= size;
-        int32_t r_idx = (int32_t)r_pos_f;
+        int32_t r_idx = static_cast<int32_t>(r_pos_f);
         float frac = r_pos_f - r_idx;
         int32_t r_next = (r_idx + 1 >= size) ? 0 : r_idx + 1;
         return Lerp(buffer[r_idx], buffer[r_next], frac);
     }
 
     void bulk_write(const float* src, int32_t count) {
-        for (int i = 0; i < count; ++i) {
+        for (int32_t i = 0; i < count; ++i) {
             buffer[w_pos++] = src[i];
             if (w_pos >= size) w_pos = 0;
         }
@@ -114,7 +116,7 @@ public:
 };
 
 class VariableAllPass {
-public:
+  public:
     ModDelayLine delay;
     float feedback = 0.5f;
 
@@ -164,7 +166,7 @@ struct ReverbState2 {
         current_sr = sample_rate;
         double scale = sample_rate / 44100.0;
         double max_size_mult = 3.0;
-        for (int i = 0; i < 4; ++i) diffusers[i].init(static_cast<int32_t>((diff_tunings[i] * scale * 2.0)));
+        for (int32_t i = 0; i < 4; ++i) diffusers[i].init(static_cast<int32_t>((diff_tunings[i] * scale * 2.0)));
         delayL.init(static_cast<int32_t>((tL_d1_base * scale * max_size_mult) + 1024));
         delayR.init(static_cast<int32_t>((tR_d1_base * scale * max_size_mult) + 1024));
         tankAP_L.init(static_cast<int32_t>((tL_ap_base * scale * max_size_mult)));
@@ -181,25 +183,29 @@ struct ReverbState2 {
     void clear() {
         if (!initialized) return;
         for (auto& d : diffusers) d.clear();
-        delayL.clear(); delayR.clear();
-        tankAP_L.clear(); tankAP_R.clear();
-        postDelayL.clear(); postDelayR.clear();
+        delayL.clear();
+        delayR.clear();
+        tankAP_L.clear();
+        tankAP_R.clear();
+        postDelayL.clear();
+        postDelayR.clear();
         Avx2Utils::FillBufferAVX2(pre_delay_buf.data(), pre_delay_buf.size(), 0.0f);
-        dampL.store = 0.0f; dampR.store = 0.0f;
+        dampL.store = 0.0f;
+        dampR.store = 0.0f;
         inputLPF.store = 0.0f;
     }
 
     void process_diffusers_block(float* io, int32_t count, float total_scale, float diff_scale, float g) {
         alignas(32) float del[4][PROCESS_BLOCK_SIZE];
         alignas(32) float s_buf[PROCESS_BLOCK_SIZE];
-        for (int k = 0; k < 4; ++k) {
+        for (int32_t k = 0; k < 4; ++k) {
             float dlen = diff_tunings[k] * total_scale * diff_scale;
-            for (int n = 0; n < count; ++n)
+            for (int32_t n = 0; n < count; ++n)
                 del[k][n] = diffusers[k].delay.read_at_future_wpos(n, dlen);
         }
         const __m256 vg = _mm256_set1_ps(g);
-        for (int k = 0; k < 4; ++k) {
-            int n = 0;
+        for (int32_t k = 0; k < 4; ++k) {
+            int32_t n = 0;
             for (; n + 8 <= count; n += 8) {
                 __m256 x_v = _mm256_load_ps(io + n);
                 __m256 d_v = _mm256_load_ps(del[k] + n);
@@ -227,7 +233,7 @@ struct ReverbState2 {
         inputLPF.set_cutoff(highcut_khz * 1000.0f, static_cast<float>(current_sr));
         dampL.set_damping(damp_val);
         dampR.set_damping(damp_val);
-        for (int i = 0; i < 4; ++i) diffusers[i].feedback = diff_fb_in;
+        for (int32_t i = 0; i < 4; ++i) diffusers[i].feedback = diff_fb_in;
         tankAP_L.feedback = -diff_fb_tank;
         tankAP_R.feedback = -diff_fb_tank;
         int32_t pre_samps = static_cast<int32_t>((predelay_ms * 0.001f * current_sr));
@@ -239,7 +245,7 @@ struct ReverbState2 {
 
         alignas(32) float diff_io[PROCESS_BLOCK_SIZE];
         float diff_scale = 1.0f + (size_scale - 1.0f) * 0.25f;
-        for (int i = 0; i < count; ++i) {
+        for (int32_t i = 0; i < count; ++i) {
             float mono = (inL[i] + inR[i]) * 0.5f;
             pre_delay_buf[pre_delay_w] = mono;
             float s = pre_delay_buf[pre_r_idx];
@@ -249,8 +255,7 @@ struct ReverbState2 {
         }
         process_diffusers_block(diff_io, count, total_scale, diff_scale, diff_fb_in);
 
-
-        for (int i = 0; i < count; ++i) {
+        for (int32_t i = 0; i < count; ++i) {
             float mono_in = (inL[i] + inR[i]) * 0.5f;
             pre_delay_buf[pre_delay_w] = mono_in;
             float input_sample = diff_io[i];
@@ -336,7 +341,7 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
     }
 
     std::vector<float> bufL, bufR;
-    if (bufL.size() < (size_t)total_samples) {
+    if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
         bufR.resize(total_samples);
     }

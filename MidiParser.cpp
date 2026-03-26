@@ -1,7 +1,8 @@
 ﻿#include "MidiParser.h"
-#include <fstream>
+
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 
 static uint16_t ReadBE16(std::ifstream& f) {
     uint8_t b[2];
@@ -12,14 +13,14 @@ static uint16_t ReadBE16(std::ifstream& f) {
 static uint32_t ReadBE32(std::ifstream& f) {
     uint8_t b[4];
     if (!f.read((char*)b, 4)) return 0;
-    return (uint32_t(b[0]) << 24) | (uint32_t(b[1]) << 16) | (uint32_t(b[2]) << 8) | uint32_t(b[3]);
+    return (static_cast<uint32_t>(b[0]) << 24) | (static_cast<uint32_t>(b[1]) << 16) | (static_cast<uint32_t>(b[2]) << 8) | (static_cast<uint32_t>(b[3]));
 }
 
 static uint32_t ReadVarInt(std::ifstream& f) {
     uint32_t value = 0;
     uint8_t byte;
     for (int32_t i = 0; i < 4; ++i) {
-        if (!f.read((char*)&byte, 1)) break;
+        if (!f.read(reinterpret_cast<char*>(&byte), 1)) break;
         value = (value << 7) | (byte & 0x7F);
         if (!(byte & 0x80)) break;
     }
@@ -63,88 +64,79 @@ bool MidiParser::Load(const std::filesystem::path& path) {
                     uint32_t deltaTime = ReadVarInt(f);
                     currentTick += deltaTime;
                     uint8_t status = 0;
-                    if (!f.read((char*)&status, 1)) break;
+                    if (!f.read(reinterpret_cast<char*>(&status), 1)) break;
                     if (status < 0x80) {
                         if (runningStatus == 0) break;
                         uint8_t data1 = status;
                         uint8_t type = runningStatus & 0xF0;
                         if (type == 0xC0 || type == 0xD0) {
                             m_events.push_back({ currentTick, runningStatus, data1, 0 });
-                        }
-                        else {
+                        } else {
                             uint8_t data2 = 0;
-                            f.read((char*)&data2, 1);
+                            f.read(reinterpret_cast<char*>(&data2), 1);
                             m_events.push_back({ currentTick, runningStatus, data1, data2 });
                         }
-                    }
-                    else if (status == 0xFF) {
+                    } else if (status == 0xFF) {
                         uint8_t type;
-                        f.read((char*)&type, 1);
+                        f.read(reinterpret_cast<char*>(&type), 1);
                         uint32_t metaLen = ReadVarInt(f);
                         if (type == 0x51 && metaLen == 3) {
                             uint8_t b[3];
-                            f.read((char*)b, 3);
+                            f.read(reinterpret_cast<char*>(b), 3);
                             uint32_t mpqn = (b[0] << 16) | (b[1] << 8) | b[2];
                             if (mpqn > 0) {
-                                double bpm = 60000000.0 / (double)mpqn;
+                                double bpm = 60000000.0 / static_cast<double>(mpqn);
                                 m_tempoEvents.push_back({ currentTick, mpqn, bpm });
                             }
-                        }
-                        else if (type == 0x58 && metaLen >= 4) {
+                        } else if (type == 0x58 && metaLen >= 4) {
                             uint8_t d[4];
                             f.read((char*)d, 4);
                             if (metaLen > 4) f.seekg(metaLen - 4, std::ios::cur);
                             uint8_t num = d[0];
                             uint8_t den = 1 << d[1];
                             m_timeSigEvents.push_back({ currentTick, num, den });
-                        }
-                        else if (type == 0x2F) {
+                        } else if (type == 0x2F) {
                             f.seekg(trackEnd);
                             break;
-                        }
-                        else {
+                        } else {
                             f.seekg(metaLen, std::ios::cur);
                         }
-                    }
-                    else if (status == 0xF0 || status == 0xF7) {
+                    } else if (status == 0xF0 || status == 0xF7) {
                         uint32_t sysExLen = ReadVarInt(f);
                         f.seekg(sysExLen, std::ios::cur);
                         runningStatus = 0;
-                    }
-                    else {
+                    } else {
                         runningStatus = status;
                         uint8_t type = status & 0xF0;
                         uint8_t data1 = 0;
-                        f.read((char*)&data1, 1);
+                        f.read(reinterpret_cast<char*>(&data1), 1);
                         if (type == 0xC0 || type == 0xD0) {
                             m_events.push_back({ currentTick, status, data1, 0 });
-                        }
-                        else {
+                        } else {
                             uint8_t data2 = 0;
-                            f.read((char*)&data2, 1);
+                            f.read(reinterpret_cast<char*>(&data2), 1);
                             m_events.push_back({ currentTick, status, data1, data2 });
                         }
                     }
                 }
                 f.seekg(trackEnd);
                 break;
-            }
-            else {
+            } else {
                 f.seekg(len, std::ios::cur);
             }
         }
     }
     std::stable_sort(m_events.begin(), m_events.end(), [](const RawMidiEvent& a, const RawMidiEvent& b) {
         return a.absoluteTick < b.absoluteTick;
-                     });
+    });
 
     std::stable_sort(m_tempoEvents.begin(), m_tempoEvents.end(), [](const TempoEvent& a, const TempoEvent& b) {
         return a.absoluteTick < b.absoluteTick;
-                     });
+    });
 
     std::stable_sort(m_timeSigEvents.begin(), m_timeSigEvents.end(), [](const TimeSignatureEvent& a, const TimeSignatureEvent& b) {
         return a.absoluteTick < b.absoluteTick;
-                     });
+    });
     BuildTempoMap();
     return true;
 }
@@ -163,7 +155,7 @@ void MidiParser::BuildTempoMap() {
             continue;
         }
         uint32_t deltaTick = te.absoluteTick - lastTick;
-        double deltaTime = (double)deltaTick * (double)currentMpqn / (1000000.0 * (double)m_tpqn);
+        double deltaTime = static_cast<double>(deltaTick) * currentMpqn / (1000000.0 * m_tpqn);
         currentTime += deltaTime;
         lastTick = te.absoluteTick;
         currentMpqn = te.mpqn;
@@ -172,7 +164,7 @@ void MidiParser::BuildTempoMap() {
 }
 
 int64_t MidiParser::GetTickAtTime(double time) const {
-    if (m_tempoMap.empty()) return (int64_t)(time * 120.0 * m_tpqn / 60.0);
+    if (m_tempoMap.empty()) return static_cast<int64_t>(time * 120.0 * m_tpqn / 60.0);
     auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), time,
                                [](double t, const TempoMapEntry& entry) {
                                    return t < entry.time;
@@ -181,8 +173,8 @@ int64_t MidiParser::GetTickAtTime(double time) const {
     if (it == m_tempoMap.begin()) return 0;
     --it;
     double dt = time - it->time;
-    double ticks = dt * 1000000.0 * (double)m_tpqn / (double)it->mpqn;
-    return it->tick + (int64_t)(ticks + 0.5);
+    double ticks = dt * 1000000.0 * m_tpqn / it->mpqn;
+    return it->tick + static_cast<int64_t>(ticks + 0.5);
 }
 
 double MidiParser::GetBpmAtTime(double time) const {
@@ -198,6 +190,7 @@ double MidiParser::GetBpmAtTime(double time) const {
 
 TimeSignatureEvent MidiParser::GetTimeSignatureAt(uint32_t tick) const {
     if (m_timeSigEvents.empty()) return { 0, 4, 4 };
-    for (auto it = m_timeSigEvents.rbegin(); it != m_timeSigEvents.rend(); ++it) if (it->absoluteTick <= tick) return *it;
+    for (auto it = m_timeSigEvents.rbegin(); it != m_timeSigEvents.rend(); ++it)
+        if (it->absoluteTick <= tick) return *it;
     return m_timeSigEvents.front();
 }

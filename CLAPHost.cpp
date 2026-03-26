@@ -1,12 +1,14 @@
 ﻿#include "ClapHost.h"
+
+#include "StringUtils.h"
 #include "clap/all.h"
-#include <windows.h>
+
+#include <algorithm>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <algorithm>
-#include "StringUtils.h"
+#include <windows.h>
 
 struct ClapHost::Impl {
     Impl(HINSTANCE hInst);
@@ -41,7 +43,7 @@ struct ClapHost::Impl {
     const clap_plugin_params* extParams = nullptr;
     const clap_plugin_latency* extLatency = nullptr;
     bool isReady = false;
-    std::atomic<int32_t> lastTouchedParamID{-1};
+    std::atomic<int32_t> lastTouchedParamID{ -1 };
     HWND guiWindow = nullptr;
     double currentSampleRate = 44100.0;
     int32_t currentBlockSize = 1024;
@@ -53,7 +55,8 @@ struct ClapHost::Impl {
 
         if (plugin->stop_processing) plugin->stop_processing(plugin);
         plugin->deactivate(plugin);
-        if (plugin->activate(plugin, currentSampleRate, currentBlockSize, currentBlockSize)) if (plugin->start_processing) plugin->start_processing(plugin);
+        if (plugin->activate(plugin, currentSampleRate, currentBlockSize, currentBlockSize))
+            if (plugin->start_processing) plugin->start_processing(plugin);
     }
 };
 
@@ -77,11 +80,11 @@ static const clap_host_gui s_clap_gui = {
     [](const clap_host_t* h, uint32_t width, uint32_t height) -> bool {
         auto self = static_cast<ClapHost::Impl*>(h->host_data);
         if (self->guiWindow && IsWindow(self->guiWindow)) {
-            RECT rc = {0, 0, (LONG)width, (LONG)height};
+            RECT rc = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
             AdjustWindowRect(&rc, GetWindowLong(self->guiWindow, GWL_STYLE), FALSE);
-            SetWindowPos(self->guiWindow, NULL, 0, 0,
-                rc.right - rc.left, rc.bottom - rc.top,
-                SWP_NOMOVE | SWP_NOZORDER);
+            SetWindowPos(self->guiWindow, nullptr, 0, 0,
+                         rc.right - rc.left, rc.bottom - rc.top,
+                         SWP_NOMOVE | SWP_NOZORDER);
             return true;
         }
         return false;
@@ -96,7 +99,6 @@ static const void* ClapHost_GetExtension(const clap_host_t* host, const char* id
 
 ClapHost::Impl::Impl(HINSTANCE hInst)
     : hInstance(hInst), isReady(false) {
-
     host.clap_version = CLAP_VERSION;
     host.host_data = this;
     host.name = "AviUtl2 CLAP Host";
@@ -109,9 +111,15 @@ ClapHost::Impl::Impl(HINSTANCE hInst)
     host.request_callback = [](const clap_host_t*) {};
 }
 
-static uint32_t dummy_events_size(const clap_input_events_t*) { return 0; }
-static const clap_event_header_t* dummy_events_get(const clap_input_events_t*, uint32_t) { return nullptr; }
-static bool dummy_events_push(const clap_output_events_t*, const clap_event_header_t*) { return false; }
+static uint32_t dummy_events_size(const clap_input_events_t*) {
+    return 0;
+}
+static const clap_event_header_t* dummy_events_get(const clap_input_events_t*, uint32_t) {
+    return nullptr;
+}
+static bool dummy_events_push(const clap_output_events_t*, const clap_event_header_t*) {
+    return false;
+}
 static const clap_input_events_t g_dummy_in = { nullptr, dummy_events_size, dummy_events_get };
 static const clap_output_events_t g_dummy_out = { nullptr, dummy_events_push };
 
@@ -125,31 +133,31 @@ bool ClapHost::Impl::LoadPlugin(const std::filesystem::path& path, double sample
     hModule = LoadLibraryW(wpath.c_str());
     if (!hModule) return false;
 
-    auto entry_proc = (clap_plugin_entry_t*)GetProcAddress(hModule, "clap_plugin_entry");
-    if (!entry_proc) entry_proc = (clap_plugin_entry_t*)GetProcAddress(hModule, "clap_entry");
+    clap_plugin_entry_t* entry_proc = reinterpret_cast<clap_plugin_entry_t*>(GetProcAddress(hModule, "clap_plugin_entry"));
+    if (!entry_proc) entry_proc = reinterpret_cast<clap_plugin_entry_t*>(GetProcAddress(hModule, "clap_entry"));
     if (!entry_proc || !entry_proc->init(path.string().c_str())) {
         ReleasePlugin();
         return false;
     }
 
     entry = entry_proc;
-    auto factory = (const clap_plugin_factory_t*)entry->get_factory(CLAP_PLUGIN_FACTORY_ID);
+    const clap_plugin_factory_t* factory = reinterpret_cast<const clap_plugin_factory_t*>(entry->get_factory(CLAP_PLUGIN_FACTORY_ID));
     if (!factory || factory->get_plugin_count(factory) == 0) {
         ReleasePlugin();
         return false;
     }
 
-    auto desc = factory->get_plugin_descriptor(factory, 0);
+    const clap_plugin_descriptor_t* desc = factory->get_plugin_descriptor(factory, 0);
     plugin = factory->create_plugin(factory, &host, desc->id);
     if (!plugin || !plugin->init(plugin)) {
         ReleasePlugin();
         return false;
     }
 
-    extState = (const clap_plugin_state*)plugin->get_extension(plugin, CLAP_EXT_STATE);
-    extGui = (const clap_plugin_gui*)plugin->get_extension(plugin, CLAP_EXT_GUI);
-    extParams = (const clap_plugin_params*)plugin->get_extension(plugin, CLAP_EXT_PARAMS);
-    extLatency = (const clap_plugin_latency*)plugin->get_extension(plugin, CLAP_EXT_LATENCY);
+    extState = reinterpret_cast<const clap_plugin_state*>(plugin->get_extension(plugin, CLAP_EXT_STATE));
+    extGui = reinterpret_cast<const clap_plugin_gui*>(plugin->get_extension(plugin, CLAP_EXT_GUI));
+    extParams = reinterpret_cast<const clap_plugin_params*>(plugin->get_extension(plugin, CLAP_EXT_PARAMS));
+    extLatency = reinterpret_cast<const clap_plugin_latency*>(plugin->get_extension(plugin, CLAP_EXT_LATENCY));
 
     if (extParams) DbgPrint("[CLAP] params extension available\n");
     if (extLatency) DbgPrint("[CLAP] latency extension available\n");
@@ -221,22 +229,22 @@ void ClapHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeS
 }
 
 LRESULT CALLBACK ClapHostGuiProc(HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) {
-    auto self = (ClapHost::Impl*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+    ClapHost::Impl* self = reinterpret_cast<ClapHost::Impl*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
     if (msg == WM_CREATE) {
-        self = (ClapHost::Impl*)((CREATESTRUCT*)lp)->lpCreateParams;
-        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)self);
+        self = reinterpret_cast<ClapHost::Impl*>((reinterpret_cast<CREATESTRUCT*>(lp))->lpCreateParams);
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
     }
     switch (msg) {
-    case WM_CLOSE:
-        return 0;
+        case WM_CLOSE:
+            return 0;
 
-    case WM_DESTROY:
-        if (self) {
-            if (self->plugin && self->extGui) self->extGui->destroy(self->plugin);
-            self->guiWindow = nullptr;
-            self->m_isGuiVisible = false;
-        }
-        break;
+        case WM_DESTROY:
+            if (self) {
+                if (self->plugin && self->extGui) self->extGui->destroy(self->plugin);
+                self->guiWindow = nullptr;
+                self->m_isGuiVisible = false;
+            }
+            break;
     }
     return DefWindowProc(hWnd, msg, wp, lp);
 }
@@ -257,7 +265,7 @@ void ClapHost::Impl::ShowGui() {
     RegisterClassW(&wc);
 
     guiWindow = CreateWindowEx(0, wc.lpszClassName, L"CLAP Plugin", WS_OVERLAPPED | WS_CAPTION,
-        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, hInstance, this);
+                               CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, hInstance, this);
     if (!guiWindow) return;
 
     if (!extGui->create(plugin, CLAP_WINDOW_API_WIN32, false)) {
@@ -268,7 +276,7 @@ void ClapHost::Impl::ShowGui() {
 
     uint32_t w = 800, h = 600;
     extGui->get_size(plugin, &w, &h);
-    RECT rc = { 0, 0, (LONG)w, (LONG)h };
+    RECT rc = { 0, 0, static_cast<long>(w), static_cast<long>(h) };
     AdjustWindowRect(&rc, GetWindowLong(guiWindow, GWL_STYLE), FALSE);
     SetWindowPos(guiWindow, nullptr, 0, 0, rc.right - rc.left, rc.bottom - rc.top, SWP_NOMOVE | SWP_NOZORDER);
 
@@ -288,7 +296,7 @@ void ClapHost::Impl::HideGui() {
 
 bool ClapHost::Impl::GuiResize(uint32_t width, uint32_t height) const {
     if (!guiWindow || !IsWindow(guiWindow)) return false;
-    RECT rc = { 0, 0, (LONG)width, (LONG)height };
+    RECT rc = { 0, 0, static_cast<long>(width), static_cast<long>(height) };
     AdjustWindowRect(&rc, GetWindowLong(guiWindow, GWL_STYLE), FALSE);
     SetWindowPos(guiWindow, nullptr, 0, 0, rc.right - rc.left, rc.bottom - rc.top, SWP_NOMOVE | SWP_NOZORDER);
     return true;
@@ -296,16 +304,16 @@ bool ClapHost::Impl::GuiResize(uint32_t width, uint32_t height) const {
 
 std::string ClapHost::Impl::GetState() const {
     if (!plugin || !extState) return "";
-    struct Ctx { std::vector<BYTE> data; };
+    struct Ctx {
+        std::vector<BYTE> data;
+    };
     Ctx ctx;
     clap_ostream stream = { &ctx, [](const clap_ostream* s, const void* buf, uint64_t size) -> int64_t {
-        auto c = (Ctx*)s->ctx;
-        c->data.insert(c->data.end(), (const BYTE*)buf, (const BYTE*)buf + size);
-        return (int64_t)size;
-    } };
-    if (extState->save(plugin, &stream)) {
-        return "CLAP:" + StringUtils::Base64Encode(ctx.data.data(), (DWORD)ctx.data.size());
-    }
+                               auto c = reinterpret_cast<Ctx*>(s->ctx);
+                               c->data.insert(c->data.end(), reinterpret_cast<const BYTE*>(buf), reinterpret_cast<const BYTE*>(buf) + size);
+                               return static_cast<int64_t>(size);
+                           } };
+    if (extState->save(plugin, &stream)) return "CLAP:" + StringUtils::Base64Encode(ctx.data.data(), static_cast<DWORD>(ctx.data.size()));
     return "";
 }
 
@@ -313,21 +321,26 @@ bool ClapHost::Impl::SetState(const std::string& state_b64) const {
     if (state_b64.rfind("CLAP:", 0) != 0 || !plugin || !extState) return false;
     auto data = StringUtils::Base64Decode(state_b64.substr(5));
     if (data.empty() && !state_b64.empty()) return false;
-    struct Ctx { const std::vector<BYTE>* d; size_t pos = 0; };
+    struct Ctx {
+        const std::vector<BYTE>* d;
+        size_t pos = 0;
+    };
     Ctx ctx{ &data };
     clap_istream stream = { &ctx, [](const clap_istream* s, void* buf, uint64_t size) -> int64_t {
-        auto c = (Ctx*)s->ctx;
-        size_t to_read = (std::min)(size, c->d->size() - c->pos);
-        if (to_read == 0) return 0;
-        memcpy(buf, c->d->data() + c->pos, to_read);
-        c->pos += to_read;
-        return (int64_t)to_read;
-    } };
+                               Ctx* c = reinterpret_cast<Ctx*>(s->ctx);
+                               size_t to_read = (std::min)(size, c->d->size() - c->pos);
+                               if (to_read == 0) return 0;
+                               memcpy(buf, c->d->data() + c->pos, to_read);
+                               c->pos += to_read;
+                               return static_cast<int64_t>(to_read);
+                           } };
     if (!extState->load(plugin, &stream)) return false;
     return true;
 }
 
-void ClapHost::Impl::Cleanup() { ReleasePlugin(); }
+void ClapHost::Impl::Cleanup() {
+    ReleasePlugin();
+}
 
 int32_t ClapHost::Impl::GetParameterCount() const {
     if (!extParams) {
@@ -342,7 +355,7 @@ bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::Parameter
         DbgPrint("[CLAP] params extension not available\n");
         return false;
     }
-    
+
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
         DbgPrint("[CLAP] failed to get parameter info for index %d\n", index);
@@ -354,7 +367,7 @@ bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::Parameter
     info.unit[sizeof(info.unit) - 1] = '\0';
     if (clapInfo.flags & CLAP_PARAM_IS_STEPPED) info.step = static_cast<uint32_t>(clapInfo.max_value - clapInfo.min_value);
     else info.step = 0;
-    
+
     return true;
 }
 
@@ -363,13 +376,13 @@ uint32_t ClapHost::Impl::GetParameterID(int32_t index) const {
         DbgPrint("[CLAP] params extension not available\n");
         return 0;
     }
-    
+
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
         DbgPrint("[CLAP] failed to get parameter info for index %d\n", index);
         return 0;
     }
-    
+
     return static_cast<uint32_t>(clapInfo.id);
 }
 
@@ -378,12 +391,12 @@ int32_t ClapHost::Impl::GetLatencySamples() const {
         DbgPrint("[CLAP] latency extension not available\n");
         return 0;
     }
-    
+
     if (!isReady || !plugin) {
         DbgPrint("[CLAP] plugin not ready\n");
         return 0;
     }
-    
+
     return static_cast<int32_t>(extLatency->get(plugin));
 }
 
@@ -396,7 +409,7 @@ void ClapHost::Impl::SetParameter(uint32_t paramId, float value) const {
         DbgPrint("[CLAP] params extension not available\n");
         return;
     }
-    
+
     DbgPrint("[CLAP] SetParameter id=%u, value=%f (not fully implemented)\n", paramId, value);
 }
 
@@ -404,18 +417,39 @@ ClapHost::Impl::~Impl() {
     Cleanup();
 }
 
-ClapHost::ClapHost(HINSTANCE hInstance) : m_impl(std::make_unique<Impl>(hInstance)) {}
+ClapHost::ClapHost(HINSTANCE hInstance)
+    : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
-bool ClapHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) { return m_impl->LoadPlugin(path, sampleRate, blockSize); }
-void ClapHost::SetSampleRate(double sampleRate) { m_impl->SetSampleRate(sampleRate); }
-double ClapHost::GetSampleRate() const { return m_impl->currentSampleRate; }
-void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) { m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, midiEvents); }
-void ClapHost::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) { m_impl->Reset(currentSampleIndex, bpm, timeSigNum, timeSigDenom); }
-void ClapHost::ShowGui() { m_impl->ShowGui(); }
-void ClapHost::HideGui() { m_impl->HideGui(); }
-std::string ClapHost::GetState() { return m_impl->GetState(); }
-bool ClapHost::SetState(const std::string& state_b64) { return m_impl->SetState(state_b64); }
-void ClapHost::Cleanup() { m_impl->Cleanup(); }
+bool ClapHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
+    return m_impl->LoadPlugin(path, sampleRate, blockSize);
+}
+void ClapHost::SetSampleRate(double sampleRate) {
+    m_impl->SetSampleRate(sampleRate);
+}
+double ClapHost::GetSampleRate() const {
+    return m_impl->currentSampleRate;
+}
+void ClapHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
+    m_impl->ProcessAudio(inL, inR, outL, outR, numSamples, numChannels, midiEvents);
+}
+void ClapHost::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) {
+    m_impl->Reset(currentSampleIndex, bpm, timeSigNum, timeSigDenom);
+}
+void ClapHost::ShowGui() {
+    m_impl->ShowGui();
+}
+void ClapHost::HideGui() {
+    m_impl->HideGui();
+}
+std::string ClapHost::GetState() {
+    return m_impl->GetState();
+}
+bool ClapHost::SetState(const std::string& state_b64) {
+    return m_impl->SetState(state_b64);
+}
+void ClapHost::Cleanup() {
+    m_impl->Cleanup();
+}
 bool ClapHost::IsGuiVisible() const {
     return m_impl->m_isGuiVisible;
 }

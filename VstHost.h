@@ -1,11 +1,12 @@
 ﻿#pragma once
 #include "IAudioPluginHost.h"
-#include <windows.h>
-#include <string>
+
 #include <memory>
+#include <string>
+#include <windows.h>
 
 class VstHost : public IAudioPluginHost {
-public:
+  public:
     VstHost(HINSTANCE hInstance);
     ~VstHost() override;
     bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) override;
@@ -26,7 +27,8 @@ public:
     int32_t GetParameterCount() override;
     bool GetParameterInfo(int32_t index, ParameterInfo& info) override;
     uint32_t GetParameterID(int32_t index) override;
-private:
+
+  private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };

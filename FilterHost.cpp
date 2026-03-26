@@ -1,19 +1,19 @@
-﻿#include "Eap2Common.h"
+﻿#include "AudioPluginFactory.h"
+#include "Avx2Utils.h"
+#include "Eap2Common.h"
 #include "Eap2Config.h"
-#include <map>
-#include <set>
-#include <filesystem>
-#include <string>
-
 #include "IAudioPluginHost.h"
-#include "PluginType.h"
-#include "AudioPluginFactory.h"
-#include "PluginManager.h"
-#include "StringUtils.h"
 #include "MidiParser.h"
 #include "NotesManager.h"
-#include "Avx2Utils.h"
+#include "PluginManager.h"
+#include "PluginType.h"
+#include "StringUtils.h"
 #include "ToolParamListWindow.h"
+
+#include <filesystem>
+#include <map>
+#include <set>
+#include <string>
 
 constexpr auto FILTER_NAME = L"Host";
 constexpr auto FILTER_NAME_MEDIA = L"Host (Media)";
@@ -47,10 +47,10 @@ static std::map<std::string, MidiState> g_midi_state;
 static std::mutex g_midi_state_mutex;
 
 TCHAR filter_ext[] =
-L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0"
-L"VST3 Plugins (*.vst3)\0*.vst3\0"
-L"CLAP Plugins (*.clap)\0*.clap\0"
-L"All Files (*.*)\0*.*\0\0";
+    L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0"
+    L"VST3 Plugins (*.vst3)\0*.vst3\0"
+    L"CLAP Plugins (*.clap)\0*.clap\0"
+    L"All Files (*.*)\0*.*\0\0";
 
 FILTER_ITEM_GROUP general_group(L"General Settings", false);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
@@ -72,7 +72,7 @@ FILTER_ITEM_DATA<InstanceID> instance_data_param(L"INSTANCE_ID");
 FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
     if (!edit) return;
     int32_t select_count = edit->get_selected_object_num();
-    for (int s = 0; s < select_count; ++s) {
+    for (int32_t s = 0; s < select_count; ++s) {
         OBJECT_HANDLE obj = edit->get_selected_object(s);
         if (!obj) continue;
         for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
@@ -91,7 +91,7 @@ FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
             }
         }
     }
-    });
+});
 FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK track_map2(L"Map 2", -1.0, -1.0, 1000, 1.0);
@@ -227,7 +227,6 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
     for (int32_t layer = 0; layer <= max_layer; ++layer) {
         OBJECT_HANDLE obj = edit->find_object(layer, 0);
         while (obj != nullptr) {
-
             for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
                 int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
 
@@ -253,8 +252,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
     if (g_edit_handle) {
         try {
             g_edit_handle->call_edit_section(collect_active_ids_proc);
-        }
-        catch (...) {
+        } catch (...) {
             DbgPrint("[EAP2 Error] Exception in collect_active_ids_proc");
         }
     }
@@ -266,13 +264,11 @@ void func_project_save_impl(PROJECT_FILE* pf) {
         if (all_data_str.size() > 32 * 1024 * 1024) {
             DbgPrint("[EAP2 Error] State data too large. Skipping.");
             pf->set_param_string("AudioHostStateDB", "");
-        }
-        else {
+        } else {
             pf->set_param_string("AudioHostStateDB", all_data_str.c_str());
             DbgPrint("Saved project state, size: %zu", all_data_str.size());
         }
-    }
-    else {
+    } else {
         pf->set_param_string("AudioHostStateDB", "");
     }
 }
@@ -290,8 +286,7 @@ void func_project_save(PROJECT_FILE* pf) {
 
     __try {
         func_project_save_impl(pf);
-    }
-    __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
+    } __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
         DbgPrint("[EAP2 Critical] Save aborted. Clearing project data.");
         pf->set_param_string("AudioHostStateDB", "");
     }
@@ -307,8 +302,7 @@ void func_project_load(PROJECT_FILE* pf) {
             PluginManager::GetInstance().LoadProjectState(all_data_str);
             DbgPrint("Loaded project state, size: %zu", strlen(all_data_str));
         }
-    }
-    catch (...) {
+    } catch (...) {
         DbgPrint("[EAP2 Error] Exception in func_project_load");
     }
 }
@@ -322,7 +316,7 @@ struct RenameParam {
 
 static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
     if (settings.general.auto_rename_disable) return;
-    RenameParam* p = (RenameParam*)param;
+    RenameParam* p = reinterpret_cast<RenameParam*>(param);
     OBJECT_HANDLE obj = nullptr;
     int32_t max_layer = edit->info->layer_max;
     for (int32_t layer = 0; layer <= max_layer; ++layer) {
@@ -365,8 +359,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
     if (instance_data_param.value->uuid[0] != '\0') {
         instance_id = instance_data_param.value->uuid;
-    }
-    else {
+    } else {
         instance_id = StringUtils::GenerateUUID();
         strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
     }
@@ -417,12 +410,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
     if (plugin_path.empty()) {
         if (host) needs_reinitialization = true;
-    }
-    else {
+    } else {
         if (!host) {
             needs_reinitialization = true;
-        }
-        else {
+        } else {
             current_plugin_path = host->GetPluginPath();
             if (current_plugin_path != plugin_path) {
                 needs_reinitialization = true;
@@ -452,13 +443,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     rp.newName = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + id_suffix;
                     if (!current_plugin_path.empty()) {
                         rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + current_plugin_path.filename().wstring() + L")" + midi_suffix + id_suffix;
-                    }
-                    else {
+                    } else {
                         rp.oldNameCandidate = L"";
                     }
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
-                });
+            });
             wcscpy_s(last_plugin_data.value->last_plugin_path, sizeof(last_plugin_data.value->last_plugin_path), plugin_path.c_str());
         }
 
@@ -481,8 +471,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                                 std::string state_to_restore;
                                 if (!path_changed) state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
                                 if (!state_to_restore.empty()) new_host->SetState(state_to_restore);
-                            }
-                            else {
+                            } else {
                                 new_host = nullptr;
                             }
                         }
@@ -492,7 +481,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
             PluginManager::GetInstance().SetHost(effect_id, new_host);
             PluginManager::GetInstance().SetPendingReinitialization(effect_id, false);
-            });
+        });
 
         return true;
     }
@@ -547,7 +536,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         for (int32_t i = 0; i < 4; ++i) {
             int32_t mapID = PluginManager::GetInstance().GetMappedParamID(instance_id, i);
             if (mapID != -1) {
-
                 float normalized = slider_vals[i] / 100.0f;
                 if (normalized < 0.0f) normalized = 0.0f;
                 if (normalized > 1.0f) normalized = 1.0f;
@@ -564,8 +552,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
     thread_local std::vector<float> inL, inR, outL, outR;
     if (inL.size() < total_samples) {
-        inL.resize(total_samples); outL.resize(total_samples);
-        inR.resize(total_samples); outR.resize(total_samples);
+        inL.resize(total_samples);
+        outL.resize(total_samples);
+        inR.resize(total_samples);
+        outR.resize(total_samples);
     }
 
     if (!is_object) {
@@ -585,15 +575,14 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 if (host) {
                     if (gui_should_show) {
                         host->ShowGui();
-                    }
-                    else {
+                    } else {
                         host->HideGui();
                         std::string state = host->GetState();
                         DbgPrint("Plugin GUI hidden, saving state for %hs, (Size: %zu, Data: %.120hs...)", instance_id.c_str(), state.size(), state.c_str());
                         if (!state.empty()) PluginManager::GetInstance().SaveState(instance_id, state);
                     }
                 }
-                });
+            });
         }
     }
 
@@ -615,15 +604,14 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             if (host) {
                 ToolParamListWindow::GetInstance().Show(host, name);
             }
-            });
-    }
-    else if (!show_list_current && show_list_prev) {
+        });
+    } else if (!show_list_current && show_list_prev) {
         if (ToolParamListWindow::GetInstance().IsOwner(instance_id)) {
             ToolParamListWindow::GetInstance().SetTargetVisible(false);
             std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
             g_main_thread_tasks.push_back([]() {
                 ToolParamListWindow::GetInstance().Close();
-                });
+            });
         }
     }
 
@@ -632,8 +620,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         if (vol_ratio == 0.0f) {
             Avx2Utils::FillBufferAVX2(outL.data(), total_samples, 0.0f);
             if (channels >= 2) Avx2Utils::FillBufferAVX2(outR.data(), total_samples, 0.0f);
-        }
-        else {
+        } else {
             Avx2Utils::ScaleBufferAVX2(outL.data(), inL.data(), total_samples, vol_ratio);
             if (channels >= 2) Avx2Utils::ScaleBufferAVX2(outR.data(), inR.data(), total_samples, vol_ratio);
         }
@@ -674,7 +661,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     rp.oldNameCandidate = std::wstring(rp.defaultName) + plugin_suffix + old_midi_suffix + id_suffix;
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
-                });
+            });
             wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
         }
 
@@ -701,7 +688,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     rp.oldNameCandidate = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + old_id_suffix;
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
-                });
+            });
             last_recv_data.value->last_recv_id = current_recv_id;
         }
 
@@ -718,13 +705,11 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 ts_num = ts_evt.numerator;
                 ts_denom = ts_evt.denominator;
             }
-        }
-        else if (sync_bpm == 2) {
+        } else if (sync_bpm == 2) {
             bpm = g_shared_bpm.load();
             ts_num = g_shared_ts_num.load();
             ts_denom = g_shared_ts_denom.load();
-        }
-        else {
+        } else {
             bpm = track_bpm.value;
         }
         if (bpm < 0.1) bpm = 0.1;
@@ -747,8 +732,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         state->missed_count[i] = 0;
                         state->waiting_for_update[i] = true;
                     }
-                }
-                else {
+                } else {
                     *state = NotesState();
                 }
             }
@@ -776,8 +760,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                             state->waiting_for_update[i] = false;
                             uint8_t note_num = std::clamp(static_cast<int32_t>(note_data.number[i]), 0, 127);
                             current_note_owners[note_num] = note_data.effect_id[i];
-                        }
-                        else {
+                        } else {
                             if (state->waiting_for_update[i]) continue;
                             if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
                             if (state->missed_count[i] >= REMOVE_THRESHOLD) note_data.effect_id[i] = -1;
@@ -786,8 +769,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                                 current_note_owners[note_num] = note_data.effect_id[i];
                             }
                         }
-                    }
-                    else {
+                    } else {
                         state->missed_count[i] = 0;
                         state->waiting_for_update[i] = false;
                     }
@@ -806,7 +788,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 uint8_t note = pair.first;
                 bool is_fresh = (ms.last_active_note_owners.find(note) == ms.last_active_note_owners.end());
                 bool is_retrigger = (retrigger_notes.count(note) > 0);
-                if (is_fresh)  realtime_midi_events.push_back({ 0, 0x90, note, 100 });
+                if (is_fresh) realtime_midi_events.push_back({ 0, 0x90, note, 100 });
                 else if (is_retrigger) realtime_midi_events.push_back({ 1, 0x90, note, 100 });
             }
             ms.last_active_note_owners = current_note_owners;
@@ -839,8 +821,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 if (sync_bpm == 1) {
                     start_tick = ms.parser.GetTickAtTime(time_start);
                     end_tick = ms.parser.GetTickAtTime(time_end);
-                }
-                else {
+                } else {
                     double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
                     if (samplesPerTick < 0.001) samplesPerTick = 0.001;
                     start_tick = (int64_t)(current_block_pos / samplesPerTick);
@@ -849,7 +830,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
                 const auto& all_events = ms.parser.GetEvents();
                 auto it = std::lower_bound(all_events.begin(), all_events.end(), start_tick,
-                    [](const RawMidiEvent& e, int64_t tick) { return e.absoluteTick < tick; });
+                                           [](const RawMidiEvent& e, int64_t tick) { return e.absoluteTick < tick; });
 
                 for (; it != all_events.end(); ++it) {
                     if (it->absoluteTick >= end_tick) break;
@@ -860,8 +841,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         int64_t tick_diff = it->absoluteTick - start_tick;
                         int64_t total_tick_diff = end_tick - start_tick;
                         if (total_tick_diff > 0) delta_samples = (int32_t)((double)tick_diff / total_tick_diff * block_size);
-                    }
-                    else {
+                    } else {
                         double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
                         double raw_delta = (it->absoluteTick * samplesPerTick) - current_block_pos;
                         if (raw_delta > block_size) raw_delta = block_size;
@@ -886,8 +866,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 bpm,
                 ts_num,
                 ts_denom,
-                midi_events_for_block
-            );
+                midi_events_for_block);
 
             processed += block_size;
         }
@@ -950,11 +929,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         if (apply_l) Avx2Utils::MixAudioAVX2(outL.data(), dryL, total_samples, wet_ratio, dry_ratio, vol_ratio);
         else Avx2Utils::ScaleBufferAVX2(outL.data(), dryL, total_samples, vol_ratio);
         if (channels >= 2) {
-            if (apply_r)  Avx2Utils::MixAudioAVX2(outR.data(), dryR, total_samples, wet_ratio, dry_ratio, vol_ratio);
+            if (apply_r) Avx2Utils::MixAudioAVX2(outR.data(), dryR, total_samples, wet_ratio, dry_ratio, vol_ratio);
             else Avx2Utils::ScaleBufferAVX2(outR.data(), dryR, total_samples, vol_ratio);
         }
-    }
-    else {
+    } else {
         float combined_scale = (apply_l ? (wet_ratio + dry_ratio) : 1.0f) * vol_ratio;
         Avx2Utils::ScaleBufferAVX2(outL.data(), dryL, total_samples, combined_scale);
         if (channels >= 2) {
@@ -986,7 +964,6 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     nullptr,
     func_proc_audio_host
 };
-
 
 FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
     TYPE_AUDIO_MEDIA,

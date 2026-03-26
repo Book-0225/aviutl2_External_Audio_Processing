@@ -1,15 +1,16 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "PluginManager.h"
+#include "StringUtils.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
 #include <random>
 #include <string>
-#include "Avx2Utils.h"
-#include "StringUtils.h"
-#include "PluginManager.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Generator";
 
@@ -45,8 +46,14 @@ struct GeneratorState {
     bool initialized = false;
     int64_t last_sample_index = -1;
 
-    void init() { phase = 0.0; b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0.0f; initialized = true; }
-    void clear() { if (initialized) init(); }
+    void init() {
+        phase = 0.0;
+        b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0.0f;
+        initialized = true;
+    }
+    void clear() {
+        if (initialized) init();
+    }
 };
 
 static std::mutex g_gen_state_mutex;
@@ -58,12 +65,24 @@ static std::uniform_real_distribution<float> g_dist(-1.0f, 1.0f);
 std::wstring GetGenParamsString(int32_t type) {
     std::wstring typeName = L"Unknown";
     switch (type) {
-    case 0: typeName = L"Sine"; break;
-    case 1: typeName = L"Square"; break;
-    case 2: typeName = L"Triangle"; break;
-    case 3: typeName = L"Saw"; break;
-    case 4: typeName = L"White Noise"; break;
-    case 5: typeName = L"Pink Noise"; break;
+        case 0:
+            typeName = L"Sine";
+            break;
+        case 1:
+            typeName = L"Square";
+            break;
+        case 2:
+            typeName = L"Triangle";
+            break;
+        case 3:
+            typeName = L"Saw";
+            break;
+        case 4:
+            typeName = L"White Noise";
+            break;
+        case 5:
+            typeName = L"Pink Noise";
+            break;
     }
     return L" (" + typeName + L")";
 }
@@ -77,7 +96,7 @@ struct RenameParam {
 
 static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
     if (settings.general.auto_rename_disable) return;
-    RenameParam* p = (RenameParam*)param;
+    RenameParam* p = reinterpret_cast<RenameParam*>(param);
     OBJECT_HANDLE obj = nullptr;
     int32_t max_layer = edit->info->layer_max;
     for (int32_t layer = 0; layer <= max_layer; ++layer) {
@@ -124,8 +143,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     std::string instance_id;
     if (gen_data.value->uuid[0] != '\0') {
         instance_id = gen_data.value->uuid;
-    }
-    else {
+    } else {
         instance_id = StringUtils::GenerateUUID();
         strcpy_s(gen_data.value->uuid, sizeof(gen_data.value->uuid), instance_id.c_str());
         gen_data.value->last_type = -1;
@@ -138,8 +156,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
             strcpy_s(gen_data.value->uuid, sizeof(gen_data.value->uuid), instance_id.c_str());
             gen_data.value->last_type = -1;
         }
-    }
-    else {
+    } else {
         return true;
     }
     if (gen_data.value->last_type != type) {
@@ -153,7 +170,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
                 rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
                 g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
             }
-                                      });
+        });
 
         gen_data.value->last_type = type;
     }
@@ -187,33 +204,33 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
         for (int32_t k = 0; k < block_count; ++k) {
             float sample = 0.0f;
             switch (type) {
-            case 0:
-                sample = static_cast<float>(std::sin(current_phase));
-                break;
-            case 1:
-                sample = (current_phase < M_PI) ? 1.0f : -1.0f;
-                break;
-            case 2:
-                sample = static_cast<float>(2.0f / M_PI * std::asin(std::sin(current_phase)));
-                break;
-            case 3:
-                sample = static_cast<float>(1.0 - (current_phase / M_PI));
-                break;
-            case 4:
-                sample = g_dist(g_rng);
-                break;
-            case 5:
-                float white = g_dist(g_rng);
-                state->b0 = 0.99886f * state->b0 + white * 0.0555179f;
-                state->b1 = 0.99332f * state->b1 + white * 0.0750759f;
-                state->b2 = 0.96900f * state->b2 + white * 0.1538520f;
-                state->b3 = 0.86650f * state->b3 + white * 0.3104856f;
-                state->b4 = 0.55000f * state->b4 + white * 0.5329522f;
-                state->b5 = -0.7616f * state->b5 - white * 0.0168980f;
-                sample = state->b0 + state->b1 + state->b2 + state->b3 + state->b4 + state->b5 + state->b6 + white * 0.5362f;
-                state->b6 = white * 0.115926f;
-                sample *= 0.11f;
-                break;
+                case 0:
+                    sample = static_cast<float>(std::sin(current_phase));
+                    break;
+                case 1:
+                    sample = (current_phase < M_PI) ? 1.0f : -1.0f;
+                    break;
+                case 2:
+                    sample = static_cast<float>(2.0f / M_PI * std::asin(std::sin(current_phase)));
+                    break;
+                case 3:
+                    sample = static_cast<float>(1.0 - (current_phase / M_PI));
+                    break;
+                case 4:
+                    sample = g_dist(g_rng);
+                    break;
+                case 5:
+                    float white = g_dist(g_rng);
+                    state->b0 = 0.99886f * state->b0 + white * 0.0555179f;
+                    state->b1 = 0.99332f * state->b1 + white * 0.0750759f;
+                    state->b2 = 0.96900f * state->b2 + white * 0.1538520f;
+                    state->b3 = 0.86650f * state->b3 + white * 0.3104856f;
+                    state->b4 = 0.55000f * state->b4 + white * 0.5329522f;
+                    state->b5 = -0.7616f * state->b5 - white * 0.0168980f;
+                    sample = state->b0 + state->b1 + state->b2 + state->b3 + state->b4 + state->b5 + state->b6 + white * 0.5362f;
+                    state->b6 = white * 0.115926f;
+                    sample *= 0.11f;
+                    break;
             }
             temp_gen[k] = sample;
 

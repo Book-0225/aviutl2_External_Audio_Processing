@@ -1,22 +1,23 @@
 ﻿#pragma once
 #define _USE_MATH_DEFINES
 #include "Eap2Info.h"
-#include <windows.h>
+#include "config2.h"
+#include "filter2.h"
+#include "logger2.h"
+#include "plugin2.h"
+
 #include <array>
+#include <functional>
 #include <mutex>
+#include <regex>
+#include <tchar.h>
 #include <variant>
 #include <vector>
-#include <functional>
-#include <tchar.h>
-#include <regex>
-#include "filter2.h"
-#include "plugin2.h"
-#include "logger2.h"
-#include "config2.h"
+#include <windows.h>
 
-#define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() { \
+#define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() {                          \
     static std::wstring s = std::regex_replace(SRC_STR, std::wregex(REGEX_PATTERN), REPLACEMENT); \
-    return s.c_str(); \
+    return s.c_str();                                                                             \
 }()
 
 #define GEN_TOOL_NAME(NAME) GENERATE_STR_REPLACE(tool_name, regex_tool_name, NAME)
@@ -25,22 +26,24 @@
 extern LOG_HANDLE* g_logger;
 
 #ifdef _DEBUG
-#define DbgPrint(format, ...) do { \
-    TCHAR b[1024]; \
-    _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
-    OutputDebugString(b); \
-    if (g_logger && g_logger->verbose) { \
-        g_logger->verbose(g_logger, b); \
-    } \
-} while (0)
-#else
-#define DbgPrint(format, ...) do { \
-    if (g_logger && g_logger->verbose) { \
-        TCHAR b[1024]; \
+#define DbgPrint(format, ...)                                                                          \
+    do {                                                                                               \
+        TCHAR b[1024];                                                                                 \
         _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
-        g_logger->verbose(g_logger, b); \
-    } \
-} while (0)
+        OutputDebugString(b);                                                                          \
+        if (g_logger && g_logger->verbose) {                                                           \
+            g_logger->verbose(g_logger, b);                                                            \
+        }                                                                                              \
+    } while (0)
+#else
+#define DbgPrint(format, ...)                                                                              \
+    do {                                                                                                   \
+        if (g_logger && g_logger->verbose) {                                                               \
+            TCHAR b[1024];                                                                                 \
+            _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
+            g_logger->verbose(g_logger, b);                                                                \
+        }                                                                                                  \
+    } while (0)
 #endif
 
 extern HINSTANCE g_hinstance;

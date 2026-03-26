@@ -1,8 +1,9 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
 #include <map>
-#include <algorithm>
-#include "Avx2Utils.h"
 
 constexpr auto TOOL_NAME = L"Auto Wah";
 
@@ -26,8 +27,10 @@ struct AutoWahBiquad {
     inline float process_ret(float in, float b0, float b1, float b2, float a1, float a2) {
         float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
         if (std::abs(out) < 1e-20f) out = 0.0f;
-        x2 = x1; x1 = in;
-        y2 = y1; y1 = out;
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
         return out;
     }
 };
@@ -152,8 +155,11 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     {
         std::lock_guard<std::mutex> lock(g_wah_mutex);
         state->envelope = current_env;
-        state->c_b0 = c_b0; state->c_b1 = c_b1; state->c_b2 = c_b2;
-        state->c_a1 = c_a1; state->c_a2 = c_a2;
+        state->c_b0 = c_b0;
+        state->c_b1 = c_b1;
+        state->c_b2 = c_b2;
+        state->c_a1 = c_a1;
+        state->c_a2 = c_a2;
         state->last_sample_end = audio->object->sample_index + total_samples;
     }
 

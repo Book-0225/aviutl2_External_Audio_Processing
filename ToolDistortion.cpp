@@ -1,10 +1,11 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <algorithm>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"Distortion";
 
@@ -41,11 +42,16 @@ struct DistortionState {
     int64_t last_sample_index = -1;
 
     void init() {
-        lp_hist_l = 0.0f; lp_hist_r = 0.0f;
-        sample_hold_l = 0.0f; sample_hold_r = 0.0f;
-        sample_counter = 0; initialized = true;
+        lp_hist_l = 0.0f;
+        lp_hist_r = 0.0f;
+        sample_hold_l = 0.0f;
+        sample_hold_r = 0.0f;
+        sample_counter = 0;
+        initialized = true;
     }
-    void clear() { if (initialized) init(); }
+    void clear() {
+        if (initialized) init();
+    }
 };
 
 static std::mutex g_dist_state_mutex;

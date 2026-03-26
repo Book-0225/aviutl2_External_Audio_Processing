@@ -1,9 +1,10 @@
-﻿#include "Eap2Common.h"
+﻿#include "Avx2Utils.h"
+#include "Eap2Common.h"
+
 #include <cmath>
-#include <vector>
 #include <map>
 #include <mutex>
-#include "Avx2Utils.h"
+#include <vector>
 
 constexpr auto TOOL_NAME = L"EQ";
 
@@ -45,18 +46,27 @@ struct Biquad {
     double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
 
     void setPassThrough() {
-        b0 = 1.0; b1 = 0.0; b2 = 0.0; a1 = 0.0; a2 = 0.0;
+        b0 = 1.0;
+        b1 = 0.0;
+        b2 = 0.0;
+        a1 = 0.0;
+        a2 = 0.0;
     }
 
     void resetState() {
-        x1 = 0.0; x2 = 0.0; y1 = 0.0; y2 = 0.0;
+        x1 = 0.0;
+        x2 = 0.0;
+        y1 = 0.0;
+        y2 = 0.0;
     }
 
     inline float process(float in) {
         double out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
         if (fabs(out) < 1.0e-15) out = 0.0;
-        x2 = x1; x1 = in;
-        y2 = y1; y1 = out;
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
         return static_cast<float>(out);
     }
 
@@ -69,7 +79,10 @@ struct Biquad {
     }
 
     void calcHPF(double Fs, double f0) {
-        if (f0 <= 0.0) { setPassThrough(); return; }
+        if (f0 <= 0.0) {
+            setPassThrough();
+            return;
+        }
         double w0 = 2.0 * M_PI * f0 / Fs;
         double alpha = sin(w0) / (2.0 * 0.7071);
         double cosw0 = cos(w0);
@@ -82,7 +95,10 @@ struct Biquad {
     }
 
     void calcLPF(double Fs, double f0) {
-        if (f0 >= Fs * 0.49) { setPassThrough(); return; }
+        if (f0 >= Fs * 0.49) {
+            setPassThrough();
+            return;
+        }
         double w0 = 2.0 * M_PI * f0 / Fs;
         double alpha = sin(w0) / (2.0 * 0.7071);
         double cosw0 = cos(w0);
@@ -95,7 +111,10 @@ struct Biquad {
     }
 
     void calcLowShelf(double Fs, double f0, double dB_gain) {
-        if (fabs(dB_gain) < 0.001) { setPassThrough(); return; }
+        if (fabs(dB_gain) < 0.001) {
+            setPassThrough();
+            return;
+        }
         double A = pow(10.0, dB_gain / 40.0);
         double w0 = 2.0 * M_PI * f0 / Fs;
         double alpha = sin(w0) / 2.0 * sqrt((A + 1 / A) * (1 / 0.707 - 1) + 2);
@@ -109,7 +128,10 @@ struct Biquad {
     }
 
     void calcHighShelf(double Fs, double f0, double dB_gain) {
-        if (fabs(dB_gain) < 0.001) { setPassThrough(); return; }
+        if (fabs(dB_gain) < 0.001) {
+            setPassThrough();
+            return;
+        }
         double A = pow(10.0, dB_gain / 40.0);
         double w0 = 2.0 * M_PI * f0 / Fs;
         double alpha = sin(w0) / 2.0 * sqrt((A + 1 / A) * (1 / 0.707 - 1) + 2);
@@ -123,7 +145,10 @@ struct Biquad {
     }
 
     void calcPeaking(double Fs, double f0, double dB_gain, double Q) {
-        if (fabs(dB_gain) < 0.001) { setPassThrough(); return; }
+        if (fabs(dB_gain) < 0.001) {
+            setPassThrough();
+            return;
+        }
         double A = pow(10.0, dB_gain / 40.0);
         double w0 = 2.0 * M_PI * f0 / Fs;
         double alpha = sin(w0) / (2.0 * Q);
