@@ -2,12 +2,16 @@
 
 #include "StringUtils.h"
 
+#include <cstring>
+
 PluginManager& PluginManager::GetInstance() {
     static PluginManager instance;
     return instance;
 }
 
 static bool IsValidStateData(const std::string& state) {
+    constexpr int64_t kMaxSerializedStateBytes = 200LL * 1024 * 1024;
+
     if (state.empty()) return false;
     bool is_vst3 = (state.rfind("VST3_DUAL:", 0) == 0);
     bool is_clap = (state.rfind("CLAP:", 0) == 0);
@@ -16,10 +20,22 @@ static bool IsValidStateData(const std::string& state) {
     std::vector<BYTE> data = StringUtils::Base64Decode(b64_part);
     if (data.empty()) return false;
     if (is_vst3) {
-        if (data.size() < 16) return false;
-        int64_t* sizes = reinterpret_cast<int64_t*>(data.data());
-        int64_t compSize = sizes[0];
-        if (compSize < 0 || compSize > static_cast<int64_t>(data.size())) return false;
+        if (data.size() < sizeof(int64_t) * 2) return false;
+
+        int64_t compSize = 0;
+        int64_t controllerSize = 0;
+        std::memcpy(&compSize, data.data(), sizeof(compSize));
+
+        size_t offset = sizeof(compSize);
+        if (compSize < 0 || compSize > kMaxSerializedStateBytes) return false;
+        if (offset + static_cast<size_t>(compSize) + sizeof(controllerSize) > data.size()) return false;
+
+        offset += static_cast<size_t>(compSize);
+        std::memcpy(&controllerSize, data.data() + offset, sizeof(controllerSize));
+        offset += sizeof(controllerSize);
+
+        if (controllerSize < 0 || controllerSize > kMaxSerializedStateBytes) return false;
+        if (offset + static_cast<size_t>(controllerSize) > data.size()) return false;
     }
 
     return true;

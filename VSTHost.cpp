@@ -16,7 +16,10 @@
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
 
+#include <atomic>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <mutex>
 #include <set>
 #include <string>
@@ -26,6 +29,35 @@
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
+
+namespace {
+
+constexpr int64_t kMaxSerializedStateBytes = 200LL * 1024 * 1024;
+
+uint64 MakeSilenceFlags(int32_t channelCount) {
+    if (channelCount <= 0) return 0;
+    if (channelCount >= 64) return (std::numeric_limits<uint64>::max)();
+    return (static_cast<uint64>(1) << channelCount) - 1;
+}
+
+bool ReadStreamExact(MemoryStream& stream, void* buffer, int32_t byteCount) {
+    if (byteCount < 0) return false;
+    if (byteCount == 0) return true;
+
+    int32_t bytesRead = 0;
+    stream.read(buffer, byteCount, &bytesRead);
+    return bytesRead == byteCount;
+}
+
+bool ReadStateChunk(MemoryStream& stream, int64_t chunkSize, std::vector<BYTE>& chunk) {
+    if (chunkSize < 0 || chunkSize > kMaxSerializedStateBytes) return false;
+    if (chunkSize > static_cast<int64_t>((std::numeric_limits<int32_t>::max)())) return false;
+
+    chunk.resize(static_cast<size_t>(chunkSize));
+    return ReadStreamExact(stream, chunk.data(), static_cast<int32_t>(chunkSize));
+}
+
+} // namespace
 
 class WindowController : public IPlugFrame {
   public:
@@ -166,8 +198,46 @@ struct VstHost::Impl {
     std::string GetState();
     bool SetState(const std::string& state_b64);
     void ReleasePlugin();
-    bool IsGuiVisible() const { return guiWindow && IsWindow(guiWindow); }
-    std::filesystem::path GetPluginPath() const { return currentPluginPath; }
+    bool IsGuiVisible() const {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
+        return guiWindow && IsWindow(guiWindow);
+    }
+    double GetSampleRate() const {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
+        return currentSampleRate;
+    }
+    std::filesystem::path GetPluginPath() const {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
+        return currentPluginPath;
+    }
+
+    bool ApplyProcessingSetup(double sampleRate, int32_t blockSize, bool restartFromActiveState) {
+        if (!processor || !component) return false;
+
+        if (restartFromActiveState) {
+            if (processor->setProcessing(false) != kResultOk) {
+                DbgPrint("[EAP2 Warning] VST3 setProcessing(false) failed during reconfiguration");
+            }
+            if (component->setActive(false) != kResultOk) {
+                DbgPrint("[EAP2 Warning] VST3 setActive(false) failed during reconfiguration");
+            }
+        }
+
+        ProcessSetup setup{ kRealtime, kSample32, blockSize, sampleRate };
+        if (processor->setupProcessing(setup) != kResultOk) {
+            return false;
+        }
+        if (component->setActive(true) != kResultOk) {
+            return false;
+        }
+        if (processor->setProcessing(true) != kResultOk) {
+            return false;
+        }
+
+        currentSampleRate = sampleRate;
+        currentBlockSize = blockSize;
+        return true;
+    }
 
     struct PendingParamChange {
         ParamID id;
@@ -184,16 +254,19 @@ struct VstHost::Impl {
     }
 
     int32_t GetLatencySamples() {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
         if (processor) return processor->getLatencySamples();
         return 0;
     }
 
     int32_t GetParameterCount() {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
         if (controller) return controller->getParameterCount();
         return 0;
     }
 
     bool GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
         if (!controller) return false;
         Steinberg::Vst::ParameterInfo vstInfo = {};
         if (controller->getParameterInfo(index, vstInfo) == kResultOk) {
@@ -208,6 +281,7 @@ struct VstHost::Impl {
     }
 
     uint32_t GetParameterID(int32_t index) {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
         if (!controller) return 0;
         Steinberg::Vst::ParameterInfo vstInfo = {};
         if (controller->getParameterInfo(index, vstInfo) == kResultOk) {
@@ -217,6 +291,7 @@ struct VstHost::Impl {
     }
 
     void SetParameter(uint32_t paramId, float value) {
+        std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
         if (controller) {
             controller->setParamNormalized(paramId, static_cast<ParamValue>(value));
         }
@@ -236,6 +311,7 @@ struct VstHost::Impl {
     std::vector<std::pair<ParamID, ParamValue>> outputParamQueue;
 
     void ProcessGuiUpdates() {
+        std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
         if (!controller) return;
         std::vector<std::pair<ParamID, ParamValue>> updates;
         {
@@ -266,6 +342,7 @@ struct VstHost::Impl {
     int32_t currentTsDenom = 4;
     int32_t currentBlockSize = 1024;
     bool initialMute = false;
+    mutable std::recursive_mutex lifecycleMutex;
 
     std::mutex paramMutex;
     std::mutex processorUpdateMutex;
@@ -279,16 +356,18 @@ struct VstHost::Impl {
     }
 
     void SetSampleRate(double newRate) {
+        std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
         if (std::abs(currentSampleRate - newRate) < 0.1) return;
         if (!isReady || !processor || !component) {
             currentSampleRate = newRate;
             return;
         }
 
-        processor->setProcessing(false);
-        ProcessSetup setup{ kRealtime, kSample32, currentBlockSize, newRate };
-        processor->setupProcessing(setup);
-        processor->setProcessing(true);
+        if (!ApplyProcessingSetup(newRate, currentBlockSize, true)) {
+            DbgPrint("[EAP2 Warning] Failed to apply VST3 sample-rate change: %.1f", newRate);
+            isReady = false;
+            return;
+        }
 
         currentSampleRate = newRate;
         initialMute = true;
@@ -296,6 +375,7 @@ struct VstHost::Impl {
 };
 
 bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     ReleasePlugin();
     componentHandler = owned(new HostComponentHandler());
     currentPluginPath = path;
@@ -328,7 +408,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
 
     component = provider->getComponent();
     controller = provider->getController();
-    if (!component || !controller) {
+    if (!component) {
         ReleasePlugin();
         return false;
     }
@@ -341,13 +421,6 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         return false;
     }
 
-    component->setActive(true);
-    ProcessSetup setup{ kRealtime, kSample32, blockSize, sampleRate };
-    if (processor->setupProcessing(setup) != kResultOk) {
-        ReleasePlugin();
-        return false;
-    }
-
     int32_t numIn = component->getBusCount(kAudio, kInput);
     int32_t numOut = component->getBusCount(kAudio, kOutput);
     for (int32_t i = 0; i < numIn; ++i) component->activateBus(kAudio, kInput, i, true);
@@ -356,14 +429,17 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     int32_t numEventIn = component->getBusCount(kEvent, kInput);
     for (int32_t i = 0; i < numEventIn; ++i) component->activateBus(kEvent, kInput, i, true);
 
-    processor->setProcessing(true);
-    currentSampleRate = sampleRate;
-    currentBlockSize = blockSize;
+    if (!ApplyProcessingSetup(sampleRate, blockSize, false)) {
+        ReleasePlugin();
+        return false;
+    }
+
     isReady = true;
     return true;
 }
 
 void VstHost::Impl::ReleasePlugin() {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     HideGui();
 
     isReady = false;
@@ -396,6 +472,7 @@ void VstHost::Impl::ReleasePlugin() {
 }
 
 void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     if (!isReady || !processor || !component || numSamples <= 0 || numChannels <= 0) {
         if (outL != inL) memcpy(outL, inL, numSamples * sizeof(float));
         if (numChannels > 1 && outR != inR) memcpy(outR, inR, numSamples * sizeof(float));
@@ -508,7 +585,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
                     for (int32_t ch = 0; ch < info.channelCount; ++ch) {
                         inPtrs[i][ch] = silence;
                     }
-                    inBufs[i].silenceFlags = (1ULL << info.channelCount) - 1;
+                    inBufs[i].silenceFlags = MakeSilenceFlags(info.channelCount);
                 }
                 inBufs[i].channelBuffers32 = inPtrs[i].data();
             }
@@ -614,6 +691,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 }
 
 void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     if (!isReady || !component || !processor) return;
     currentBpm = bpm;
     currentTsNum = timeSigNum;
@@ -635,10 +713,11 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
         outputParamQueue.clear();
     }
 
-    processor->setProcessing(false);
-    component->setActive(false);
-    component->setActive(true);
-    processor->setProcessing(true);
+    if (!ApplyProcessingSetup(currentSampleRate, currentBlockSize, true)) {
+        DbgPrint("[EAP2 Warning] Failed to reset VST3 processing state");
+        isReady = false;
+        return;
+    }
     initialMute = true;
 
     EventList resetEventList;
@@ -680,7 +759,7 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
                 BusInfo info;
                 component->getBusInfo(kAudio, kInput, i, info);
                 inBufs[i].numChannels = info.channelCount;
-                inBufs[i].silenceFlags = (1ULL << info.channelCount) - 1;
+                inBufs[i].silenceFlags = MakeSilenceFlags(info.channelCount);
                 if (info.channelCount > 0) {
                     inPtrs[i].resize(info.channelCount);
                     for (int32_t ch = 0; ch < info.channelCount; ++ch) inPtrs[i][ch] = silence;
@@ -746,6 +825,7 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
 }
 
 void VstHost::Impl::ShowGui() {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     if (guiWindow && IsWindow(guiWindow)) {
         ShowWindow(guiWindow, SW_SHOW);
         SetForegroundWindow(guiWindow);
@@ -791,6 +871,7 @@ void VstHost::Impl::ShowGui() {
         }
 
         if (msg == WM_SIZE && self && self->plugView) {
+            std::lock_guard<std::recursive_mutex> lock(self->lifecycleMutex);
             // Always try to resize the plugin view, even if canResize() is not supported
             RECT clientRect;
             GetClientRect(hWnd, &clientRect);
@@ -818,6 +899,7 @@ void VstHost::Impl::ShowGui() {
             KillTimer(hWnd, 1001);
 
             if (self) {
+                std::lock_guard<std::recursive_mutex> lock(self->lifecycleMutex);
                 if (self->plugView) self->plugView->removed();
                 self->plugView.reset();
                 if (self->windowController) {
@@ -880,20 +962,24 @@ void VstHost::Impl::ShowGui() {
 }
 
 void VstHost::Impl::HideGui() const {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     if (guiWindow) DestroyWindow(guiWindow);
 }
 
 std::string VstHost::Impl::GetState() {
-    if (!provider || !component || !controller) return "";
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
+    if (!provider || !component) return "";
     try {
         MemoryStream cStream, tStream;
         if (component->getState(&cStream) != kResultOk) return "";
 
-        if (controller->getState(&tStream) != kResultOk) DbgPrint("[EAP2 Error] Exception inside VST3 GetState");
+        if (controller && controller->getState(&tStream) != kResultOk) {
+            DbgPrint("[EAP2 Warning] VST3 controller state was not available");
+        }
 
         int64_t cs = cStream.getSize();
         int64_t ts = tStream.getSize();
-        if (cs < 0 || ts < 0 || cs > 200 * 1024 * 1024) return "";
+        if (cs < 0 || ts < 0 || cs > kMaxSerializedStateBytes || ts > kMaxSerializedStateBytes) return "";
 
         MemoryStream full;
         int32_t b;
@@ -909,25 +995,33 @@ std::string VstHost::Impl::GetState() {
 }
 
 bool VstHost::Impl::SetState(const std::string& state_b64) {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     if (state_b64.rfind("VST3_DUAL:", 0) != 0) return false;
+    if (!component) return false;
+
     auto data = StringUtils::Base64Decode(state_b64.substr(10));
     if (data.empty() && !state_b64.empty()) return false;
     MemoryStream stream(data.data(), data.size());
-    int32_t br;
-    int64 cs = 0, ts = 0;
-    stream.read(&cs, sizeof(cs), &br);
-    if (cs > 0 && component) {
-        std::vector<BYTE> d(cs);
-        stream.read(d.data(), static_cast<int32_t>(cs), &br);
-        MemoryStream s(d.data(), cs);
+    int64_t cs = 0;
+    int64_t ts = 0;
+    if (!ReadStreamExact(stream, &cs, sizeof(cs))) return false;
+
+    if (cs > 0) {
+        std::vector<BYTE> componentState;
+        if (!ReadStateChunk(stream, cs, componentState)) return false;
+        MemoryStream s(componentState.data(), cs);
         if (component->setState(&s) != kResultOk) return false;
     }
-    stream.read(&ts, sizeof(ts), &br);
+
+    if (!ReadStreamExact(stream, &ts, sizeof(ts))) return false;
     if (ts > 0 && controller) {
-        std::vector<BYTE> d(ts);
-        stream.read(d.data(), static_cast<int32_t>(ts), &br);
-        MemoryStream s(d.data(), ts);
+        std::vector<BYTE> controllerState;
+        if (!ReadStateChunk(stream, ts, controllerState)) return false;
+        MemoryStream s(controllerState.data(), ts);
         if (controller->setState(&s) != kResultOk) return false;
+    } else if (ts > 0) {
+        std::vector<BYTE> ignoredControllerState;
+        if (!ReadStateChunk(stream, ts, ignoredControllerState)) return false;
     }
     return true;
 }
@@ -945,7 +1039,7 @@ void VstHost::SetSampleRate(double sampleRate) {
 }
 
 double VstHost::GetSampleRate() const {
-    return m_impl->currentSampleRate;
+    return m_impl->GetSampleRate();
 }
 
 void VstHost::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
