@@ -58,6 +58,7 @@
     <ClInclude Include="ClapHost.h" />
     <ClInclude Include="Eap2Config.h" />
     <ClInclude Include="Eap2Info.h" />
+    <ClInclude Include="Eap2Version.h" />
     <ClInclude Include="IAudioPluginHost.h" />
     <ClInclude Include="NotesManager.h" />
     <ClInclude Include="pch.h" />

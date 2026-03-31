@@ -1,4 +1,6 @@
-#pragma once
+﻿#pragma once
+#include "Eap2Version.h"
+
 #include <Windows.h>
 #include <iomanip>
 #include <sstream>
@@ -70,8 +72,8 @@ struct Version {
 inline Version parseVersion(std::wstring_view v) {
     Version res;
     try {
-        size_t dash = v.find(L'-');
-        if (dash != std::wstring_view::npos) v.remove_prefix(dash + 1);
+        size_t txt_v = v.find(L'v');
+        if (txt_v != std::wstring_view::npos) v.remove_prefix(txt_v + 1);
         size_t pos = 0;
         std::wstring ws(v);
         res.major = static_cast<uint16_t>(std::stoi(ws, &pos));

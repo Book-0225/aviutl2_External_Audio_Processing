@@ -57,6 +57,7 @@
     <ClInclude Include="Eap2Info.h" />
     <ClInclude Include="SynthCommon.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Eap2Version.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />
