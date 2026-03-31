@@ -5,7 +5,7 @@ id = "Book-0225.EAP2"
 name = "External_Audio_Processing2"
 version = "0.0.28"
 
-[artifacts.my_plugin_aul2]
+[artifacts.External_Audio_Processing2_aul2]
 source = "English.External_Audio_Processing2.aul2"
 enabled = true
 destination = "Language/English.External_Audio_Processing2.aul2"
