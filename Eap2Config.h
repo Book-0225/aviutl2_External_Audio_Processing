@@ -109,10 +109,12 @@ struct GeneralConfig {
     std::wstring categoryName = L"General";
     bool auto_rename_disable = false;
     bool enable_experimental = false;
+    bool compress_plugin_state = true;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AutoRenameDisable", L"1", &auto_rename_disable, true),
-            ConfigEntry::Create(L"EnableExperimental", L"0", &enable_experimental, false)
+            ConfigEntry::Create(L"EnableExperimental", L"0", &enable_experimental, false),
+            ConfigEntry::Create(L"CompressPluginState", L"1", &compress_plugin_state, true)
         };
     }
 };

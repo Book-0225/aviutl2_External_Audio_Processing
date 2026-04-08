@@ -1,4 +1,4 @@
-[External Audio Processing 2 v0.0.28 by BOOK25]
+[External Audio Processing 2 v0.0.29 by BOOK25]
 ## 注意事項
 
 - 無保証です。自己責任で使用してください。

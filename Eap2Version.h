@@ -1,2 +1,2 @@
 ﻿#pragma once
-#define PLUGIN_VERSION L"v0.0.28"
+#define PLUGIN_VERSION L"v0.0.29"

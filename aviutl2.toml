@@ -3,7 +3,7 @@
 [project]
 id = "Book-0225.EAP2"
 name = "External_Audio_Processing2"
-version = "0.0.28"
+version = "0.0.29"
 
 [artifacts.External_Audio_Processing2_aul2]
 source = "English.External_Audio_Processing2.aul2"

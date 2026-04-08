@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,39 @@ void LoadEntryWithFallback(const std::wstring& categoryName, const ConfigEntry& 
         DbgPrint("[EAP2 Config] Failed to apply default value. category=%ls key=%ls default=%ls", categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str());
 }
 
+std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const std::filesystem::path& path) {
+    std::set<std::wstring> keys;
+    DWORD buffer_size = 4096;
+
+    for (;;) {
+        std::vector<wchar_t> buffer(buffer_size, L'\0');
+        DWORD copied = GetPrivateProfileSection(categoryName.c_str(), buffer.data(), buffer_size, path.c_str());
+        if (copied == 0) return keys;
+        if (copied < buffer_size - 2) {
+            const wchar_t* current = buffer.data();
+            while (*current != L'\0') {
+                std::wstring_view entry(current);
+                size_t eq = entry.find(L'=');
+                if (eq != std::wstring_view::npos && eq > 0) {
+                    keys.insert(std::wstring(entry.substr(0, eq)));
+                }
+                current += entry.size() + 1;
+            }
+            return keys;
+        }
+        buffer_size *= 2;
+    }
+}
+
+void EnsureCategoryDefaults(const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
+    std::set<std::wstring> existing_keys = GetExistingKeys(categoryName, path);
+    for (const auto& item : entries) {
+        if (existing_keys.find(item.key) != existing_keys.end()) continue;
+        WritePrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
+        DbgPrint("[EAP2 Config] Added missing key. category=%ls key=%ls default=%ls", categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str());
+    }
+}
+
 template <typename Func>
 void ApplyToAllCategories(Func func, AppSettings& setting, const std::filesystem::path& path) {
     auto categories = std::tie(setting.info, setting.general, setting.module, setting.vst, setting.exp);
@@ -79,6 +113,10 @@ void LoadConfig() {
     std::filesystem::path path = GetConfigPath();
     if (!std::filesystem::exists(path))
         CreateConfig(path);
+    ApplyToAllCategories([](const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
+        EnsureCategoryDefaults(categoryName, entries, path);
+    },
+                         settings, path);
     ConfigLoadReport report;
     ApplyToAllCategories([&report](const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
         LoadCategory(categoryName, entries, path, report);

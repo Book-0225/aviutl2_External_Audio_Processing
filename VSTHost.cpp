@@ -33,6 +33,7 @@ using namespace VST3::Hosting;
 namespace {
 
 constexpr int64_t kMaxSerializedStateBytes = 200LL * 1024 * 1024;
+constexpr size_t kMaxSerializedVstStatePayloadBytes = static_cast<size_t>(kMaxSerializedStateBytes) * 2 + sizeof(int64_t) * 2;
 
 uint64 MakeSilenceFlags(int32_t channelCount) {
     if (channelCount <= 0) return 0;
@@ -987,7 +988,12 @@ std::string VstHost::Impl::GetState() {
         if (cs > 0) full.write(cStream.getData(), static_cast<int32_t>(cs), &b);
         full.write(&ts, sizeof(ts), &b);
         if (ts > 0) full.write(tStream.getData(), static_cast<int32_t>(ts), &b);
-        return "VST3_DUAL:" + StringUtils::Base64Encode(reinterpret_cast<const BYTE*>(full.getData()), static_cast<DWORD>(full.getSize()));
+        return StringUtils::EncodeCompressedStatePayload(
+            "VST3_DUAL:",
+            "VST3_DUALZ:",
+            reinterpret_cast<const BYTE*>(full.getData()),
+            static_cast<size_t>(full.getSize()),
+            settings.general.compress_plugin_state);
     } catch (...) {
         DbgPrint("[EAP2 Error] Exception inside VST3 GetState");
         return "";
@@ -996,11 +1002,10 @@ std::string VstHost::Impl::GetState() {
 
 bool VstHost::Impl::SetState(const std::string& state_b64) {
     std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
-    if (state_b64.rfind("VST3_DUAL:", 0) != 0) return false;
     if (!component) return false;
 
-    auto data = StringUtils::Base64Decode(state_b64.substr(10));
-    if (data.empty() && !state_b64.empty()) return false;
+    std::vector<BYTE> data;
+    if (!StringUtils::DecodeStatePayload(state_b64, "VST3_DUAL:", "VST3_DUALZ:", data, kMaxSerializedVstStatePayloadBytes)) return false;
     MemoryStream stream(data.data(), data.size());
     int64_t cs = 0;
     int64_t ts = 0;

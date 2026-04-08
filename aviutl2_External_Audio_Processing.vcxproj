@@ -150,7 +150,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>Crypt32.lib;rpcrt4.lib;base.lib;sdk.lib;sdk_common.lib;sdk_hosting.lib;pluginterfaces.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Crypt32.lib;rpcrt4.lib;Cabinet.lib;base.lib;sdk.lib;sdk_common.lib;sdk_hosting.lib;pluginterfaces.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>for %%f in ("$(ProjectDir)*.cpp" "$(ProjectDir)*.h") do clang-format -i "%%f"</Command>
@@ -177,7 +177,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>Crypt32.lib;rpcrt4.lib;base.lib;sdk.lib;sdk_common.lib;sdk_hosting.lib;pluginterfaces.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Crypt32.lib;rpcrt4.lib;Cabinet.lib;base.lib;sdk.lib;sdk_common.lib;sdk_hosting.lib;pluginterfaces.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>for %%f in ("$(ProjectDir)*.cpp" "$(ProjectDir)*.h") do clang-format -i "%%f"</Command>

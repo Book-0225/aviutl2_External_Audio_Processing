@@ -1,5 +1,6 @@
 ﻿#include "ClapHost.h"
 
+#include "Eap2Config.h"
 #include "StringUtils.h"
 #include "clap/all.h"
 
@@ -313,14 +314,16 @@ std::string ClapHost::Impl::GetState() const {
                                c->data.insert(c->data.end(), reinterpret_cast<const BYTE*>(buf), reinterpret_cast<const BYTE*>(buf) + size);
                                return static_cast<int64_t>(size);
                            } };
-    if (extState->save(plugin, &stream)) return "CLAP:" + StringUtils::Base64Encode(ctx.data.data(), static_cast<DWORD>(ctx.data.size()));
+    if (extState->save(plugin, &stream)) {
+        return StringUtils::EncodeCompressedStatePayload("CLAP:", "CLAPZ:", ctx.data.data(), ctx.data.size(), settings.general.compress_plugin_state);
+    }
     return "";
 }
 
 bool ClapHost::Impl::SetState(const std::string& state_b64) const {
-    if (state_b64.rfind("CLAP:", 0) != 0 || !plugin || !extState) return false;
-    auto data = StringUtils::Base64Decode(state_b64.substr(5));
-    if (data.empty() && !state_b64.empty()) return false;
+    if (!plugin || !extState) return false;
+    std::vector<BYTE> data;
+    if (!StringUtils::DecodeStatePayload(state_b64, "CLAP:", "CLAPZ:", data)) return false;
     struct Ctx {
         const std::vector<BYTE>* d;
         size_t pos = 0;

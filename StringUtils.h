@@ -1,10 +1,23 @@
 ﻿#pragma once
 #include <charconv>
+#include <compressapi.h>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <windows.h>
 
 namespace StringUtils {
+
+inline constexpr char kCompressedBlobMagic[8] = { 'E', 'A', 'P', '2', 'C', 'M', 'P', '1' };
+
+struct CompressedBlobHeader {
+    char magic[sizeof(kCompressedBlobMagic)];
+    uint64_t originalSize;
+};
 
 inline std::string WideToUtf8(LPCWSTR w) {
     if (!w || !w[0]) return "";
@@ -98,5 +111,95 @@ inline std::vector<BYTE> Base64Decode(const std::string& b64) {
     v.resize(bin_len);
 
     return v;
+}
+
+inline bool CompressBlob(const BYTE* data, size_t len, std::vector<BYTE>& out) {
+    out.clear();
+    if (!data || len == 0) return false;
+    if (len > (std::numeric_limits<size_t>::max)()) return false;
+
+    COMPRESSOR_HANDLE compressor = nullptr;
+    if (!CreateCompressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &compressor)) return false;
+
+    size_t compressedSize = 0;
+    BOOL ok = Compress(compressor, data, static_cast<size_t>(len), nullptr, 0, &compressedSize);
+    if (!ok && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        CloseCompressor(compressor);
+        return false;
+    }
+
+    out.resize(sizeof(CompressedBlobHeader) + compressedSize);
+    CompressedBlobHeader header{};
+    std::memcpy(header.magic, kCompressedBlobMagic, sizeof(kCompressedBlobMagic));
+    header.originalSize = static_cast<uint64_t>(len);
+    std::memcpy(out.data(), &header, sizeof(header));
+
+    size_t writtenSize = compressedSize;
+    ok = Compress(compressor, data, static_cast<size_t>(len), out.data() + sizeof(CompressedBlobHeader), compressedSize, &writtenSize);
+    CloseCompressor(compressor);
+    if (!ok) {
+        out.clear();
+        return false;
+    }
+
+    out.resize(sizeof(CompressedBlobHeader) + writtenSize);
+    return true;
+}
+
+inline bool DecompressBlob(const BYTE* data, size_t len, std::vector<BYTE>& out, size_t maxOutputSize = (std::numeric_limits<size_t>::max)()) {
+    out.clear();
+    if (!data || len < sizeof(CompressedBlobHeader)) return false;
+
+    CompressedBlobHeader header{};
+    std::memcpy(&header, data, sizeof(header));
+    if (std::memcmp(header.magic, kCompressedBlobMagic, sizeof(kCompressedBlobMagic)) != 0) return false;
+    if (header.originalSize == 0 || header.originalSize > maxOutputSize || header.originalSize > (std::numeric_limits<size_t>::max)()) return false;
+
+    DECOMPRESSOR_HANDLE decompressor = nullptr;
+    if (!CreateDecompressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &decompressor)) return false;
+
+    out.resize(static_cast<size_t>(header.originalSize));
+    size_t writtenSize = static_cast<size_t>(header.originalSize);
+    BOOL ok = Decompress(
+        decompressor,
+        data + sizeof(CompressedBlobHeader),
+        static_cast<size_t>(len - sizeof(CompressedBlobHeader)),
+        out.data(),
+        static_cast<size_t>(out.size()),
+        &writtenSize);
+    CloseDecompressor(decompressor);
+    if (!ok || writtenSize != out.size()) {
+        out.clear();
+        return false;
+    }
+
+    return true;
+}
+
+inline std::string EncodeCompressedStatePayload(std::string_view rawPrefix, std::string_view compressedPrefix, const BYTE* data, size_t len, bool enableCompression = true) {
+    if (!data || len == 0) return "";
+
+    std::vector<BYTE> compressed;
+    if (enableCompression && CompressBlob(data, len, compressed) && compressed.size() < len) {
+        return std::string(compressedPrefix) + Base64Encode(compressed.data(), static_cast<DWORD>(compressed.size()));
+    }
+
+    return std::string(rawPrefix) + Base64Encode(data, static_cast<DWORD>(len));
+}
+
+inline bool DecodeStatePayload(const std::string& encodedState, std::string_view rawPrefix, std::string_view compressedPrefix, std::vector<BYTE>& decodedPayload, size_t maxDecodedSize = (std::numeric_limits<size_t>::max)()) {
+    decodedPayload.clear();
+    if (encodedState.rfind(rawPrefix.data(), 0) == 0) {
+        decodedPayload = Base64Decode(encodedState.substr(rawPrefix.size()));
+        return !decodedPayload.empty();
+    }
+
+    if (encodedState.rfind(compressedPrefix.data(), 0) == 0) {
+        std::vector<BYTE> compressedPayload = Base64Decode(encodedState.substr(compressedPrefix.size()));
+        if (compressedPayload.empty()) return false;
+        return DecompressBlob(compressedPayload.data(), compressedPayload.size(), decodedPayload, maxDecodedSize);
+    }
+
+    return false;
 }
 } // namespace StringUtils

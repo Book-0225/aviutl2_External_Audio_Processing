@@ -11,14 +11,19 @@ PluginManager& PluginManager::GetInstance() {
 
 static bool IsValidStateData(const std::string& state) {
     constexpr int64_t kMaxSerializedStateBytes = 200LL * 1024 * 1024;
+    constexpr size_t kMaxSerializedVstStatePayloadBytes = static_cast<size_t>(kMaxSerializedStateBytes) * 2 + sizeof(int64_t) * 2;
 
     if (state.empty()) return false;
-    bool is_vst3 = (state.rfind("VST3_DUAL:", 0) == 0);
-    bool is_clap = (state.rfind("CLAP:", 0) == 0);
+    bool is_vst3 = (state.rfind("VST3_DUAL:", 0) == 0 || state.rfind("VST3_DUALZ:", 0) == 0);
+    bool is_clap = (state.rfind("CLAP:", 0) == 0 || state.rfind("CLAPZ:", 0) == 0);
     if (!is_vst3 && !is_clap) return false;
-    std::string b64_part = state.substr(is_vst3 ? 10 : 5);
-    std::vector<BYTE> data = StringUtils::Base64Decode(b64_part);
-    if (data.empty()) return false;
+
+    std::vector<BYTE> data;
+    bool decoded = is_vst3
+                       ? StringUtils::DecodeStatePayload(state, "VST3_DUAL:", "VST3_DUALZ:", data, kMaxSerializedVstStatePayloadBytes)
+                       : StringUtils::DecodeStatePayload(state, "CLAP:", "CLAPZ:", data, static_cast<size_t>(kMaxSerializedStateBytes));
+    if (!decoded) return false;
+
     if (is_vst3) {
         if (data.size() < sizeof(int64_t) * 2) return false;
 
