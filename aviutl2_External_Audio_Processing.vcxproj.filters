@@ -38,6 +38,7 @@
     <ClCompile Include="ToolGenerator2.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="ToolReverb2.cpp" />
+    <ClCompile Include="Eap2mod2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />

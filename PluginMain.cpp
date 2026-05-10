@@ -17,7 +17,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2004001
+#define MINIMUM_VERSION 2004500
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -51,6 +51,11 @@ constexpr wchar_t plugin_version[] = PLUGIN_VERSION;
 COMMON_PLUGIN_TABLE common_plugin_table = {
     filter_name,
     plugin_info,
+};
+
+SCRIPT_MODULE_TABLE script_module_table = {
+    GEN_FILTER_INFO(L"Module"),
+    module_funcs
 };
 
 static constexpr std::array all_plugins{
@@ -331,6 +336,7 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     });
     host->register_config_menu(TrText(L"EAP2の設定を開く"), [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
     for (auto& plugin : GetModule(all_plugins, settings)) host->register_filter_plugin(plugin);
+    host->register_script_module_name(&script_module_table, L"EAP2_module");
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });

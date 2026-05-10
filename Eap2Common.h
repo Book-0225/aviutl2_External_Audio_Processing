@@ -4,6 +4,7 @@
 #include "config2.h"
 #include "filter2.h"
 #include "logger2.h"
+#include "module2.h"
 #include "plugin2.h"
 
 #include <array>
@@ -96,6 +97,7 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_gen;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_reverb2;
+extern SCRIPT_MODULE_FUNCTION module_funcs[];
 
 void LoadConfig();
 void ReloadConfig();

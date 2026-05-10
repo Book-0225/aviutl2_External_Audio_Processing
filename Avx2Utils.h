@@ -865,7 +865,7 @@ inline void BlendLineRGBAx8(PIXEL_RGBA* buf, int32_t startX, int32_t y, int32_t 
         buf[pixIdx + i].r = static_cast<uint8_t>(color.r * alpha + bg.r * invAlpha);
         buf[pixIdx + i].g = static_cast<uint8_t>(color.g * alpha + bg.g * invAlpha);
         buf[pixIdx + i].b = static_cast<uint8_t>(color.b * alpha + bg.b * invAlpha);
-        buf[pixIdx + i].a = static_cast<uint8_t>((std::min)(255, (int32_t)(bg.a + color.a)));
+        buf[pixIdx + i].a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(bg.a + color.a)));
     }
     _mm256_zeroupper();
 }
@@ -944,7 +944,7 @@ inline void BlendVerticalLineRGBAx8(PIXEL_RGBA* buf, int32_t x, int32_t startY, 
         buf[idx].r = static_cast<uint8_t>(color.r * alpha + bg.r * invAlpha);
         buf[idx].g = static_cast<uint8_t>(color.g * alpha + bg.g * invAlpha);
         buf[idx].b = static_cast<uint8_t>(color.b * alpha + bg.b * invAlpha);
-        buf[idx].a = static_cast<uint8_t>((std::min)(255, (int32_t)(bg.a + color.a)));
+        buf[idx].a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(bg.a + color.a)));
     }
     _mm256_zeroupper();
 }
