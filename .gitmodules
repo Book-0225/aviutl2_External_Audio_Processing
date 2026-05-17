@@ -4,3 +4,6 @@
 [submodule "clap"]
 	path = clap
 	url = https://github.com/free-audio/clap.git
+[submodule "TinySoundFont"]
+	path = TinySoundFont
+	url = https://github.com/schellingb/TinySoundFont.git

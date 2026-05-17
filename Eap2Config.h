@@ -147,6 +147,7 @@ struct ModuleConfig {
     bool spectral_gate_disable = false;
     bool stereo_disable = false;
     bool utility_disable = false;
+    bool midi_gen_disable = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AllToolDisable", L"0", &all_tool_disable, false),
@@ -174,7 +175,8 @@ struct ModuleConfig {
             ConfigEntry::Create(L"SpatialDisable", L"0", &spatial_disable, false),
             ConfigEntry::Create(L"SpectralGateDisable", L"0", &spectral_gate_disable, false),
             ConfigEntry::Create(L"StereoDisable", L"0", &stereo_disable, false),
-            ConfigEntry::Create(L"UtilityDisable", L"0", &utility_disable, false)
+            ConfigEntry::Create(L"UtilityDisable", L"0", &utility_disable, false),
+            ConfigEntry::Create(L"MIDIGeneratorDisable", L"0", &midi_gen_disable, false)
         };
     }
 };
@@ -192,13 +194,13 @@ struct VstConfig {
 struct ExperimentalConfig {
     std::wstring categoryName = L"Experimental";
     bool use_experimental_generator = false;
-    bool enable_experimental_midi_generator = false;
     bool use_experimental_reverb = false;
+    bool use_experimental_script_module = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"UseExperimentalGenerator", L"0", &use_experimental_generator, false),
-            ConfigEntry::Create(L"EnableExperimentalMIDIGenerator", L"0", &enable_experimental_midi_generator, false),
-            ConfigEntry::Create(L"UseExperimentalReverb", L"0", &use_experimental_reverb, false)
+            ConfigEntry::Create(L"UseExperimentalReverb", L"0", &use_experimental_reverb, false),
+            ConfigEntry::Create(L"UseExperimentalScriptModule", L"0", &use_experimental_script_module, false)
         };
     }
 };

@@ -82,7 +82,8 @@ static constexpr std::array all_plugins{
     &filter_plugin_table_deesser,
     &filter_plugin_table_spectral_gate,
     &filter_plugin_table_midi_visualizer,
-    &filter_plugin_table_notes_send_media
+    &filter_plugin_table_notes_send_media,
+    &filter_plugin_table_midi_gen
 };
 
 static constexpr std::array tool_plugins{
@@ -107,7 +108,8 @@ static constexpr std::array tool_plugins{
     &filter_plugin_table_deesser,
     &filter_plugin_table_spectral_gate,
     &filter_plugin_table_midi_visualizer,
-    &filter_plugin_table_notes_send_media
+    &filter_plugin_table_notes_send_media,
+    &filter_plugin_table_midi_gen
 };
 
 static constexpr std::array host_plugins{
@@ -209,13 +211,13 @@ std::vector<T> GetModule(const std::array<T, N>& plugins, AppSettings setting) {
     add_if(setting.module.spectral_gate_disable, &filter_plugin_table_spectral_gate);
     add_if(setting.module.stereo_disable, &filter_plugin_table_stereo);
     add_if(setting.module.utility_disable, &filter_plugin_table_utility);
+    add_if(setting.module.midi_gen_disable, &filter_plugin_table_midi_gen);
     std::vector<T> registry;
     registry.reserve(plugins.size());
     for (const auto& p : plugins)
         if (disable_set.find(p) == disable_set.end()) registry.push_back(p);
     if (setting.general.enable_experimental) {
         if (setting.exp.use_experimental_generator) std::replace(registry.begin(), registry.end(), &filter_plugin_table_generator, &filter_plugin_table_generator2);
-        if (!setting.module.all_tool_disable && setting.exp.enable_experimental_midi_generator) registry.push_back(&filter_plugin_table_midi_gen);
         if (setting.exp.use_experimental_reverb) std::replace(registry.begin(), registry.end(), &filter_plugin_table_reverb, &filter_plugin_table_reverb2);
     }
     return registry;
@@ -336,7 +338,7 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     });
     host->register_config_menu(TrText(L"EAP2の設定を開く"), [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
     for (auto& plugin : GetModule(all_plugins, settings)) host->register_filter_plugin(plugin);
-    host->register_script_module_name(&script_module_table, L"EAP2_module");
+    if (settings.exp.use_experimental_script_module) host->register_script_module_name(&script_module_table, L"EAP2_module");
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });

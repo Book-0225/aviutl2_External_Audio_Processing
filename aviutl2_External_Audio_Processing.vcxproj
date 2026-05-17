@@ -114,7 +114,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetExt>.aux2</TargetExt>
-    <IncludePath>$(SolutionDir)clap\include;$(SolutionDir)aviutl2_sdk;$(SolutionDir)vst3sdk\vstgui4;$(SolutionDir)vst3sdk;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>$(SolutionDir)clap\include;$(SolutionDir)aviutl2_sdk;$(SolutionDir)vst3sdk\vstgui4;$(SolutionDir)vst3sdk;$(SolutionDir)TinySoundFont;$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)\vst3sdk_build\lib\Debug;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>
@@ -125,7 +125,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetExt>.aux2</TargetExt>
-    <IncludePath>$(SolutionDir)clap\include;$(SolutionDir)aviutl2_sdk;$(SolutionDir)vst3sdk\vstgui4;$(SolutionDir)vst3sdk;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>$(SolutionDir)clap\include;$(SolutionDir)aviutl2_sdk;$(SolutionDir)vst3sdk\vstgui4;$(SolutionDir)vst3sdk;$(SolutionDir)TinySoundFont;$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)\vst3sdk_build\lib\Release;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>

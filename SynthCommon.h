@@ -167,6 +167,7 @@ struct VoiceState {
     bool active = false;
     int32_t noteNumber = -1;
     float velocity = 0.0f;
+    int32_t channel = 0;
     double noteOnTime = 0.0;
     double noteOffTime = -1.0;
     float pan = 0.5f;
@@ -297,6 +298,53 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
             double idx = 2.0 + (p.timbre * 10.0);
             double mod = std::sin(t * M_PI * 4.0);
             float v = static_cast<float>(std::sin(t * M_PI * 2 + mod * idx));
+            sample = { v, v };
+            break;
+        }
+        case GEN_PIANO: {
+            float bright = 0.5f + p.timbre * 0.5f;
+            float inharmonicity = 1.0f + 0.0003f * static_cast<float>(p.freq / 440.0);
+            auto partial = [&](double ratio, float amp, float decay_rate) -> float {
+                float env = std::exp(static_cast<float>(-time * decay_rate));
+                return static_cast<float>(std::sin(t * M_PI * 2.0 * ratio)) * amp * env;
+            };
+            float v = 0.0f;
+            v += partial(1.0, 0.70f, 0.4f);
+            v += partial(2.0 * inharmonicity, 0.30f, 1.2f) * bright;
+            v += partial(3.0 * inharmonicity * inharmonicity, 0.15f, 2.8f) * bright;
+            v += partial(4.0 * std::pow(inharmonicity, 3), 0.08f, 5.0f) * bright;
+            v += partial(5.0 * std::pow(inharmonicity, 4), 0.04f, 8.0f) * bright;
+            v += partial(6.0 * std::pow(inharmonicity, 5), 0.02f, 13.0f) * bright;
+            float hammer = state.rng.nextFloat() * std::exp(static_cast<float>(-time * 350.0f)) * (0.2f + p.timbre * 0.4f);
+            v = (v + hammer) * 0.65f;
+            sample = { v, v };
+            break;
+        }
+        case GEN_MUSICBOX: {
+            float body_decay = std::exp(static_cast<float>(-time * (3.5f + p.timbre * 8.0f)));
+            float v = 0.0f;
+            v += static_cast<float>(std::sin(t * M_PI * 2.0)) * 0.60f;
+            v += static_cast<float>(std::sin(t * M_PI * 2.0 * 2.003)) * 0.12f * std::exp(static_cast<float>(-time * 5.0f));
+            v += static_cast<float>(std::sin(t * M_PI * 2.0 * 5.43)) * 0.18f * std::exp(static_cast<float>(-time * 14.0f));
+            v += static_cast<float>(std::sin(t * M_PI * 2.0 * 9.14)) * 0.07f * std::exp(static_cast<float>(-time * 22.0f));
+            float pluck = state.rng.nextFloat() * std::exp(static_cast<float>(-time * 600.0f)) * 0.20f;
+            v = (v * body_decay + pluck) * 0.75f;
+            sample = { v, v };
+            break;
+        }
+        case GEN_8BIT: {
+            float duty = 0.125f + p.timbre * 0.375f;
+            float v = (static_cast<float>(t) < duty) ? 1.0f : -1.0f;
+            v = std::round(v * 7.5f) / 7.5f;
+            sample = { v, v };
+            break;
+        }
+        case GEN_KICK: {
+            float body_env = std::exp(static_cast<float>(-time * 7.0f));
+            float body = static_cast<float>(std::sin(t * M_PI * 2.0)) * body_env;
+            float punch = static_cast<float>(std::sin(t * M_PI * 4.0)) * std::exp(static_cast<float>(-time * 35.0f)) * 0.20f;
+            float click = state.rng.nextFloat() * std::exp(static_cast<float>(-time * 280.0f)) * 0.55f;
+            float v = (body + punch + click) * 0.80f;
             sample = { v, v };
             break;
         }
