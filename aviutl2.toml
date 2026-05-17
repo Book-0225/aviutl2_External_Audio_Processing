@@ -16,7 +16,7 @@ destination = "Language/English.External_Audio_Processing2.aul2"
 
 [artifacts.EAP2_obj2]
 source = "@EAP2.obj2"
-enabled = true
+enabled = false
 destination = "Script/EAP2/@EAP2.obj2"
 
 [artifacts.External_Audio_Processing2_aux2]
