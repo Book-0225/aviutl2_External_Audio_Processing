@@ -136,6 +136,10 @@ class HostComponentHandler : public IComponentHandler {
     std::atomic<uint32_t> refCount{ 1 };
 };
 
+void SafeProcessCall_log() {
+    DbgPrint(L"Access Violation inside VST3::process()", LOG_ERROR);
+}
+
 static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
     if (!processor) return kResultFalse;
 
@@ -144,7 +148,7 @@ static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
     __try {
         return processor->process(data);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        DbgPrint("[EAP2 Error] Access Violation inside VST3::process()");
+        SafeProcessCall_log();
         return kResultFalse;
     }
 }
@@ -217,10 +221,10 @@ struct VstHost::Impl {
 
         if (restartFromActiveState) {
             if (processor->setProcessing(false) != kResultOk) {
-                DbgPrint("[EAP2 Warning] VST3 setProcessing(false) failed during reconfiguration");
+                DbgPrint(L"VST3 setProcessing(false) failed during reconfiguration", LOG_WARN);
             }
             if (component->setActive(false) != kResultOk) {
-                DbgPrint("[EAP2 Warning] VST3 setActive(false) failed during reconfiguration");
+                DbgPrint(L"VST3 setActive(false) failed during reconfiguration", LOG_WARN);
             }
         }
 
@@ -365,7 +369,7 @@ struct VstHost::Impl {
         }
 
         if (!ApplyProcessingSetup(newRate, currentBlockSize, true)) {
-            DbgPrint("[EAP2 Warning] Failed to apply VST3 sample-rate change: %.1f", newRate);
+            DbgPrint(L"Failed to apply VST3 sample-rate change: " + std::to_wstring(newRate), LOG_WARN);
             isReady = false;
             return;
         }
@@ -715,7 +719,7 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
     }
 
     if (!ApplyProcessingSetup(currentSampleRate, currentBlockSize, true)) {
-        DbgPrint("[EAP2 Warning] Failed to reset VST3 processing state");
+        DbgPrint(L"Failed to reset VST3 processing state", LOG_WARN);
         isReady = false;
         return;
     }
@@ -836,7 +840,7 @@ void VstHost::Impl::ShowGui() {
 
     plugView = owned(controller->createView("editor"));
     if (!plugView) {
-        DbgPrint("[VST3 GUI] Failed to create editor view");
+        DbgPrint(L"[VST3 GUI] Failed to create editor view", LOG_INFO);
         return;
     }
 
@@ -845,7 +849,7 @@ void VstHost::Impl::ShowGui() {
 
     // Check if plugin supports resizing (for logging purposes)
     bool canResize = (plugView->canResize() == kResultTrue);
-    DbgPrint("[VST3 GUI] Plugin canResize: %hs", canResize ? "yes" : "no");
+    DbgPrint(L"[VST3 GUI] Plugin canResize: " + canResize ? L"yes" : L"no", LOG_VERBOSE);
 
     // Always allow window resizing regardless of plugin support
     DWORD windowStyle = settings.vst.forceResize ? WS_OVERLAPPEDWINDOW : WS_OVERLAPPED | WS_CAPTION;
@@ -887,8 +891,8 @@ void VstHost::Impl::ShowGui() {
                 if (currentSize.getWidth() != newSize.getWidth() || currentSize.getHeight() != newSize.getHeight()) {
                     // Try to resize even if canResize() returns false
                     // Some plugins don't implement canResize() correctly
-                    if (self->plugView->onSize(&newSize) == kResultOk) DbgPrint("[VST3 GUI] Resized to %dx%d", newSize.getWidth(), newSize.getHeight());
-                    else DbgPrint("[VST3 GUI] Resize request rejected by plugin");
+                    if (self->plugView->onSize(&newSize) == kResultOk) DbgPrint(L"[VST3 GUI] Resized to " + std::to_wstring(newSize.getWidth()) + L"x" + std::to_wstring(newSize.getHeight()), LOG_VERBOSE);
+                    else DbgPrint(L"[VST3 GUI] Resize request rejected by plugin", LOG_VERBOSE);
                 }
             }
             return 0;
@@ -922,7 +926,7 @@ void VstHost::Impl::ShowGui() {
     WNDCLASS existingClass;
     if (!GetClassInfo(hInstance, wc.lpszClassName, &existingClass)) {
         if (!RegisterClass(&wc)) {
-            DbgPrint("[VST3 GUI] Failed to register window class");
+            DbgPrint(L"[VST3 GUI] Failed to register window class", LOG_WARN);
             plugView.reset();
             return;
         }
@@ -945,7 +949,7 @@ void VstHost::Impl::ShowGui() {
                                CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
                                nullptr, nullptr, hInstance, this);
     if (!guiWindow) {
-        DbgPrint("[VST3 GUI] Failed to create window (Error: %d)", GetLastError());
+        DbgPrint(L"[VST3 GUI] Failed to create window (Error: " + std::to_wstring(GetLastError()) + L")", LOG_WARN);
         plugView.reset();
         return;
     }
@@ -953,12 +957,12 @@ void VstHost::Impl::ShowGui() {
     windowController = new WindowController(plugView, guiWindow);
     windowController->connect();
     if (plugView->attached(guiWindow, kPlatformTypeHWND) != kResultOk) {
-        DbgPrint("[VST3 GUI] Failed to attach plugin view to window");
+        DbgPrint(L"[VST3 GUI] Failed to attach plugin view to window", LOG_WARN);
         DestroyWindow(guiWindow);
         return;
     }
 
-    DbgPrint("[VST3 GUI] Plugin GUI window created successfully (canResize: %hs)", canResize ? "yes" : "no");
+    DbgPrint(L"[VST3 GUI] Plugin GUI window created successfully (canResize: " + std::wstring(canResize ? L"yes" : L"no") + L")", LOG_VERBOSE);
     ShowWindow(guiWindow, SW_SHOW);
 }
 
@@ -975,7 +979,7 @@ std::string VstHost::Impl::GetState() {
         if (component->getState(&cStream) != kResultOk) return "";
 
         if (controller && controller->getState(&tStream) != kResultOk) {
-            DbgPrint("[EAP2 Warning] VST3 controller state was not available");
+            DbgPrint(L"VST3 controller state was not available", LOG_WARN);
         }
 
         int64_t cs = cStream.getSize();
@@ -995,7 +999,7 @@ std::string VstHost::Impl::GetState() {
             static_cast<size_t>(full.getSize()),
             settings.general.compress_plugin_state);
     } catch (...) {
-        DbgPrint("[EAP2 Error] Exception inside VST3 GetState");
+        DbgPrint(L"Exception inside VST3 GetState", LOG_ERROR);
         return "";
     }
 }

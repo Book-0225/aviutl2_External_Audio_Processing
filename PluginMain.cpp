@@ -273,7 +273,7 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
 
     SetTimer(nullptr, g_timer_id, 50, TimerProc);
 
-    DbgPrint("EAP2 Initialized Successfully.");
+    DbgPrint(L"EAP2 Initialized Successfully.", LOG_INFO);
     return true;
 }
 
@@ -315,7 +315,7 @@ EXTERN_C __declspec(dllexport) void UninitializePlugin() {
 
     // SaveConfig(); 将来的にAviUtl内で設定を変更出来るようにした時用
 
-    DbgPrint("EAP2 Uninitialized.");
+    DbgPrint(L"EAP2 Uninitialized.", LOG_INFO);
 }
 
 EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {

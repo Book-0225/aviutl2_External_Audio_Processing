@@ -86,7 +86,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
                 m_plugin_state_database[instance_id] = live_state;
             }
         } catch (...) {
-            DbgPrint("[EAP2 Warning] Failed to save state for Instance: %hs", instance_id.c_str());
+            DbgPrint(L"Failed to save state for Instance: " + StringUtils::Utf8ToWide(instance_id), LOG_WARN);
         }
     }
 
@@ -156,7 +156,7 @@ void PluginManager::LoadProjectState(const std::string& data) {
                     m_param_mappings[key] = mapping;
                 }
             } else {
-                DbgPrint("[EAP2 Warning] Corrupted state data detected and discarded for ID: %hs", key.c_str());
+                DbgPrint(L"Corrupted state data detected and discarded for ID: " + StringUtils::Utf8ToWide(key), LOG_WARN);
             }
         }
         start = end + 1;
@@ -242,7 +242,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     std::lock_guard<std::mutex> lock(m_last_audio_state_mutex);
     auto it = m_last_audio_states.find(effect_id);
     bool needs_reset = false;
-    DbgPrint("ShouldReset: %lld %lld %d", effect_id, current_sample_index, current_sample_num);
+    DbgPrint(L"ShouldReset: " + std::to_wstring(effect_id) + L" " + std::to_wstring(current_sample_index) + L" " + std::to_wstring(current_sample_num), LOG_VERBOSE);
     if (it != m_last_audio_states.end()) {
         if (current_sample_index != it->second.sample_end) {
             needs_reset = true;
@@ -250,7 +250,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     } else {
         needs_reset = true;
     }
-    DbgPrint("ShouldReset result: %d", needs_reset);
+    DbgPrint(L"ShouldReset result: " + needs_reset ? L"True" : L"False", LOG_VERBOSE);
     return needs_reset;
 }
 

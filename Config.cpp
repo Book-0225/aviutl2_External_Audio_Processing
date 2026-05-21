@@ -44,10 +44,10 @@ void ShowConfigLoadWarning(const ConfigLoadReport& report) {
 void LoadEntryWithFallback(const std::wstring& categoryName, const ConfigEntry& item, const std::wstring& rawValue, ConfigLoadReport& report) {
     if (item.load(rawValue))
         return;
-    DbgPrint("[EAP2 Config] Invalid value detected. category=%ls key=%ls value=%ls fallback=%ls", categoryName.c_str(), item.key.c_str(), rawValue.c_str(), item.defaultValue.c_str());
+    DbgPrint(L"[EAP2 Config] Invalid value detected. category=" + categoryName + L" key=" + item.key + L" value=" + rawValue + L" fallback=" + item.defaultValue, LOG_WARN);
     report.Add(categoryName, item.key, rawValue);
     if (!item.load(item.defaultValue))
-        DbgPrint("[EAP2 Config] Failed to apply default value. category=%ls key=%ls default=%ls", categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str());
+        DbgPrint(L"[EAP2 Config] Failed to apply default value. category=" + categoryName + L" key=" + item.key + L" default=" + item.defaultValue, LOG_WARN);
 }
 
 std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const std::filesystem::path& path) {
@@ -79,7 +79,7 @@ void EnsureCategoryDefaults(const std::wstring& categoryName, const std::vector<
     for (const auto& item : entries) {
         if (existing_keys.find(item.key) != existing_keys.end()) continue;
         WritePrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
-        DbgPrint("[EAP2 Config] Added missing key. category=%ls key=%ls default=%ls", categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str());
+        DbgPrint(L"[EAP2 Config] Added missing key. category=" + categoryName + L" key=" + item.key + L" default=" + item.defaultValue, LOG_INFO);
     }
 }
 

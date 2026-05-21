@@ -11,7 +11,9 @@
 #include <array>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <regex>
+#include <string>
 #include <tchar.h>
 #include <variant>
 #include <vector>
@@ -31,26 +33,60 @@ extern EDIT_HANDLE* g_edit_handle;
 extern CONFIG_HANDLE* g_config_handle;
 extern CACHE_HANDLE* g_cache_handle;
 
+enum LOG_TYPE {
+    LOG_NONE,
+    LOG_VERBOSE,
+    LOG_INFO,
+    LOG_WARN,
+    LOG_ERROR
+};
+
+inline void DbgPrint(const std::wstring& message, std::optional<LOG_TYPE> log_type = std::nullopt) {
 #ifdef _DEBUG
-#define DbgPrint(format, ...)                                                                          \
-    do {                                                                                               \
-        TCHAR b[1024];                                                                                 \
-        _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
-        OutputDebugString(b);                                                                          \
-        if (g_logger && g_logger->verbose) {                                                           \
-            g_logger->verbose(g_logger, b);                                                            \
-        }                                                                                              \
-    } while (0)
-#else
-#define DbgPrint(format, ...)                                                                              \
-    do {                                                                                                   \
-        if (g_logger && g_logger->verbose) {                                                               \
-            TCHAR b[1024];                                                                                 \
-            _stprintf_s(b, 1024, _T("[External Audio Processing 2] ") _T(format) _T("\n"), ##__VA_ARGS__); \
-            g_logger->verbose(g_logger, b);                                                                \
-        }                                                                                                  \
-    } while (0)
+    std::wstring debug_string_type = L"";
+    switch (log_type.value_or(LOG_INFO)) {
+        case LOG_NONE:
+            debug_string_type = L"[Log] ";
+            break;
+        case LOG_VERBOSE:
+            debug_string_type = L"[Verbose] ";
+            break;
+        case LOG_INFO:
+            debug_string_type = L"[Info] ";
+            break;
+        case LOG_WARN:
+            debug_string_type = L"[Warn] ";
+            break;
+        case LOG_ERROR:
+            debug_string_type = L"[Error] ";
+            break;
+        default:
+            debug_string_type = L"[Info] ";
+            break;
+    }
+    OutputDebugString((L"[External Audio Processing 2] " + debug_string_type + message).c_str());
 #endif
+    switch (log_type.value_or(LOG_INFO)) {
+        case LOG_NONE:
+            g_logger->log(g_logger, message.c_str());
+            break;
+        case LOG_VERBOSE:
+            g_logger->verbose(g_logger, message.c_str());
+            break;
+        case LOG_INFO:
+            g_logger->info(g_logger, message.c_str());
+            break;
+        case LOG_WARN:
+            g_logger->warn(g_logger, message.c_str());
+            break;
+        case LOG_ERROR:
+            g_logger->error(g_logger, message.c_str());
+            break;
+        default:
+            g_logger->info(g_logger, message.c_str());
+            break;
+    }
+}
 
 inline LPCWSTR TrText(LPCWSTR text) {
     if (!text || !g_config_handle || !g_config_handle->translate) {

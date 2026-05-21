@@ -62,7 +62,25 @@ struct ClapHost::Impl {
 };
 
 static void clap_log_callback(const clap_host_t* host, clap_log_severity severity, const char* msg) {
-    DbgPrint("[CLAP] %hs \n", msg);
+    LOG_TYPE type = LOG_VERBOSE;
+    switch (severity) {
+        case CLAP_LOG_DEBUG:
+            type = LOG_VERBOSE;
+            break;
+        case CLAP_LOG_INFO:
+            type = LOG_INFO;
+            break;
+        case CLAP_LOG_WARNING:
+            type = LOG_WARN;
+            break;
+        case CLAP_LOG_ERROR:
+        case CLAP_LOG_FATAL:
+            type = LOG_ERROR;
+            break;
+        default:
+            break;
+    }
+    DbgPrint(L"[CLAP]" + StringUtils::Utf8ToWide(msg), type);
 }
 
 static bool clap_gui_resize(const clap_host_t* host, uint32_t width, uint32_t height) {
@@ -71,8 +89,26 @@ static bool clap_gui_resize(const clap_host_t* host, uint32_t width, uint32_t he
 }
 
 static const clap_host_log s_clap_log = {
-    [](const clap_host_t*, clap_log_severity, const char* msg) {
-        DbgPrint("[CLAP] %hs \n", msg);
+    [](const clap_host_t*, clap_log_severity severity, const char* msg) {
+        LOG_TYPE type = LOG_VERBOSE;
+        switch (severity) {
+            case CLAP_LOG_DEBUG:
+                type = LOG_VERBOSE;
+                break;
+            case CLAP_LOG_INFO:
+                type = LOG_INFO;
+                break;
+            case CLAP_LOG_WARNING:
+                type = LOG_WARN;
+                break;
+            case CLAP_LOG_ERROR:
+            case CLAP_LOG_FATAL:
+                type = LOG_ERROR;
+                break;
+            default:
+                break;
+        }
+        DbgPrint(L"[CLAP]" + StringUtils::Utf8ToWide(msg), type);
     }
 };
 
@@ -160,8 +196,8 @@ bool ClapHost::Impl::LoadPlugin(const std::filesystem::path& path, double sample
     extParams = reinterpret_cast<const clap_plugin_params*>(plugin->get_extension(plugin, CLAP_EXT_PARAMS));
     extLatency = reinterpret_cast<const clap_plugin_latency*>(plugin->get_extension(plugin, CLAP_EXT_LATENCY));
 
-    if (extParams) DbgPrint("[CLAP] params extension available\n");
-    if (extLatency) DbgPrint("[CLAP] latency extension available\n");
+    if (extParams) DbgPrint(L"[CLAP] params extension available", LOG_VERBOSE);
+    if (extLatency) DbgPrint(L"[CLAP] latency extension available", LOG_VERBOSE);
 
     if (!plugin->activate(plugin, sampleRate, blockSize, blockSize)) {
         ReleasePlugin();
@@ -347,7 +383,7 @@ void ClapHost::Impl::Cleanup() {
 
 int32_t ClapHost::Impl::GetParameterCount() const {
     if (!extParams) {
-        DbgPrint("[CLAP] params extension not available\n");
+        DbgPrint(L"[CLAP] params extension not available", LOG_VERBOSE);
         return 0;
     }
     return static_cast<int32_t>(extParams->count(plugin));
@@ -355,13 +391,13 @@ int32_t ClapHost::Impl::GetParameterCount() const {
 
 bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::ParameterInfo& info) const {
     if (!extParams) {
-        DbgPrint("[CLAP] params extension not available\n");
+        DbgPrint(L"[CLAP] params extension not available", LOG_VERBOSE);
         return false;
     }
 
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
-        DbgPrint("[CLAP] failed to get parameter info for index %d\n", index);
+        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_INFO);
         return false;
     }
     strncpy_s(info.name, clapInfo.name, sizeof(info.name) - 1);
@@ -376,13 +412,13 @@ bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::Parameter
 
 uint32_t ClapHost::Impl::GetParameterID(int32_t index) const {
     if (!extParams) {
-        DbgPrint("[CLAP] params extension not available\n");
+        DbgPrint(L"[CLAP] params extension not available", LOG_VERBOSE);
         return 0;
     }
 
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
-        DbgPrint("[CLAP] failed to get parameter info for index %d\n", index);
+        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_INFO);
         return 0;
     }
 
@@ -391,12 +427,12 @@ uint32_t ClapHost::Impl::GetParameterID(int32_t index) const {
 
 int32_t ClapHost::Impl::GetLatencySamples() const {
     if (!extLatency) {
-        DbgPrint("[CLAP] latency extension not available\n");
+        DbgPrint(L"[CLAP] latency extension not available", LOG_VERBOSE);
         return 0;
     }
 
     if (!isReady || !plugin) {
-        DbgPrint("[CLAP] plugin not ready\n");
+        DbgPrint(L"[CLAP] plugin not ready", LOG_WARN);
         return 0;
     }
 
@@ -409,11 +445,11 @@ int32_t ClapHost::Impl::GetLastTouchedParamID() {
 
 void ClapHost::Impl::SetParameter(uint32_t paramId, float value) const {
     if (!extParams) {
-        DbgPrint("[CLAP] params extension not available\n");
+        DbgPrint(L"[CLAP] params extension not available", LOG_VERBOSE);
         return;
     }
 
-    DbgPrint("[CLAP] SetParameter id=%u, value=%f (not fully implemented)\n", paramId, value);
+    DbgPrint(L"[CLAP] SetParameter id=" + std::to_wstring(paramId) + L", value=" + std::to_wstring(value) + L" (not fully implemented)", LOG_VERBOSE);
 }
 
 ClapHost::Impl::~Impl() {

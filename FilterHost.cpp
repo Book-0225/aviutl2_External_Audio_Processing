@@ -85,7 +85,7 @@ FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
                     std::string uuid = StringUtils::HexToString(hex_id);
                     if (!uuid.empty()) {
                         PluginManager::GetInstance().ClearMapping(uuid);
-                        DbgPrint("Mappings cleared via button for %hs", uuid.c_str());
+                        DbgPrint(L"Mappings cleared via button for " + StringUtils::Utf8ToWide(uuid), LOG_VERBOSE);
                     }
                 }
             }
@@ -253,7 +253,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
         try {
             g_edit_handle->call_edit_section(collect_active_ids_proc);
         } catch (...) {
-            DbgPrint("[EAP2 Error] Exception in collect_active_ids_proc");
+            DbgPrint(L"Exception in collect_active_ids_proc", LOG_ERROR);
         }
     }
     g_active_ids_collector = nullptr;
@@ -262,11 +262,11 @@ void func_project_save_impl(PROJECT_FILE* pf) {
 
     if (!all_data_str.empty()) {
         if (all_data_str.size() > 32 * 1024 * 1024) {
-            DbgPrint("[EAP2 Error] State data too large. Skipping.");
+            DbgPrint(L"State data too large. Skipping.", LOG_ERROR);
             pf->set_param_string("AudioHostStateDB", "");
         } else {
             pf->set_param_string("AudioHostStateDB", all_data_str.c_str());
-            DbgPrint("Saved project state, size: %zu", all_data_str.size());
+            DbgPrint(L"Saved project state, size: " + std::to_wstring(all_data_str.size()), LOG_INFO);
         }
     } else {
         pf->set_param_string("AudioHostStateDB", "");
@@ -275,10 +275,14 @@ void func_project_save_impl(PROJECT_FILE* pf) {
 
 int32_t ProjectSaveExceptionFilter(uint32_t code, struct _EXCEPTION_POINTERS* ep) {
     if (code == EXCEPTION_ACCESS_VIOLATION) {
-        DbgPrint("[EAP2 Critical] Access Violation at %p", ep->ExceptionRecord->ExceptionAddress);
+        DbgPrint(L"Access Violation at %p" + StringUtils::PointerToWide(ep->ExceptionRecord->ExceptionAddress), LOG_ERROR);
         return EXCEPTION_EXECUTE_HANDLER;
     }
     return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void func_project_save_log() {
+    DbgPrint(L"Save aborted. Clearing project data.", LOG_ERROR);
 }
 
 void func_project_save(PROJECT_FILE* pf) {
@@ -287,7 +291,7 @@ void func_project_save(PROJECT_FILE* pf) {
     __try {
         func_project_save_impl(pf);
     } __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
-        DbgPrint("[EAP2 Critical] Save aborted. Clearing project data.");
+        func_project_save_log();
         pf->set_param_string("AudioHostStateDB", "");
     }
 }
@@ -300,10 +304,10 @@ void func_project_load(PROJECT_FILE* pf) {
         LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
         if (all_data_str) {
             PluginManager::GetInstance().LoadProjectState(all_data_str);
-            DbgPrint("Loaded project state, size: %zu", strlen(all_data_str));
+            DbgPrint(L"Loaded project state, size: " + std::to_wstring(strlen(all_data_str)), LOG_INFO);
         }
     } catch (...) {
-        DbgPrint("[EAP2 Error] Exception in func_project_load");
+        DbgPrint(L"Exception in func_project_load", LOG_ERROR);
     }
 }
 
@@ -371,7 +375,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     PluginManager::GetInstance().RegisterOrUpdateInstance(instance_id, effect_id, is_copy);
 
     if (is_copy) {
-        DbgPrint("Copy detected! New instance_id: %hs", instance_id.c_str());
+        DbgPrint(L"Copy detected! New instance_id: " + StringUtils::Utf8ToWide(instance_id), LOG_VERBOSE);
         strcpy_s(instance_data_param.value->uuid, sizeof(instance_data_param.value->uuid), instance_id.c_str());
         wcscpy_s(last_plugin_data.value->last_plugin_path, sizeof(last_plugin_data.value->last_plugin_path), last_plugin_data.default_value.last_plugin_path);
         wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), last_midi_data.default_value.last_midi_path);
@@ -404,7 +408,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         double currentRate = host->GetSampleRate();
         double targetRate = (double)audio->scene->sample_rate;
         if (std::abs(currentRate - targetRate) > 0.1) {
-            DbgPrint("Sample Rate Change Detected for %lld: %.1f -> %.1f", effect_id, currentRate, targetRate);
+            DbgPrint(L"Sample Rate Change Detected for " + std::to_wstring(effect_id) + L": " + std::to_wstring(currentRate) + L" -> " + std::to_wstring(targetRate), LOG_VERBOSE);
             host->SetSampleRate(targetRate);
         }
     }
@@ -454,7 +458,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
         if (path_changed) {
             PluginManager::GetInstance().ClearMapping(instance_id);
-            DbgPrint("Plugin path changed. Mappings cleared for %hs", instance_id.c_str());
+            DbgPrint(L"Plugin path changed. Mappings cleared for " + StringUtils::Utf8ToWide(instance_id), LOG_VERBOSE);
         }
 
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
@@ -527,7 +531,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             for (int32_t i = 0; i < 4; ++i) {
                 if (map_vals[i] < 0 && cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
                     PluginManager::GetInstance().UpdateMapping(instance_id, i, lastTouched);
-                    DbgPrint("Mapped Slider %d to ParamID %d", i + 1, lastTouched);
+                    DbgPrint(L"Mapped Slider " + std::to_wstring(i + 1) + L" to ParamID " + std::to_wstring(lastTouched), LOG_VERBOSE);
                     break;
                 }
             }
@@ -578,7 +582,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     } else {
                         host->HideGui();
                         std::string state = host->GetState();
-                        DbgPrint("Plugin GUI hidden, saving state for %hs, (Size: %zu, Data: %.120hs...)", instance_id.c_str(), state.size(), state.c_str());
+                        DbgPrint(L"Plugin GUI hidden, saving state for " + StringUtils::Utf8ToWide(instance_id) + L", (Size: " + std::to_wstring(state.size()) + L", Data: " + StringUtils::Utf8ToWide(state) + L"...)", LOG_INFO);
                         if (!state.empty()) PluginManager::GetInstance().SaveState(instance_id, state);
                     }
                 }

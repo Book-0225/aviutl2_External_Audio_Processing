@@ -202,4 +202,14 @@ inline bool DecodeStatePayload(const std::string& encodedState, std::string_view
 
     return false;
 }
+
+inline std::wstring PointerToWide(const void* pointer) {
+    std::wstringstream wss;
+    wss << L"0x"
+        << std::setfill(L'0')
+        << std::setw(sizeof(void*) * 2)
+        << std::hex
+        << reinterpret_cast<std::uintptr_t>(pointer);
+    return wss.str();
+}
 } // namespace StringUtils
