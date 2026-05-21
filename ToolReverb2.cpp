@@ -14,6 +14,7 @@ FILTER_ITEM_TRACK rev_size(L"Size", 100.0, 10.0, 250.0, 1.0);
 FILTER_ITEM_TRACK rev_diffusion(L"Diffusion", 70.0, 0.0, 100.0, 1.0);
 FILTER_ITEM_TRACK rev_highcut(L"High Cut", 18.0, 1.0, 20.0, 0.1);
 FILTER_ITEM_TRACK rev_predelay2(L"Pre-Delay", 20.0, 0.0, 200.0, 1.0);
+FILTER_ITEM_TRACK rev_mod_rate(L"Mod Rate", 1.0, 0.1, 8.0, 0.1);
 FILTER_ITEM_TRACK rev_mod_depth(L"Modulation", 40.0, 0.0, 100.0, 0.1);
 FILTER_ITEM_TRACK rev_mix2(L"Mix", 40.0, 0.0, 100.0, 0.1);
 
@@ -23,6 +24,7 @@ void* filter_items_reverb2[] = {
     &rev_diffusion,
     &rev_highcut,
     &rev_predelay2,
+    &rev_mod_rate,
     &rev_mod_depth,
     &rev_mix2,
     nullptr
@@ -83,8 +85,9 @@ class ModDelayLine {
 
     inline float read_interpolated(float delay_samples) {
         float r_pos_f = w_pos - delay_samples;
-        while (r_pos_f < 0.0f) r_pos_f += static_cast<float>(size);
-        while (r_pos_f >= static_cast<float>(size)) r_pos_f -= static_cast<float>(size);
+        float sz = static_cast<float>(size);
+        r_pos_f = fmodf(r_pos_f, sz);
+        if (r_pos_f < 0.0f) r_pos_f += sz;
         int32_t r_idx = static_cast<int32_t>(r_pos_f);
         float frac = r_pos_f - r_idx;
         int32_t r_idx_next = r_idx + 1;
@@ -99,8 +102,9 @@ class ModDelayLine {
 
     inline float read_at_future_wpos(int32_t future_offset, float delay_samples) {
         float r_pos_f = (w_pos + future_offset) - delay_samples;
-        while (r_pos_f < 0.0f) r_pos_f += size;
-        while (r_pos_f >= (float)size) r_pos_f -= size;
+        float sz = static_cast<float>(size);
+        r_pos_f = fmodf(r_pos_f, sz);
+        if (r_pos_f < 0.0f) r_pos_f += sz;
         int32_t r_idx = static_cast<int32_t>(r_pos_f);
         float frac = r_pos_f - r_idx;
         int32_t r_next = (r_idx + 1 >= size) ? 0 : r_idx + 1;
@@ -176,7 +180,6 @@ struct ReverbState2 {
         pre_delay_buf.assign(MAX_BUFFER_SIZE, 0.0f);
         pre_delay_w = 0;
         lfo_phase = 0.0f;
-        lfo_inc = static_cast<float>(2.0 * M_PI * 1.0 / sample_rate);
         initialized = true;
     }
 
@@ -241,6 +244,7 @@ struct ReverbState2 {
         int32_t pre_r_idx = pre_delay_w - pre_samps;
         if (pre_r_idx < 0) pre_r_idx += MAX_BUFFER_SIZE;
         int32_t pd_size = static_cast<int32_t>(pre_delay_buf.size());
+        lfo_inc = static_cast<float>(2.0 * M_PI * rev_mod_rate.value / current_sr);
         float mod_amp = mod_depth * 15.0f;
 
         alignas(32) float diff_io[PROCESS_BLOCK_SIZE];
@@ -256,14 +260,7 @@ struct ReverbState2 {
         process_diffusers_block(diff_io, count, total_scale, diff_scale, diff_fb_in);
 
         for (int32_t i = 0; i < count; ++i) {
-            float mono_in = (inL[i] + inR[i]) * 0.5f;
-            pre_delay_buf[pre_delay_w] = mono_in;
             float input_sample = diff_io[i];
-            pre_delay_w++;
-            if (pre_delay_w >= pd_size) pre_delay_w = 0;
-            pre_r_idx++;
-            if (pre_r_idx >= pd_size) pre_r_idx = 0;
-            input_sample = inputLPF.process(input_sample);
             lfo_phase += lfo_inc;
             if (lfo_phase > 6.283185f) lfo_phase -= 6.283185f;
             float lfo_sin = sinf(lfo_phase);
@@ -340,12 +337,7 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
         state->last_sample_index = audio->object->sample_index + total_samples;
     }
 
-    std::vector<float> bufL, bufR;
-    if (bufL.size() < static_cast<size_t>(total_samples)) {
-        bufL.resize(total_samples);
-        bufR.resize(total_samples);
-    }
-
+    std::vector<float> bufL(total_samples), bufR(total_samples);
     if (channels >= 1) audio->get_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
     else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
