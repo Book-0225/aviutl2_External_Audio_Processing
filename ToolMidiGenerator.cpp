@@ -404,12 +404,12 @@ class SF2SynthRenderer : public ISynthRenderer {
     std::filesystem::path loadedPath_;
     double Fs_ = 44100.0;
     std::vector<float> interleavedBuf_;
-    std::array<int, 16> bankMSB_{};
-    std::array<int, 16> bankLSB_{};
-    std::array<int, 16> rpn_msb_{};
-    std::array<int, 16> rpn_lsb_{};
-    std::array<int, 16> nrpn_msb_{};
-    std::array<int, 16> nrpn_lsb_{};
+    std::array<int32_t, 16> bankMSB_{};
+    std::array<int32_t, 16> bankLSB_{};
+    std::array<int32_t, 16> rpn_msb_{};
+    std::array<int32_t, 16> rpn_lsb_{};
+    std::array<int32_t, 16> nrpn_msb_{};
+    std::array<int32_t, 16> nrpn_lsb_{};
 
     void ResetChannels_() {
         bankMSB_.fill(0);
@@ -497,15 +497,15 @@ class MidiPlayer {
         };
         std::map<NoteKey, NoteInfo, decltype(cmp)> active_notes(cmp);
 
-        std::array<int, 16> prog{};
+        std::array<int32_t, 16> prog{};
         prog.fill(0);
-        std::array<int, 16> bankMSB{};
+        std::array<int32_t, 16> bankMSB{};
         bankMSB.fill(0);
-        std::array<int, 16> bankLSB{};
+        std::array<int32_t, 16> bankLSB{};
         bankLSB.fill(0);
-        std::array<int, 16> pbend{};
+        std::array<int32_t, 16> pbend{};
         pbend.fill(8192);
-        std::array<std::array<int, 128>, 16> cc{};
+        std::array<std::array<int32_t, 128>, 16> cc{};
         for (auto& row : cc) row.fill(-1);
 
         for (size_t i = 0; i < events.size(); ++i) {
