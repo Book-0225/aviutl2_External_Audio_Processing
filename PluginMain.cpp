@@ -17,7 +17,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2004500
+#define MINIMUM_VERSION 2004600
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -129,6 +129,7 @@ HINSTANCE g_hinstance = nullptr;
 EDIT_HANDLE* g_edit_handle = nullptr;
 LOG_HANDLE* g_logger = nullptr;
 CONFIG_HANDLE* g_config_handle = nullptr;
+CACHE_HANDLE* g_cache_handle = nullptr;
 
 std::mutex g_task_queue_mutex;
 std::vector<std::function<void()>> g_main_thread_tasks;
@@ -254,16 +255,16 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     WNDCLASS wc = {};
     wc.lpfnWndProc = MessageWndProc;
     wc.hInstance = g_hinstance;
-    wc.lpszClassName = _T("EAP2_MessageWindowClass");
+    wc.lpszClassName = L"EAP2_MessageWindowClass";
     if (!RegisterClass(&wc)) {
         AudioPluginFactory::Uninitialize();
         CoUninitialize();
         return false;
     }
 
-    g_hMessageWindow = CreateWindow(wc.lpszClassName, _T("EAP2 Message Window"), 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
+    g_hMessageWindow = CreateWindow(wc.lpszClassName, L"EAP2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
     if (!g_hMessageWindow) {
-        UnregisterClass(_T("EAP2_MessageWindowClass"), g_hinstance);
+        UnregisterClass(L"EAP2_MessageWindowClass", g_hinstance);
         AudioPluginFactory::Uninitialize();
         CoUninitialize();
         MessageBox(nullptr, TrText(L"メッセージウィンドウの作成に失敗しました。"), TrText(L"EAP2 Error"), MB_OK | MB_ICONERROR);
@@ -323,6 +324,10 @@ EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
 
 EXTERN_C __declspec(dllexport) void InitializeConfig(CONFIG_HANDLE* handle) {
     g_config_handle = handle;
+}
+
+EXTERN_C __declspec(dllexport) void InitializeCache(CACHE_HANDLE* cache) {
+    g_cache_handle = cache;
 }
 
 EXTERN_C __declspec(dllexport) COMMON_PLUGIN_TABLE* GetCommonPluginTable(void) {

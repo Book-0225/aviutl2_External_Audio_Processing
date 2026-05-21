@@ -1,6 +1,7 @@
 ﻿#pragma once
 #define _USE_MATH_DEFINES
 #include "Eap2Info.h"
+#include "cache2.h"
 #include "config2.h"
 #include "filter2.h"
 #include "logger2.h"
@@ -25,6 +26,10 @@
 #define GEN_FILTER_INFO(NAME) GENERATE_STR_REPLACE(filter_info, regex_info_name, NAME)
 
 extern LOG_HANDLE* g_logger;
+extern HINSTANCE g_hinstance;
+extern EDIT_HANDLE* g_edit_handle;
+extern CONFIG_HANDLE* g_config_handle;
+extern CACHE_HANDLE* g_cache_handle;
 
 #ifdef _DEBUG
 #define DbgPrint(format, ...)                                                                          \
@@ -46,10 +51,6 @@ extern LOG_HANDLE* g_logger;
         }                                                                                                  \
     } while (0)
 #endif
-
-extern HINSTANCE g_hinstance;
-extern EDIT_HANDLE* g_edit_handle;
-extern CONFIG_HANDLE* g_config_handle;
 
 inline LPCWSTR TrText(LPCWSTR text) {
     if (!text || !g_config_handle || !g_config_handle->translate) {
