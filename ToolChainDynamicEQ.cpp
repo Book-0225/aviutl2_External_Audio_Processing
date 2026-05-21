@@ -43,7 +43,7 @@ struct DynEqState {
 };
 
 static std::mutex g_dyneq_mutex;
-static std::map<const void*, DynEqState> g_dyneq_states;
+static std::map<int64_t, DynEqState> g_dyneq_states;
 
 const int32_t BLOCK_SIZE = 64;
 const int32_t CONTROL_RATE = 8;
@@ -65,7 +65,7 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     DynEqState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_dyneq_mutex);
-        state = &g_dyneq_states[audio->object];
+        state = &g_dyneq_states[audio->object->effect_id];
         if (state->last_sample_index != -1 && state->last_sample_index != audio->object->sample_index) {
             state->filterL = DynEqBiquad();
             state->filterR = DynEqBiquad();

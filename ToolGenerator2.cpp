@@ -47,7 +47,7 @@ struct GeneratorObjState {
 };
 
 static std::mutex g_gen_mutex;
-static std::map<const void*, GeneratorObjState> g_gen_states;
+static std::map<int64_t, GeneratorObjState> g_gen_states;
 
 bool func_proc_audio_generator2(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -69,7 +69,7 @@ bool func_proc_audio_generator2(FILTER_PROC_AUDIO* audio) {
     VoiceState* voiceState = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_gen_mutex);
-        GeneratorObjState& state = g_gen_states[audio->object];
+        GeneratorObjState& state = g_gen_states[audio->object->effect_id];
         if (!state.initialized ||
             state.last_sample_index == -1 ||
             state.last_sample_index != current_obj_sample_index) {

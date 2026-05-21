@@ -53,7 +53,7 @@ struct SpectralGateState {
 };
 
 static std::mutex g_spectral_gate_mutex;
-static std::map<const void*, SpectralGateState> g_spectral_gate_states;
+static std::map<int64_t, SpectralGateState> g_spectral_gate_states;
 
 const int32_t BLOCK_SIZE = 64;
 
@@ -71,7 +71,7 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     SpectralGateState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_spectral_gate_mutex);
-        state = &g_spectral_gate_states[audio->object];
+        state = &g_spectral_gate_states[audio->object->effect_id];
 
         if (!state->initialized || state->last_sample_index != audio->object->sample_index) {
             state->hpL.design(100.0f, sr);

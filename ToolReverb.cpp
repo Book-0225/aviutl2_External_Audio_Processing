@@ -178,7 +178,7 @@ struct ReverbState {
 };
 
 static std::mutex g_rev_state_mutex;
-static std::map<const void*, ReverbState> g_rev_states;
+static std::map<int64_t, ReverbState> g_rev_states;
 
 inline void ProcessPreDelayBlock(
     float* out, const float* in,
@@ -217,7 +217,7 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
 
     {
         std::lock_guard<std::mutex> lock(g_rev_state_mutex);
-        state = &g_rev_states[audio->object];
+        state = &g_rev_states[audio->object->effect_id];
 
         if (!state->initialized) {
             state->init(Fs);

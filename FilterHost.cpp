@@ -196,7 +196,7 @@ struct NotesState {
 
 static std::set<std::string>* g_active_ids_collector = nullptr;
 static std::mutex g_notes_state_mutex;
-static std::map<const void*, NotesState> g_notes_states;
+static std::map<int64_t, NotesState> g_notes_states;
 
 void CleanupMainFilterResources() {
     PluginManager::GetInstance().CleanupResources();
@@ -354,7 +354,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     NotesState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_notes_state_mutex);
-        state = &g_notes_states[audio->object];
+        state = &g_notes_states[audio->object->effect_id];
     }
 
     if (instance_data_param.value->uuid[0] != '\0') {
@@ -720,7 +720,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
             {
                 std::lock_guard<std::mutex> lock(g_notes_state_mutex);
-                state = &g_notes_states[audio->object];
+                state = &g_notes_states[audio->object->effect_id];
 
                 if (recv_id_val > 0) {
                     int32_t id_idx = std::clamp(recv_id_val - 1, 0, NotesManager::MAX_ID - 1);

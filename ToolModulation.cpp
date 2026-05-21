@@ -59,7 +59,7 @@ struct ModulationState {
 };
 
 static std::mutex g_mod_state_mutex;
-static std::map<const void*, ModulationState> g_mod_states;
+static std::map<int64_t, ModulationState> g_mod_states;
 
 inline float interpolate(const float* buffer, double index, int32_t size) {
     int32_t i = static_cast<int32_t>(index);
@@ -92,7 +92,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     ModulationState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_mod_state_mutex);
-        state = &g_mod_states[audio->object];
+        state = &g_mod_states[audio->object->effect_id];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {

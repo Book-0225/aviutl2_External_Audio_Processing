@@ -52,7 +52,7 @@ struct MaximizerState {
 };
 
 static std::mutex g_max_state_mutex;
-static std::map<const void*, MaximizerState> g_max_states;
+static std::map<int64_t, MaximizerState> g_max_states;
 
 bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -69,7 +69,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     MaximizerState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_max_state_mutex);
-        state = &g_max_states[audio->object];
+        state = &g_max_states[audio->object->effect_id];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {

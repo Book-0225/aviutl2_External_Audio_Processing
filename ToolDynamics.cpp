@@ -43,7 +43,7 @@ struct DynamicsState {
 };
 
 static std::mutex g_dyn_state_mutex;
-static std::map<const void*, DynamicsState> g_dyn_states;
+static std::map<int64_t, DynamicsState> g_dyn_states;
 const int32_t BLOCK_SIZE = 64;
 
 bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
@@ -68,7 +68,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     DynamicsState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_dyn_state_mutex);
-        state = &g_dyn_states[audio->object];
+        state = &g_dyn_states[audio->object->effect_id];
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {
             state->gate_gain = 1.0;

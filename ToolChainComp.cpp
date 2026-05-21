@@ -35,7 +35,7 @@ struct ChainCompState {
 };
 
 static std::mutex g_chain_state_mutex;
-static std::map<const void*, ChainCompState> g_chain_states;
+static std::map<int64_t, ChainCompState> g_chain_states;
 const int32_t BLOCK_SIZE = 64;
 
 bool func_proc_audio_chain_comp(FILTER_PROC_AUDIO* audio) {
@@ -56,7 +56,7 @@ bool func_proc_audio_chain_comp(FILTER_PROC_AUDIO* audio) {
     ChainCompState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_chain_state_mutex);
-        state = &g_chain_states[audio->object];
+        state = &g_chain_states[audio->object->effect_id];
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {
             state->comp_envelope = 0.0;

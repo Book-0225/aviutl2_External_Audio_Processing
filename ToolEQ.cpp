@@ -171,7 +171,7 @@ struct EQState {
 };
 
 static std::mutex g_eq_state_mutex;
-static std::map<const void*, EQState> g_eq_states;
+static std::map<int64_t, EQState> g_eq_states;
 const int32_t BLOCK_SIZE = 256;
 
 bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
@@ -201,7 +201,7 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     EQState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_eq_state_mutex);
-        state = &g_eq_states[audio->object];
+        state = &g_eq_states[audio->object->effect_id];
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {
             for (int32_t i = 0; i < FILTER_STAGES; ++i) {

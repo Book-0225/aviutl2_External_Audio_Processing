@@ -42,7 +42,7 @@ struct DeesserState {
 };
 
 static std::mutex g_deess_mutex;
-static std::map<const void*, DeesserState> g_deess_states;
+static std::map<int64_t, DeesserState> g_deess_states;
 
 const int32_t BLOCK_SIZE = 64;
 const int32_t CONTROL_RATE = 8;
@@ -64,7 +64,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     DeesserState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_deess_mutex);
-        state = &g_deess_states[audio->object];
+        state = &g_deess_states[audio->object->effect_id];
         if (state->last_sample_index != -1 && state->last_sample_index != audio->object->sample_index) {
             state->scFilterL = DeesserBiquad();
             state->scFilterR = DeesserBiquad();

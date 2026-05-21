@@ -44,7 +44,7 @@ struct SpatialState {
 };
 
 static std::mutex g_sp_state_mutex;
-static std::map<const void*, SpatialState> g_sp_states;
+static std::map<int64_t, SpatialState> g_sp_states;
 
 inline void ReadRingBufferBlock(
     float* out, const std::vector<float>& buf,
@@ -89,7 +89,7 @@ bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
     SpatialState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_sp_state_mutex);
-        state = &g_sp_states[audio->object];
+        state = &g_sp_states[audio->object->effect_id];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {

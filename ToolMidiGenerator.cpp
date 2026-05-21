@@ -574,7 +574,7 @@ class MidiPlayer {
 };
 
 static std::mutex g_midi_mutex;
-static std::map<const void*, MidiPlayer> g_midi_players;
+static std::map<int64_t, MidiPlayer> g_midi_players;
 
 bool func_proc_audio_midi(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -614,7 +614,7 @@ bool func_proc_audio_midi(FILTER_PROC_AUDIO* audio) {
 
     {
         std::lock_guard<std::mutex> lock(g_midi_mutex);
-        player = &g_midi_players[audio->object];
+        player = &g_midi_players[audio->object->effect_id];
 
         if (!player->Load(midi_path)) return true;
 

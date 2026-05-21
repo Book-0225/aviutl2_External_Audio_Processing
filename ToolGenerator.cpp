@@ -57,7 +57,7 @@ struct GeneratorState {
 };
 
 static std::mutex g_gen_state_mutex;
-static std::map<const void*, GeneratorState> g_gen_states;
+static std::map<int64_t, GeneratorState> g_gen_states;
 
 static std::mt19937 g_rng(12345);
 static std::uniform_real_distribution<float> g_dist(-1.0f, 1.0f);
@@ -177,7 +177,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     GeneratorState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_gen_state_mutex);
-        state = &g_gen_states[audio->object];
+        state = &g_gen_states[audio->object->effect_id];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             std::abs(state->last_sample_index - audio->object->sample_index) > 100) {

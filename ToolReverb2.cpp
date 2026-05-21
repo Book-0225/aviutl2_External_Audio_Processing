@@ -304,7 +304,7 @@ struct ReverbState2 {
 };
 
 static std::mutex g_rev_state_mutex;
-static std::map<const void*, ReverbState2> g_rev_states;
+static std::map<int64_t, ReverbState2> g_rev_states;
 
 bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -327,7 +327,7 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
 
     {
         std::lock_guard<std::mutex> lock(g_rev_state_mutex);
-        state = &g_rev_states[audio->object];
+        state = &g_rev_states[audio->object->effect_id];
 
         if (!state->initialized || state->current_sr != Fs) state->init(Fs);
         if (state->last_sample_index != -1 &&

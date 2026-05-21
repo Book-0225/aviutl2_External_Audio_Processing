@@ -55,7 +55,7 @@ struct DistortionState {
 };
 
 static std::mutex g_dist_state_mutex;
-static std::map<const void*, DistortionState> g_dist_states;
+static std::map<int64_t, DistortionState> g_dist_states;
 const int32_t BLOCK_SIZE = 64;
 
 bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
@@ -80,7 +80,7 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     DistortionState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_dist_state_mutex);
-        state = &g_dist_states[audio->object];
+        state = &g_dist_states[audio->object->effect_id];
         if (!state->initialized) state->init();
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {

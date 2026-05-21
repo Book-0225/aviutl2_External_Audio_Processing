@@ -44,7 +44,7 @@ struct AutoWahState {
 };
 
 static std::mutex g_wah_mutex;
-static std::map<const void*, AutoWahState> g_wah_states;
+static std::map<int64_t, AutoWahState> g_wah_states;
 
 const int32_t BLOCK_SIZE = 64;
 const int32_t CONTROL_RATE = 8;
@@ -66,7 +66,7 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     AutoWahState* state = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_wah_mutex);
-        state = &g_wah_states[audio->object];
+        state = &g_wah_states[audio->object->effect_id];
 
         if (state->last_sample_end != -1 && state->last_sample_end != audio->object->sample_index) {
             state->filterL = AutoWahBiquad();
