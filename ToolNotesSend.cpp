@@ -14,6 +14,8 @@
 constexpr auto TOOL_NAME_MEDIA = L"Notes Send (Media)";
 
 FILTER_ITEM_TRACK notes_send_id(L"ID", 1.0, 1.0, NotesManager::MAX_ID, 1.0);
+FILTER_ITEM_TRACK notes_send_offset(L"Offset", 0.0, 0.0, 600.0, 0.001);
+FILTER_ITEM_TRACK notes_send_duration(L"Duration", 0.0, 0.0, 600.0, 0.001);
 FILTER_ITEM_SELECT::ITEM notes_list[] = {
     // Octave 0
     { L"C0", 12 },
@@ -155,6 +157,8 @@ FILTER_ITEM_DATA<NotesSendData> notes_send_data(L"NOTES_SEND_DATA");
 
 void* filter_items_notes_send[] = {
     &notes_send_id,
+    &notes_send_offset,
+    &notes_send_duration,
     &notes_send_note,
     &notes_send_data,
     nullptr
@@ -256,6 +260,7 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
         notes_send_data.value->last_note = note_num;
         notes_send_data.value->last_id = display_id;
     }
+    if ((static_cast<int64_t>(notes_send_duration.value) != 0 && audio->object->time > notes_send_duration.value + notes_send_offset.value) || (static_cast<int64_t>(notes_send_offset.value) != 0 && audio->object->time < notes_send_offset.value)) return true;
     {
         std::lock_guard<std::mutex> lock(NotesManager::notes_mutexes[id_idx]);
         auto& note = NotesManager::notes[id_idx];
