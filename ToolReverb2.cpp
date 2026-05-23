@@ -9,20 +9,24 @@
 
 constexpr auto TOOL_NAME = L"Reverb";
 
-FILTER_ITEM_TRACK rev_decay(L"Decay", 85.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK rev_size(L"Size", 100.0, 10.0, 250.0, 1.0);
-FILTER_ITEM_TRACK rev_diffusion(L"Diffusion", 70.0, 0.0, 100.0, 1.0);
-FILTER_ITEM_TRACK rev_highcut(L"High Cut", 18.0, 1.0, 20.0, 0.1);
-FILTER_ITEM_TRACK rev_predelay2(L"Pre-Delay", 20.0, 0.0, 200.0, 1.0);
-FILTER_ITEM_TRACK rev_mod_rate(L"Mod Rate", 1.0, 0.1, 8.0, 0.1);
-FILTER_ITEM_TRACK rev_mod_depth(L"Modulation", 40.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK rev_mix2(L"Mix", 40.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK rev_decay(L"ディケイ", 85.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK rev_size(L"部屋サイズ", 100.0, 10.0, 250.0, 1.0);
+FILTER_ITEM_TRACK rev_diffusion(L"拡散", 70.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK rev_highcut(L"ハイカット", 18.0, 1.0, 20.0, 0.1);
+FILTER_ITEM_TRACK rev_lowcut(L"ローカット", 0.02, 0.02, 1.0, 0.01);
+FILTER_ITEM_TRACK rev_damping2(L"ダンピング", 50.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK rev_predelay2(L"プリディレイ", 20.0, 0.0, 200.0, 1.0);
+FILTER_ITEM_TRACK rev_mod_rate(L"変動速度", 1.0, 0.1, 8.0, 0.1);
+FILTER_ITEM_TRACK rev_mod_depth(L"変動量", 40.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK rev_mix2(L"ミックス", 40.0, 0.0, 100.0, 0.1);
 
 void* filter_items_reverb2[] = {
     &rev_decay,
     &rev_size,
     &rev_diffusion,
     &rev_highcut,
+    &rev_lowcut,
+    &rev_damping2,
     &rev_predelay2,
     &rev_mod_rate,
     &rev_mod_depth,
@@ -149,6 +153,7 @@ struct ReverbState2 {
     OnePoleLPF dampL, dampR;
     VariableAllPass tankAP_L, tankAP_R;
     ModDelayLine postDelayL, postDelayR;
+    OnePoleLPF inputLPF, inputHPF;
     const float tL_d1_base = 672.0f;
     const float tL_ap_base = 1800.0f;
     const float tL_d2_base = 4453.0f;
@@ -161,7 +166,6 @@ struct ReverbState2 {
     int32_t pre_delay_w = 0;
     float lfo_phase = 0.0f;
     float lfo_inc = 0.0f;
-    OnePoleLPF inputLPF;
     bool initialized = false;
     int64_t last_sample_index = -1;
     double current_sr = 44100.0;
@@ -226,14 +230,15 @@ struct ReverbState2 {
         }
     }
 
-    void process_block(float* outL, float* outR, const float* inL, const float* inR, int32_t count, float decay, float size_percent, float diffusion, float highcut_khz, float predelay_ms, float mod_depth) {
+    void process_block(float* outL, float* outR, const float* inL, const float* inR, int32_t count, float decay, float size_percent, float diffusion, float highcut_khz, float lowcut_khz, float damping, float predelay_ms, float mod_depth) {
         float decay_val = decay;
         float size_scale = size_percent / 100.0f;
         float total_scale = static_cast<float>(current_sr / 44100.0);
         float diff_fb_in = 0.75f * (diffusion / 100.0f);
         float diff_fb_tank = 0.6f * (diffusion / 100.0f);
-        float damp_val = 0.02f + (1.0f - decay_val) * 0.5f;
+        float damp_val = 0.02f + (damping / 100.0f) * 0.5f;
         inputLPF.set_cutoff(highcut_khz * 1000.0f, static_cast<float>(current_sr));
+        inputHPF.set_cutoff(lowcut_khz * 1000.0f, static_cast<float>(current_sr));
         dampL.set_damping(damp_val);
         dampR.set_damping(damp_val);
         for (int32_t i = 0; i < 4; ++i) diffusers[i].feedback = diff_fb_in;
@@ -255,7 +260,7 @@ struct ReverbState2 {
             float s = pre_delay_buf[pre_r_idx];
             if (++pre_delay_w >= pd_size) pre_delay_w = 0;
             if (++pre_r_idx >= pd_size) pre_r_idx = 0;
-            diff_io[i] = inputLPF.process(s);
+            diff_io[i] = inputLPF.process(s - inputHPF.process(s));
         }
         process_diffusers_block(diff_io, count, total_scale, diff_scale, diff_fb_in);
 
@@ -316,6 +321,8 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
     float p_size = static_cast<float>(rev_size.value);
     float p_diffusion = static_cast<float>(rev_diffusion.value);
     float p_highcut = static_cast<float>(rev_highcut.value);
+    float p_lowcut = static_cast<float>(rev_lowcut.value);
+    float p_damping = static_cast<float>(rev_damping2.value);
     float p_predelay = static_cast<float>(rev_predelay2.value);
     float p_mod = static_cast<float>(rev_mod_depth.value / 100.0);
     float p_mix = static_cast<float>(rev_mix2.value / 100.0);
@@ -349,7 +356,7 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
         int32_t block_size = (std::min)(PROCESS_BLOCK_SIZE, total_samples - i);
         float* p_dry_l = bufL.data() + i;
         float* p_dry_r = bufR.data() + i;
-        state->process_block(wetL, wetR, p_dry_l, p_dry_r, block_size, p_decay, p_size, p_diffusion, p_highcut, p_predelay, p_mod);
+        state->process_block(wetL, wetR, p_dry_l, p_dry_r, block_size, p_decay, p_size, p_diffusion, p_highcut, p_lowcut, p_damping, p_predelay, p_mod);
         Avx2Utils::MixAudioAVX2(wetL, p_dry_l, block_size, p_mix, 1.0f - p_mix, 1.0f);
         Avx2Utils::CopyBufferAVX2(p_dry_l, wetL, block_size);
         Avx2Utils::MixAudioAVX2(wetR, p_dry_r, block_size, p_mix, 1.0f - p_mix, 1.0f);

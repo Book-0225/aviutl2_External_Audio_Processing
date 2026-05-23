@@ -181,6 +181,18 @@ struct ModuleConfig {
     }
 };
 
+struct CompatConfig {
+    std::wstring categoryName = L"Compat";
+    bool use_new_reverb = false;
+    bool use_new_generator = false;
+    std::vector<ConfigEntry> getEntries() {
+        return {
+            ConfigEntry::Create(L"UseNewReverb", L"0", &use_new_reverb, true),
+            ConfigEntry::Create(L"UseNewGenerator", L"0", &use_new_generator, true)
+        };
+    }
+};
+
 struct VstConfig {
     std::wstring categoryName = L"VST";
     bool forceResize = false;
@@ -193,13 +205,9 @@ struct VstConfig {
 
 struct ExperimentalConfig {
     std::wstring categoryName = L"Experimental";
-    bool use_experimental_generator = false;
-    bool use_experimental_reverb = false;
     bool use_experimental_script_module = false;
     std::vector<ConfigEntry> getEntries() {
         return {
-            ConfigEntry::Create(L"UseExperimentalGenerator", L"0", &use_experimental_generator, false),
-            ConfigEntry::Create(L"UseExperimentalReverb", L"0", &use_experimental_reverb, false),
             ConfigEntry::Create(L"UseExperimentalScriptModule", L"0", &use_experimental_script_module, false)
         };
     }
@@ -209,6 +217,7 @@ struct AppSettings {
     ConfigInfo info;
     GeneralConfig general;
     ModuleConfig module;
+    CompatConfig compat;
     VstConfig vst;
     ExperimentalConfig exp;
 };

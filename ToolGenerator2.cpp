@@ -8,16 +8,18 @@
 
 constexpr auto TOOL_NAME = L"Generator";
 
-FILTER_ITEM_SELECT gen_type2(L"Type", 0, gen_type_list);
+FILTER_ITEM_SELECT gen_type2(L"波形", 0, gen_type_list);
 FILTER_ITEM_TRACK gen_freq2(L"周波数", 440.0, 20.0, 20000.0, 1.0);
-FILTER_ITEM_TRACK gen_attack(L"Attack", 0.0, 0.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK gen_decay(L"Decay", 0.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK gen_sustain(L"Sustain", 0.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK gen_release(L"Release", 0.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK gen_timbre(L"Timbre", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_cutoff(L"Cutoff", 1.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_reso(L"Resonance", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_detune(L"Detune", 0.0, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK gen_attack(L"アタック", 0.0, 0.0, 2000.0, 1.0);
+FILTER_ITEM_TRACK gen_decay(L"ディケイ", 0.0, 0.0, 5000.0, 1.0);
+FILTER_ITEM_TRACK gen_sustain(L"サスティン", 0.0, -60.0, 0.0, 0.1);
+FILTER_ITEM_TRACK gen_release(L"リリース", 0.0, 0.0, 5000.0, 1.0);
+FILTER_ITEM_TRACK gen_timbre(L"音色", 0.0, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK gen_cutoff(L"カットオフ", 1.0, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK gen_reso(L"レゾナンス", 0.0, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK gen_detune(L"デチューン", 0.0, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK gen_offset(L"オフセット", 0.0, 0.0, 600.0, 0.001);
+FILTER_ITEM_TRACK gen_duration(L"長さ", 0.0, 0.0, 600.0, 0.001);
 
 struct GenData {
     char uuid[40] = { 0 };
@@ -37,6 +39,8 @@ void* filter_items_generator2[] = {
     &gen_reso,
     &gen_detune,
     &gen_data2,
+    &gen_offset,
+    &gen_duration,
     nullptr
 };
 
@@ -66,21 +70,32 @@ bool func_proc_audio_generator2(FILTER_PROC_AUDIO* audio) {
     p.filter_cutoff = static_cast<float>(gen_cutoff.value);
     p.filter_res = static_cast<float>(gen_reso.value);
     p.detune = static_cast<float>(gen_detune.value);
+    double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
+    double total_duration_sec = total_obj_samples / Fs;
+    double offset_sec = gen_offset.value;
+    double duration_sec = (gen_duration.value > 0.0)
+                              ? gen_duration.value
+                              : (total_duration_sec - offset_sec);
+    double sound_end_sec = offset_sec + duration_sec;
     VoiceState* voiceState = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_gen_mutex);
         GeneratorObjState& state = g_gen_states[audio->object->effect_id];
-        if (!state.initialized ||
+        double block_start_sec = current_obj_sample_index / Fs;
+        double block_end_sec = (current_obj_sample_index + total_samples) / Fs;
+        bool needs_reset =
+            !state.initialized ||
             state.last_sample_index == -1 ||
-            state.last_sample_index != current_obj_sample_index) {
+            state.last_sample_index != current_obj_sample_index ||
+            (block_start_sec < offset_sec && block_end_sec >= offset_sec);
+        if (needs_reset) {
             state.voice.init();
             state.initialized = true;
         }
         state.last_sample_index = current_obj_sample_index + total_samples;
         voiceState = &state.voice;
     }
-    double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double total_duration_sec = (double)total_obj_samples / Fs;
+
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -93,14 +108,21 @@ bool func_proc_audio_generator2(FILTER_PROC_AUDIO* audio) {
         int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
         for (int32_t k = 0; k < block_count; ++k) {
             int64_t current_pos = current_obj_sample_index + i + k;
-            double t = (double)current_pos / Fs;
-            StereoSample s = GenerateSampleStereo(*voiceState, p, t, Fs, total_duration_sec);
+            double elapsed = current_pos / Fs;
+            if (elapsed < offset_sec || elapsed >= sound_end_sec) {
+                temp_genL[k] = 0.0f;
+                temp_genR[k] = 0.0f;
+                continue;
+            }
+            double t = elapsed - offset_sec;
+            StereoSample s = GenerateSampleStereo(*voiceState, p, t, Fs, duration_sec);
             temp_genL[k] = static_cast<float>(s.l);
             temp_genR[k] = static_cast<float>(s.r);
         }
         Avx2Utils::CopyBufferAVX2(bufL.data() + i, temp_genL, block_count);
         Avx2Utils::CopyBufferAVX2(bufR.data() + i, temp_genR, block_count);
     }
+
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);
     return true;

@@ -85,7 +85,7 @@ void EnsureCategoryDefaults(const std::wstring& categoryName, const std::vector<
 
 template <typename Func>
 void ApplyToAllCategories(Func func, AppSettings& setting, const std::filesystem::path& path) {
-    auto categories = std::tie(setting.info, setting.general, setting.module, setting.vst, setting.exp);
+    auto categories = std::tie(setting.info, setting.general, setting.module, setting.compat, setting.vst, setting.exp);
     std::apply([&](auto&... cat) {
         (func(cat.categoryName, cat.getEntries(), path), ...);
     },
