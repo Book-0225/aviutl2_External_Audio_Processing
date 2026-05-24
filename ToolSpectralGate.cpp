@@ -8,10 +8,10 @@
 
 constexpr auto TOOL_NAME = L"Spectral Gate";
 
-FILTER_ITEM_TRACK spec_gate_threshold(L"Threshold (dB)", -40.0, -80.0, 0.0, 0.1);
-FILTER_ITEM_TRACK spec_gate_attack(L"Attack (ms)", 10.0, 1.0, 500.0, 1.0);
-FILTER_ITEM_TRACK spec_gate_release(L"Release (ms)", 100.0, 1.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK spec_gate_mix(L"Mix", 100.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK spec_gate_threshold(L"Threshold (dB)", -40.0, -80.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK spec_gate_attack(L"Attack (ms)", 10.0, 1.0, 500.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK spec_gate_release(L"Release (ms)", 100.0, 1.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK spec_gate_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_spectral_gate[] = {
     &spec_gate_threshold,

@@ -6,8 +6,8 @@
 
 constexpr auto TOOL_NAME = L"Utility";
 
-FILTER_ITEM_TRACK tool_gain(L"Gain", 100.0, 0.0, 500.0, 0.1);
-FILTER_ITEM_TRACK tool_pan(L"Pan(L-R)", 0.0, -100.0, 100.0, 0.1);
+FILTER_ITEM_TRACK tool_gain(L"Gain", 100.0, 0.0, 500.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK tool_pan(L"Pan(L-R)", 0.0, -100.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_CHECK tool_swap(L"Swap(L/R)", false);
 FILTER_ITEM_CHECK tool_inv_l(L"Invert L", false);
 FILTER_ITEM_CHECK tool_inv_r(L"Invert R", false);

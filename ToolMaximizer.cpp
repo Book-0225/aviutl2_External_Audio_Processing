@@ -9,10 +9,10 @@
 
 constexpr auto TOOL_NAME = L"Maximizer";
 
-FILTER_ITEM_TRACK max_threshold(L"Threshold", 0.0, -40.0, 0.0, 0.1);
-FILTER_ITEM_TRACK max_ceiling(L"Ceiling", -0.1, -20.0, 0.0, 0.1);
-FILTER_ITEM_TRACK max_release(L"Release", 50.0, 1.0, 1000.0, 1.0);
-FILTER_ITEM_TRACK max_lookahead(L"Lookahead", 5.0, 0.0, 20.0, 0.1);
+FILTER_ITEM_TRACK max_threshold(L"Threshold", 0.0, -40.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK max_ceiling(L"Ceiling", -0.1, -20.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK max_release(L"Release", 50.0, 1.0, 1000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK max_lookahead(L"Lookahead", 5.0, 0.0, 20.0, 0.1, nullptr, 1.0);
 
 void* filter_items_maximizer[] = {
     &max_threshold,

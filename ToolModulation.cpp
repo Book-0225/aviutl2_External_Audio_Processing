@@ -12,11 +12,11 @@ constexpr auto TOOL_NAME = L"Modulation";
 FILTER_ITEM_CHECK mod_chorus(L"Chorus", true);
 FILTER_ITEM_CHECK mod_flanger(L"Flanger", false);
 FILTER_ITEM_CHECK mod_tremolo(L"Tremolo", false);
-FILTER_ITEM_TRACK mod_rate(L"Rate", 1.0, 0.01, 20.0, 0.01);
-FILTER_ITEM_TRACK mod_depth(L"Depth", 50.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK mod_feedback(L"Feedback", 0.0, 0.0, 95.0, 0.1);
-FILTER_ITEM_TRACK mod_delay(L"Delay", 10.0, 0.1, 50.0, 0.1);
-FILTER_ITEM_TRACK mod_mix(L"Mix", 50.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK mod_rate(L"Rate", 1.0, 0.01, 20.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK mod_depth(L"Depth", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK mod_feedback(L"Feedback", 0.0, 0.0, 95.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK mod_delay(L"Delay", 10.0, 0.1, 50.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK mod_mix(L"Mix", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_modulation[] = {
     &mod_chorus,

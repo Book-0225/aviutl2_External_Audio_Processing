@@ -12,12 +12,12 @@ constexpr auto TOOL_NAME = L"Distortion";
 FILTER_ITEM_CHECK dist_overdrive(L"Overdrive", true);
 FILTER_ITEM_CHECK dist_fuzz(L"Fuzz", false);
 FILTER_ITEM_CHECK dist_bitcrush(L"Bitcrush", false);
-FILTER_ITEM_TRACK dist_drive(L"Drive", 0.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK dist_tone(L"Tone", 20000.0, 100.0, 20000.0, 1.0);
-FILTER_ITEM_TRACK dist_bits(L"Bits", 24.0, 1.0, 24.0, 0.1);
-FILTER_ITEM_TRACK dist_downsample(L"Downsample", 1.0, 1.0, 50.0, 0.1);
-FILTER_ITEM_TRACK dist_mix(L"Mix", 100.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK dist_output(L"Output", 0.0, -20.0, 20.0, 0.1);
+FILTER_ITEM_TRACK dist_drive(L"Drive", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dist_tone(L"Tone", 20000.0, 100.0, 20000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK dist_bits(L"Bits", 24.0, 1.0, 24.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dist_downsample(L"Downsample", 1.0, 1.0, 50.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dist_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dist_output(L"Output", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
 
 void* filter_items_distortion[] = {
     &dist_overdrive,

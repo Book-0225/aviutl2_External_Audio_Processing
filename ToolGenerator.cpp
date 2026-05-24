@@ -24,7 +24,7 @@ FILTER_ITEM_SELECT::ITEM gen_type_list[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT gen_type(L"Waveform", 0, gen_type_list);
-FILTER_ITEM_TRACK gen_freq(L"Frequency", 440.0, 20.0, 20000.0, 1.0);
+FILTER_ITEM_TRACK gen_freq(L"Frequency", 440.0, 20.0, 20000.0, 1.0, nullptr, 1.0);
 struct GenData {
     char uuid[40] = { 0 };
     int32_t last_type = -1;

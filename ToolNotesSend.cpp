@@ -14,8 +14,8 @@
 constexpr auto TOOL_NAME_MEDIA = L"Notes Send (Media)";
 
 FILTER_ITEM_TRACK notes_send_id(L"ID", 1.0, 1.0, NotesManager::MAX_ID, 1.0);
-FILTER_ITEM_TRACK notes_send_offset(L"Offset", 0.0, 0.0, 600.0, 0.001);
-FILTER_ITEM_TRACK notes_send_duration(L"Duration", 0.0, 0.0, 600.0, 0.001);
+FILTER_ITEM_TRACK notes_send_offset(L"Offset", 0.0, 0.0, 600.0, 0.001, nullptr, 1.0);
+FILTER_ITEM_TRACK notes_send_duration(L"Duration", 0.0, 0.0, 600.0, 0.001, L"オブジェクト長", 1.0);
 FILTER_ITEM_SELECT::ITEM notes_list[] = {
     // Octave 0
     { L"C0", 12 },

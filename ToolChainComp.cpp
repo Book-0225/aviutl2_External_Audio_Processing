@@ -10,12 +10,12 @@
 
 constexpr auto TOOL_NAME = L"Chain Comp";
 
-FILTER_ITEM_TRACK chain_comp_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
-FILTER_ITEM_TRACK chain_comp_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK chain_comp_ratio(L"Ratio", 4.0, 1.0, 20.0, 0.1);
-FILTER_ITEM_TRACK chain_comp_attack(L"Attack", 5.0, 0.1, 100.0, 0.1);
-FILTER_ITEM_TRACK chain_comp_release(L"Release", 50.0, 10.0, 1000.0, 1.0);
-FILTER_ITEM_TRACK chain_comp_makeup(L"Makeup", 0.0, 0.0, 20.0, 0.1);
+FILTER_ITEM_TRACK chain_comp_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_comp_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_comp_ratio(L"Ratio", 4.0, 1.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_comp_attack(L"Attack", 5.0, 0.1, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_comp_release(L"Release", 50.0, 10.0, 1000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_comp_makeup(L"Makeup", 0.0, 0.0, 20.0, 0.1, nullptr, 1.0);
 
 void* filter_items_chain_comp[] = {
     &chain_comp_id,

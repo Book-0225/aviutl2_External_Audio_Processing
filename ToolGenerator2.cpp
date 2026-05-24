@@ -9,17 +9,17 @@
 constexpr auto TOOL_NAME = L"Generator";
 
 FILTER_ITEM_SELECT gen_type2(L"波形", 0, gen_type_list);
-FILTER_ITEM_TRACK gen_freq2(L"周波数", 440.0, 20.0, 20000.0, 1.0);
-FILTER_ITEM_TRACK gen_attack(L"アタック", 0.0, 0.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK gen_decay(L"ディケイ", 0.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK gen_sustain(L"サスティン", 0.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK gen_release(L"リリース", 0.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK gen_timbre(L"音色", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_cutoff(L"カットオフ", 1.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_reso(L"レゾナンス", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_detune(L"デチューン", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK gen_offset(L"オフセット", 0.0, 0.0, 600.0, 0.001);
-FILTER_ITEM_TRACK gen_duration(L"長さ", 0.0, 0.0, 600.0, 0.001);
+FILTER_ITEM_TRACK gen_freq2(L"周波数", 440.0, 20.0, 20000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_attack(L"アタック", 0.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_decay(L"ディケイ", 0.0, 0.0, 5000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_sustain(L"サスティン", 0.0, -60.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_release(L"リリース", 0.0, 0.0, 5000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_timbre(L"音色", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_cutoff(L"カットオフ", 1.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_reso(L"レゾナンス", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_detune(L"デチューン", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_offset(L"オフセット", 0.0, 0.0, 600.0, 0.001, nullptr, 1.0);
+FILTER_ITEM_TRACK gen_duration(L"長さ", 0.0, 0.0, 600.0, 0.001, L"オブジェクト長", 1.0);
 
 struct GenData {
     char uuid[40] = { 0 };

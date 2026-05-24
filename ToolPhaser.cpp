@@ -9,10 +9,10 @@
 
 constexpr auto TOOL_NAME = L"Phaser";
 
-FILTER_ITEM_TRACK ph_rate(L"Rate", 0.5, 0.01, 10.0, 0.01);
-FILTER_ITEM_TRACK ph_depth(L"Depth", 50.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK ph_feedback(L"Feedback", 40.0, 0.0, 95.0, 0.1);
-FILTER_ITEM_TRACK ph_mix(L"Mix", 50.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK ph_rate(L"Rate", 0.5, 0.01, 10.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK ph_depth(L"Depth", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK ph_feedback(L"Feedback", 40.0, 0.0, 95.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK ph_mix(L"Mix", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_phaser[] = {
     &ph_rate,

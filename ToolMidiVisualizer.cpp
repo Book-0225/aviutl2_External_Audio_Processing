@@ -221,10 +221,10 @@ void DrawRing(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t cx, int32_t cy, flo
 
 FILTER_ITEM_FILE track_file(L"MIDI File", L"", L"MIDI File (*.mid)\0*.mid;*.midi\0");
 FILTER_ITEM_GROUP group_canvas(L"表示設定");
-FILTER_ITEM_TRACK track_width(L"幅", 1280.0, 10.0, 4000.0, 1.0);
-FILTER_ITEM_TRACK track_height(L"高さ", 720.0, 10.0, 4000.0, 1.0);
+FILTER_ITEM_TRACK track_width(L"幅", 1280.0, 10.0, 4000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_height(L"高さ", 720.0, 10.0, 4000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_COLOR color_bg(L"背景色", 0x000000);
-FILTER_ITEM_TRACK track_bg_alpha(L"背景透明度", 100.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK track_bg_alpha(L"背景透明度", 100.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_view(L"表示とスクロール");
 FILTER_ITEM_SELECT::ITEM list_scroll[] = {
     { L"右から左", 0 },
@@ -242,15 +242,15 @@ FILTER_ITEM_SELECT::ITEM list_reaction[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_reaction(L"挙動", 0, list_reaction);
-FILTER_ITEM_TRACK track_zoom_time(L"拡大率", 100.0, 1.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK track_scroll_pos(L"位置", 0.0, 0.0, 4000.0, 1.0);
+FILTER_ITEM_TRACK track_zoom_time(L"拡大率", 100.0, 1.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_scroll_pos(L"位置", 0.0, 0.0, 4000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_keys(L"キーの範囲とサイズ");
-FILTER_ITEM_TRACK track_key_min(L"最小キー", 0, 0, 127, 1);
-FILTER_ITEM_TRACK track_key_max(L"最大キー", 127, 0, 127, 1);
+FILTER_ITEM_TRACK track_key_min(L"最小キー", 0, 0, 127, 1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_key_max(L"最大キー", 127, 0, 127, 1, nullptr, 1.0);
 FILTER_ITEM_CHECK check_auto_fit(L"自動調整", true);
-FILTER_ITEM_TRACK track_key_size(L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0);
+FILTER_ITEM_TRACK track_key_size(L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_sync(L"同期", false);
-FILTER_ITEM_TRACK track_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01);
+FILTER_ITEM_TRACK track_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
     { L"同期しない", 0 },
     { L"MIDIにBPMを同期", 1 },
@@ -258,13 +258,13 @@ FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 0, sync_mode_visualizer);
-FILTER_ITEM_TRACK track_manual_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1);
-FILTER_ITEM_TRACK track_manual_num(L"分子(手動)", 4.0, 1.0, 32.0, 1.0);
-FILTER_ITEM_TRACK track_manual_denom(L"分母(手動)", 4.0, 1.0, 32.0, 1.0);
-FILTER_ITEM_TRACK track_speed_mul(L"速度", 1.0, 0.1, 10.0, 0.1);
+FILTER_ITEM_TRACK track_manual_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_manual_num(L"分子(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_manual_denom(L"分母(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_speed_mul(L"速度", 1.0, 0.1, 10.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_GROUP group_filter(L"フィルタ", false);
-FILTER_ITEM_TRACK track_ch_target(L"チャンネル", 0, 0, 16, 1);
-FILTER_ITEM_TRACK track_vel_min(L"最小強度", 0, 0, 127, 1);
+FILTER_ITEM_TRACK track_ch_target(L"チャンネル", 0, 0, 16, 1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_vel_min(L"最小強度", 0, 0, 127, 1, nullptr, 1.0);
 FILTER_ITEM_CHECK check_hide_perc(L"ドラムを無効", false);
 FILTER_ITEM_GROUP group_style(L"ノートスタイル");
 FILTER_ITEM_CHECK check_draw_notes(L"ノートを描画", true);
@@ -277,31 +277,31 @@ FILTER_ITEM_SELECT::ITEM list_col_mode[] = {
 };
 FILTER_ITEM_SELECT select_col_mode(L"カラーモード", 1, list_col_mode);
 FILTER_ITEM_COLOR color_base(L"基本色", 0x00FF00);
-FILTER_ITEM_TRACK track_radius(L"角の半径", 2.0, 0.0, 20.0, 1.0);
+FILTER_ITEM_TRACK track_radius(L"角の半径", 2.0, 0.0, 20.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_CHECK check_gradient(L"グラデーション", true);
-FILTER_ITEM_TRACK track_padding(L"余白", 1.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_TRACK track_padding(L"余白", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_border(L"縁", false);
 FILTER_ITEM_CHECK check_border(L"縁を描画", false);
-FILTER_ITEM_TRACK track_border_w(L"縁幅", 1.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_TRACK track_border_w(L"縁幅", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_COLOR color_border(L"縁色", 0xFFFFFF);
-FILTER_ITEM_TRACK track_note_alpha(L"ノートの不透明度", 100.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK track_note_alpha(L"ノートの不透明度", 100.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_kb(L"装飾");
 FILTER_ITEM_CHECK check_draw_kb(L"キーボード", true);
-FILTER_ITEM_TRACK track_kb_width(L"キーボード幅", 40.0, 0.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK track_kb_black_ratio(L"黒鍵割合", 0.65, 0.1, 1.0, 0.01);
-FILTER_ITEM_TRACK track_kb_led_pos(L"LED位置", 85.0, 0.0, 100.0, 1.0);
-FILTER_ITEM_TRACK track_kb_led_size(L"LEDサイズ", 60.0, 1.0, 100.0, 1.0);
-FILTER_ITEM_TRACK track_kb_led_alpha(L"LED不透明度", 75.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK track_kb_width(L"キーボード幅", 40.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_kb_black_ratio(L"黒鍵割合", 0.65, 0.1, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK track_kb_led_pos(L"LED位置", 85.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_kb_led_size(L"LEDサイズ", 60.0, 1.0, 100.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_kb_led_alpha(L"LED不透明度", 75.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_COLOR color_grid(L"グリッド色", 0xFFFFFF);
-FILTER_ITEM_TRACK track_grid_width(L"グリッド幅", 1.0, 0.0, 10.0, 1.0);
+FILTER_ITEM_TRACK track_grid_width(L"グリッド幅", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_CHECK check_grid_h(L"キーグリッド", true);
 FILTER_ITEM_CHECK check_grid_v(L"ビートグリッド", false);
 FILTER_ITEM_GROUP group_effect(L"エフェクト");
-FILTER_ITEM_TRACK track_sink_depth(L"沈み込み", 0.0, 0.0, 10.0, 1.0);
-FILTER_ITEM_TRACK track_ripple_size(L"波紋サイズ", 0.0, 0.0, 1000.0, 1.0);
-FILTER_ITEM_TRACK track_ripple_time(L"波紋時間", 1.0, 0.0, 10.0, 0.01);
-FILTER_ITEM_TRACK track_particle_amt(L"パーティクル量", 10.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK track_particle_time(L"パーティクル時間", 0.5, 0.0, 50.0, 0.01);
+FILTER_ITEM_TRACK track_sink_depth(L"沈み込み", 0.0, 0.0, 10.0, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_ripple_size(L"波紋サイズ", 0.0, 0.0, 1000.0, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_ripple_time(L"波紋時間", 1.0, 0.0, 10.0, 0.01, L"無効", 1.0);
+FILTER_ITEM_TRACK track_particle_amt(L"パーティクル量", 10.0, 0.0, 5000.0, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_particle_time(L"パーティクル時間", 0.5, 0.0, 50.0, 0.01, L"無効", 1.0);
 struct MidiData {
     char uuid[40] = { 0 };
 };

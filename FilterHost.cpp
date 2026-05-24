@@ -54,11 +54,11 @@ TCHAR filter_ext[] =
 
 FILTER_ITEM_GROUP general_group(L"General Settings", false);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
-FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1);
-FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01);
-FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0);
-FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0);
+FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
@@ -92,16 +92,16 @@ FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
         }
     }
 });
-FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0);
-FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK track_map2(L"Map 2", -1.0, -1.0, 1000, 1.0);
-FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK track_map3(L"Map 3", -1.0, -1.0, 1000, 1.0);
-FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK track_map4(L"Map 4", -1.0, -1.0, 1000, 1.0);
-FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_map2(L"Map 2", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_map3(L"Map 3", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK track_map4(L"Map 4", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
-FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0);
+FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0, L"無効", 1.0);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
 FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { L"同期しない", 0 },

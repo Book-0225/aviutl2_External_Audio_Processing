@@ -8,10 +8,10 @@
 
 constexpr auto TOOL_NAME = L"Spatial";
 
-FILTER_ITEM_TRACK sp_time(L"Delay Time", 0.0, 0.0, 1000.0, 1.0);
-FILTER_ITEM_TRACK sp_feedback(L"Feedback", 0.0, 0.0, 90.0, 1.0);
-FILTER_ITEM_TRACK sp_mix(L"Delay Mix", 0.0, 0.0, 100.0, 1.0);
-FILTER_ITEM_TRACK sp_pseudo(L"Pseudo Width", 0.0, 0.0, 40.0, 0.1);
+FILTER_ITEM_TRACK sp_time(L"Delay Time", 0.0, 0.0, 1000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK sp_feedback(L"Feedback", 0.0, 0.0, 90.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK sp_mix(L"Delay Mix", 0.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK sp_pseudo(L"Pseudo Width", 0.0, 0.0, 40.0, 0.1, nullptr, 1.0);
 
 void* filter_items_spatial[] = {
     &sp_time, &sp_feedback, &sp_mix, &sp_pseudo, nullptr

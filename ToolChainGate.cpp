@@ -10,11 +10,11 @@
 
 constexpr auto TOOL_NAME = L"Chain Gate";
 
-FILTER_ITEM_TRACK chain_gate_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
-FILTER_ITEM_TRACK chain_gate_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK chain_gate_ratio(L"Ratio", 4.0, 1.0, 20.0, 0.1);
-FILTER_ITEM_TRACK chain_gate_attack(L"Attack", 5.0, 0.1, 100.0, 0.1);
-FILTER_ITEM_TRACK chain_gate_release(L"Release", 50.0, 10.0, 1000.0, 1.0);
+FILTER_ITEM_TRACK chain_gate_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_gate_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_gate_ratio(L"Ratio", 4.0, 1.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_gate_attack(L"Attack", 5.0, 0.1, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK chain_gate_release(L"Release", 50.0, 10.0, 1000.0, 1.0, nullptr, 1.0);
 
 void* filter_items_chain_gate[] = {
     &chain_gate_id,

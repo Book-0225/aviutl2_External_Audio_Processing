@@ -9,16 +9,16 @@
 
 constexpr auto TOOL_NAME = L"Reverb";
 
-FILTER_ITEM_TRACK rev_decay(L"ディケイ", 85.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK rev_size(L"部屋サイズ", 100.0, 10.0, 250.0, 1.0);
-FILTER_ITEM_TRACK rev_diffusion(L"拡散", 70.0, 0.0, 100.0, 1.0);
-FILTER_ITEM_TRACK rev_highcut(L"ハイカット", 18.0, 1.0, 20.0, 0.1);
-FILTER_ITEM_TRACK rev_lowcut(L"ローカット", 0.02, 0.02, 1.0, 0.01);
-FILTER_ITEM_TRACK rev_damping2(L"ダンピング", 50.0, 0.0, 100.0, 1.0);
-FILTER_ITEM_TRACK rev_predelay2(L"プリディレイ", 20.0, 0.0, 200.0, 1.0);
-FILTER_ITEM_TRACK rev_mod_rate(L"変動速度", 1.0, 0.1, 8.0, 0.1);
-FILTER_ITEM_TRACK rev_mod_depth(L"変動量", 40.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK rev_mix2(L"ミックス", 40.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK rev_decay(L"ディケイ", 85.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_size(L"部屋サイズ", 100.0, 10.0, 250.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_diffusion(L"拡散", 70.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_highcut(L"ハイカット", 18.0, 1.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_lowcut(L"ローカット", 0.02, 0.02, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_damping2(L"ダンピング", 50.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_predelay2(L"プリディレイ", 20.0, 0.0, 200.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_mod_rate(L"変動速度", 1.0, 0.1, 8.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_mod_depth(L"変動量", 40.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_mix2(L"ミックス", 40.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_reverb2[] = {
     &rev_decay,

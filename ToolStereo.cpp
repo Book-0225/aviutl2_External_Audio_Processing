@@ -6,9 +6,9 @@
 
 constexpr auto TOOL_NAME = L"Stereo";
 
-FILTER_ITEM_TRACK tool_width(L"Width", 100.0, 0.0, 200.0, 0.1);
-FILTER_ITEM_TRACK tool_mid(L"Mid Level", 100.0, 0.0, 200.0, 0.1);
-FILTER_ITEM_TRACK tool_side(L"Side Level", 100.0, 0.0, 200.0, 0.1);
+FILTER_ITEM_TRACK tool_width(L"Width", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK tool_mid(L"Mid Level", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK tool_side(L"Side Level", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
 
 void* filter_items_stereo[] = {
     &tool_width,

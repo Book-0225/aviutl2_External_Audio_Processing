@@ -6,10 +6,10 @@
 
 constexpr auto TOOL_NAME = L"DeEsser";
 
-FILTER_ITEM_TRACK deess_freq(L"Frequency", 6000.0, 2000.0, 15000.0, 1.0);
-FILTER_ITEM_TRACK deess_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK deess_amt(L"Amount", 10.0, 0.0, 48.0, 0.1);
-FILTER_ITEM_TRACK deess_width(L"Width", 2.0, 0.1, 10.0, 0.1);
+FILTER_ITEM_TRACK deess_freq(L"Frequency", 6000.0, 2000.0, 15000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK deess_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK deess_amt(L"Amount", 10.0, 0.0, 48.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK deess_width(L"Width", 2.0, 0.1, 10.0, 0.1, nullptr, 1.0);
 
 void* filter_items_deesser[] = {
     &deess_freq,

@@ -17,9 +17,9 @@ static FILTER_ITEM_SELECT::ITEM ps_algo_list[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT ps_algo(L"アルゴリズム", 0, ps_algo_list);
-FILTER_ITEM_TRACK ps_pitch(L"Pitch", 0.0, -24.0, 24.0, 0.01);
-FILTER_ITEM_TRACK ps_speed(L"再生速度補正", 100.0, -2000.0, 2000.0, 0.01);
-FILTER_ITEM_TRACK ps_mix(L"Mix", 100.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK ps_pitch(L"Pitch", 0.0, -24.0, 24.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK ps_speed(L"再生速度補正", 100.0, -2000.0, 2000.0, 0.01, L"無効", 1.0);
+FILTER_ITEM_TRACK ps_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_pitch_shift[] = {
     &ps_algo,

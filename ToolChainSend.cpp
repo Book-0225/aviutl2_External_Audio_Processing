@@ -7,10 +7,10 @@
 
 constexpr auto TOOL_NAME = L"Chain Send";
 
-FILTER_ITEM_TRACK send_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
-FILTER_ITEM_TRACK send_gain(L"Send Gain", 100.0, 0.0, 200.0, 0.1);
-FILTER_ITEM_TRACK send_offset(L"Offset", 0.0, 0.0, 600.0, 0.001);
-FILTER_ITEM_TRACK send_duration(L"Duration", 0.0, 0.0, 600.0, 0.001);
+FILTER_ITEM_TRACK send_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK send_gain(L"Send Gain", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK send_offset(L"Offset", 0.0, 0.0, 600.0, 0.001, nullptr, 1.0);
+FILTER_ITEM_TRACK send_duration(L"Duration", 0.0, 0.0, 600.0, 0.001, L"オブジェクト長", 1.0);
 
 void* filter_items_chain_send[] = {
     &send_id,

@@ -25,8 +25,8 @@ FILTER_ITEM_SELECT::ITEM list_sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT midi_sync_mode(L"BPMの同期", 0, list_sync_mode);
-FILTER_ITEM_TRACK midi_fixed_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1);
-FILTER_ITEM_TRACK midi_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01);
+FILTER_ITEM_TRACK midi_fixed_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_SELECT::ITEM list_render_mode[] = {
     { L"内蔵シンセ", 0 },
     { L"SF2", 1 },
@@ -35,18 +35,18 @@ FILTER_ITEM_SELECT::ITEM list_render_mode[] = {
 FILTER_ITEM_SELECT render_mode(L"レンダリング", 0, list_render_mode);
 FILTER_ITEM_GROUP sf2_group(L"SF2", false);
 FILTER_ITEM_FILE sf2_file(L"SF2ファイル", L"", L"SoundFont\0*.sf2\0");
-FILTER_ITEM_TRACK sf2_master_volume(L"SF2音量", 1.0, 0.0, 2.0, 0.01);
-FILTER_ITEM_TRACK sf2_reverb_level(L"SF2リバーブ", 0.0, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK sf2_master_volume(L"SF2音量", 1.0, 0.0, 2.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK sf2_reverb_level(L"SF2リバーブ", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_GROUP built_in_group(L"内蔵", false);
 FILTER_ITEM_SELECT midi_type(L"波形", 0, gen_type_list);
-FILTER_ITEM_TRACK midi_timbre(L"音色", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK midi_attack(L"アタック", 0.0, 0.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK midi_decay(L"ディケイ", 0.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK midi_sustain(L"サステイン", 0.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK midi_release(L"リリース", 0.0, 0.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK midi_cutoff(L"カットオフ", 1.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK midi_reso(L"レゾナンス", 0.0, 0.0, 1.0, 0.01);
-FILTER_ITEM_TRACK midi_detune(L"デチューン", 0.2, 0.0, 1.0, 0.01);
+FILTER_ITEM_TRACK midi_timbre(L"音色", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_attack(L"アタック", 0.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_decay(L"ディケイ", 0.0, 0.0, 5000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_sustain(L"サステイン", 0.0, -60.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_release(L"リリース", 0.0, 0.0, 5000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_cutoff(L"カットオフ", 1.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_reso(L"レゾナンス", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
+FILTER_ITEM_TRACK midi_detune(L"デチューン", 0.2, 0.0, 1.0, 0.01, nullptr, 1.0);
 
 void* filter_items_midi_gen[] = {
     &midi_file,

@@ -7,11 +7,11 @@
 
 constexpr auto TOOL_NAME = L"Auto Wah";
 
-FILTER_ITEM_TRACK wah_sens(L"Sensitivity", 50.0, 0.0, 100.0, 1.0);
-FILTER_ITEM_TRACK wah_base(L"Base Freq", 200.0, 50.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK wah_range(L"Range", 2000.0, 100.0, 10000.0, 1.0);
-FILTER_ITEM_TRACK wah_res(L"Resonance", 3.0, 0.1, 20.0, 0.1);
-FILTER_ITEM_TRACK wah_mix(L"Mix", 100.0, 0.0, 100.0, 1.0);
+FILTER_ITEM_TRACK wah_sens(L"Sensitivity", 50.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK wah_base(L"Base Freq", 200.0, 50.0, 5000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK wah_range(L"Range", 2000.0, 100.0, 10000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK wah_res(L"Resonance", 3.0, 0.1, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK wah_mix(L"Mix", 100.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 
 void* filter_items_autowah[] = {
     &wah_sens,

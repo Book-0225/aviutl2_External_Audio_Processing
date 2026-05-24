@@ -9,19 +9,19 @@
 constexpr auto TOOL_NAME = L"EQ";
 
 FILTER_ITEM_GROUP cut_group(L"Cut Filters", false);
-FILTER_ITEM_TRACK eq_hpf(L"Low Cut", 0.0, 0.0, 2000.0, 1.0);
-FILTER_ITEM_TRACK eq_lpf(L"High Cut", 20000.0, 500.0, 20000.0, 1.0);
+FILTER_ITEM_TRACK eq_hpf(L"Low Cut", 0.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_lpf(L"High Cut", 20000.0, 500.0, 20000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP eq_group(L"EQ Bands", true);
-FILTER_ITEM_TRACK eq_low(L"Low Gain", 0.0, -20.0, 20.0, 0.1);
-FILTER_ITEM_TRACK eq_ml(L"M-Low Gain", 0.0, -20.0, 20.0, 0.1);
-FILTER_ITEM_TRACK eq_mid(L"Mid Gain", 0.0, -20.0, 20.0, 0.1);
-FILTER_ITEM_TRACK eq_mh(L"M-High Gain", 0.0, -20.0, 20.0, 0.1);
-FILTER_ITEM_TRACK eq_high(L"High Gain", 0.0, -20.0, 20.0, 0.1);
-FILTER_ITEM_TRACK eq_low_freq(L"Low Freq", 100.0, 20.0, 1000.0, 1.0);
-FILTER_ITEM_TRACK eq_ml_freq(L"M-Low Freq", 350.0, 100.0, 5000.0, 1.0);
-FILTER_ITEM_TRACK eq_mid_freq(L"Mid Freq", 1000.0, 200.0, 10000.0, 1.0);
-FILTER_ITEM_TRACK eq_mh_freq(L"M-High Freq", 3500.0, 1000.0, 20000.0, 1.0);
-FILTER_ITEM_TRACK eq_high_freq(L"High Freq", 10000.0, 2000.0, 20000.0, 1.0);
+FILTER_ITEM_TRACK eq_low(L"Low Gain", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_ml(L"M-Low Gain", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_mid(L"Mid Gain", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_mh(L"M-High Gain", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_high(L"High Gain", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_low_freq(L"Low Freq", 100.0, 20.0, 1000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_ml_freq(L"M-Low Freq", 350.0, 100.0, 5000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_mid_freq(L"Mid Freq", 1000.0, 200.0, 10000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_mh_freq(L"M-High Freq", 3500.0, 1000.0, 20000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK eq_high_freq(L"High Freq", 10000.0, 2000.0, 20000.0, 1.0, nullptr, 1.0);
 
 void* filter_items_eq[] = {
     &cut_group,

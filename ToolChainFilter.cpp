@@ -7,12 +7,12 @@
 
 constexpr auto TOOL_NAME = L"Chain Filter";
 
-FILTER_ITEM_TRACK cfilt_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
-FILTER_ITEM_TRACK cfilt_base(L"Base Freq", 400.0, 20.0, 20000.0, 1.0);
-FILTER_ITEM_TRACK cfilt_mod(L"Mod Depth", 2000.0, -10000.0, 10000.0, 1.0);
-FILTER_ITEM_TRACK cfilt_q(L"Resonance", 2.0, 0.1, 20.0, 0.1);
-FILTER_ITEM_TRACK cfilt_att(L"Attack", 10.0, 0.0, 500.0, 1.0);
-FILTER_ITEM_TRACK cfilt_rel(L"Release", 100.0, 0.0, 2000.0, 1.0);
+FILTER_ITEM_TRACK cfilt_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK cfilt_base(L"Base Freq", 400.0, 20.0, 20000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK cfilt_mod(L"Mod Depth", 2000.0, -10000.0, 10000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK cfilt_q(L"Resonance", 2.0, 0.1, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK cfilt_att(L"Attack", 10.0, 0.0, 500.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK cfilt_rel(L"Release", 100.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
 
 void* filter_items_chain_filter[] = {
     &cfilt_id,

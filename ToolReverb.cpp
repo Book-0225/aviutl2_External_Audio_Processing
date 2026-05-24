@@ -8,10 +8,10 @@
 
 constexpr auto TOOL_NAME = L"Reverb";
 
-FILTER_ITEM_TRACK rev_time(L"Room Size", 50.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK rev_damping(L"Damping", 50.0, 0.0, 100.0, 0.1);
-FILTER_ITEM_TRACK rev_predelay(L"Pre-Delay", 0.0, 0.0, 200.0, 1.0);
-FILTER_ITEM_TRACK rev_mix(L"Mix", 30.0, 0.0, 100.0, 0.1);
+FILTER_ITEM_TRACK rev_time(L"Room Size", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_damping(L"Damping", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_predelay(L"Pre-Delay", 0.0, 0.0, 200.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK rev_mix(L"Mix", 30.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_reverb[] = {
     &rev_time,

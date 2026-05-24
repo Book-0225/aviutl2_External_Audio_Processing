@@ -7,13 +7,13 @@
 
 constexpr auto TOOL_NAME = L"Chain Dynamic EQ";
 
-FILTER_ITEM_TRACK deq_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0);
-FILTER_ITEM_TRACK deq_freq(L"Frequency", 1000.0, 20.0, 20000.0, 1.0);
-FILTER_ITEM_TRACK deq_q(L"Q", 1.0, 0.1, 20.0, 0.1);
-FILTER_ITEM_TRACK deq_gain(L"Reduction", 6.0, 0.0, 24.0, 0.1);
-FILTER_ITEM_TRACK deq_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1);
-FILTER_ITEM_TRACK deq_att(L"Attack", 10.0, 0.0, 500.0, 1.0);
-FILTER_ITEM_TRACK deq_rel(L"Release", 100.0, 0.0, 2000.0, 1.0);
+FILTER_ITEM_TRACK deq_id(L"ID", 1.0, 1.0, ChainManager::MAX_ID, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK deq_freq(L"Frequency", 1000.0, 20.0, 20000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK deq_q(L"Q", 1.0, 0.1, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK deq_gain(L"Reduction", 6.0, 0.0, 24.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK deq_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK deq_att(L"Attack", 10.0, 0.0, 500.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK deq_rel(L"Release", 100.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
 
 void* filter_items_chain_dyn_eq[] = {
     &deq_id, &deq_freq, &deq_q, &deq_gain, &deq_thresh, &deq_att, &deq_rel, nullptr
