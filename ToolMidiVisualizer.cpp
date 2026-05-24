@@ -182,9 +182,9 @@ void DrawBox(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, int32_
                 if (gradient) {
                     float ratio = static_cast<float>(lx) / rw + ly / rh;
                     float factor = 1.2f - (ratio * 0.4f);
-                    fc.r = (uint8_t)(std::min)(255, (int32_t)(fc.r * factor));
-                    fc.g = (uint8_t)(std::min)(255, (int32_t)(fc.g * factor));
-                    fc.b = (uint8_t)(std::min)(255, (int32_t)(fc.b * factor));
+                    fc.r = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.r * factor)));
+                    fc.g = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.g * factor)));
+                    fc.b = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.b * factor)));
                 }
                 BlendPixel(buf, w, h, ix, iy, fc);
             }
@@ -680,7 +680,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                 out.r = static_cast<uint8_t>(col.r * alphaNorm + src.r * invA);
                 out.g = static_cast<uint8_t>(col.g * alphaNorm + src.g * invA);
                 out.b = static_cast<uint8_t>(col.b * alphaNorm + src.b * invA);
-                out.a = static_cast<uint8_t>((std::min)(255, (int32_t)(src.a + col.a * a)));
+                out.a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(src.a + col.a * a)));
                 imgBuf[idx] = out;
             }
         }

@@ -108,7 +108,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     double current_gate_gain = state->gate_gain;
     double current_comp_env = state->comp_envelope;
     Avx2Utils::PeakDetectStereoAVX2(peak_buf.data(), bufL.data(), bufR.data(), total_samples);
-    Avx2Utils::ThresholdAVX2(gate_target_buf.data(), peak_buf.data(), total_samples, (float)gate_th_lin);
+    Avx2Utils::ThresholdAVX2(gate_target_buf.data(), peak_buf.data(), total_samples, static_cast<float>(gate_th_lin));
 
     alignas(32) float temp_gain[BLOCK_SIZE];
 
@@ -126,7 +126,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
             else
                 current_gate_gain += gate_rel_coef * (gate_target - current_gate_gain);
 
-            double gated_abs = (double)p_peak[k] * current_gate_gain;
+            double gated_abs = p_peak[k] * current_gate_gain;
 
             double comp_gain = 1.0;
             if (use_comp) {

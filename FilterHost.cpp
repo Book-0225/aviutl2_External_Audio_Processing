@@ -406,7 +406,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHost(effect_id);
     if (host && audio->scene->sample_rate > 0) {
         double currentRate = host->GetSampleRate();
-        double targetRate = (double)audio->scene->sample_rate;
+        double targetRate = static_cast<double>(audio->scene->sample_rate);
         if (std::abs(currentRate - targetRate) > 0.1) {
             DbgPrint(L"Sample Rate Change Detected for " + std::to_wstring(effect_id) + L": " + std::to_wstring(currentRate) + L" -> " + std::to_wstring(targetRate), LOG_VERBOSE);
             host->SetSampleRate(targetRate);
@@ -490,22 +490,22 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         return true;
     }
 
-    int32_t ts_num = (int32_t)track_ts_num.value;
-    int32_t ts_denom = (int32_t)track_ts_denom.value;
+    int32_t ts_num = static_cast<int32_t>(track_ts_num.value);
+    int32_t ts_denom = static_cast<int32_t>(track_ts_denom.value);
 
     if (host) {
         float slider_vals[4] = {
-            (float)track_param1.value,
-            (float)track_param2.value,
-            (float)track_param3.value,
-            (float)track_param4.value
+            static_cast<float>(track_param1.value),
+            static_cast<float>(track_param2.value),
+            static_cast<float>(track_param3.value),
+            static_cast<float>(track_param4.value)
         };
 
         float map_vals[4] = {
-            (float)track_map1.value,
-            (float)track_map2.value,
-            (float)track_map3.value,
-            (float)track_map4.value
+            static_cast<float>(track_map1.value),
+            static_cast<float>(track_map2.value),
+            static_cast<float>(track_map3.value),
+            static_cast<float>(track_map4.value)
         };
 
         bool is_learning = check_param_learn.value;
@@ -519,7 +519,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         ParamCache& cache = *pCache;
 
         for (int32_t i = 0; i < 4; ++i) {
-            int32_t mapIndex = (int32_t)map_vals[i];
+            int32_t mapIndex = static_cast<int32_t>(map_vals[i]);
             int32_t maxParam = host->GetParameterCount();
             if (mapIndex >= 0 && mapIndex < maxParam) {
                 uint32_t paramID = host->GetParameterID(mapIndex);
@@ -633,7 +633,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         return true;
     }
 
-    int64_t current_pos = (int64_t)(audio->object->sample_index + 0.5);
+    int64_t current_pos = static_cast<int64_t>(audio->object->sample_index + 0.5);
     double bpm = 120.0;
     int32_t sync_bpm = select_bpm_sync.value;
     bool processed_by_host = false;
@@ -701,10 +701,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             ms.prev_path = midi_path;
         }
 
-        double current_time_sec = (double)current_pos / audio->scene->sample_rate;
+        double current_time_sec = static_cast<double>(current_pos) / audio->scene->sample_rate;
         if (sync_bpm == 1) {
             bpm = ms.parser.GetBpmAtTime(current_time_sec);
-            auto ts_evt = ms.parser.GetTimeSignatureAt((uint32_t)ms.parser.GetTickAtTime(current_time_sec));
+            auto ts_evt = ms.parser.GetTimeSignatureAt(static_cast<uint32_t>(ms.parser.GetTickAtTime(current_time_sec)));
             if (ts_evt.numerator > 0 && ts_evt.denominator > 0) {
                 ts_num = ts_evt.numerator;
                 ts_denom = ts_evt.denominator;
@@ -809,8 +809,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 current_block_pos += lat;
             }
 
-            double time_start = (double)current_block_pos / audio->scene->sample_rate;
-            double time_end = (double)(current_block_pos + block_size) / audio->scene->sample_rate;
+            double time_start = static_cast<double>(current_block_pos) / audio->scene->sample_rate;
+            double time_end = static_cast<double>(current_block_pos + block_size) / audio->scene->sample_rate;
 
             std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
             if (!realtime_events_sent && !realtime_midi_events.empty()) {
@@ -828,8 +828,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 } else {
                     double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
                     if (samplesPerTick < 0.001) samplesPerTick = 0.001;
-                    start_tick = (int64_t)(current_block_pos / samplesPerTick);
-                    end_tick = (int64_t)((current_block_pos + block_size) / samplesPerTick);
+                    start_tick = static_cast<int64_t>(current_block_pos / samplesPerTick);
+                    end_tick = static_cast<int64_t>((current_block_pos + block_size) / samplesPerTick);
                 }
 
                 const auto& all_events = ms.parser.GetEvents();
@@ -844,12 +844,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     if (sync_bpm == 1) {
                         int64_t tick_diff = it->absoluteTick - start_tick;
                         int64_t total_tick_diff = end_tick - start_tick;
-                        if (total_tick_diff > 0) delta_samples = (int32_t)((double)tick_diff / total_tick_diff * block_size);
+                        if (total_tick_diff > 0) delta_samples = static_cast<int32_t>(static_cast<double>(tick_diff) / total_tick_diff * block_size);
                     } else {
                         double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
                         double raw_delta = (it->absoluteTick * samplesPerTick) - current_block_pos;
                         if (raw_delta > block_size) raw_delta = block_size;
-                        delta_samples = (int32_t)raw_delta;
+                        delta_samples = static_cast<int32_t>(raw_delta);
                     }
 
                     if (delta_samples < 0) delta_samples = 0;
@@ -898,7 +898,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
 
         int32_t writeP = db->writePos;
-        int32_t bufSize = (int32_t)db->bufferL.size();
+        int32_t bufSize = static_cast<int32_t>(db->bufferL.size());
 
         for (int32_t i = 0; i < total_samples; ++i) {
             db->bufferL[writeP] = inL[i];

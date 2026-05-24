@@ -61,10 +61,10 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
-    float threshold_db = (float)spec_gate_threshold.value;
-    float attack_ms = (float)spec_gate_attack.value;
-    float release_ms = (float)spec_gate_release.value;
-    float mix = (float)spec_gate_mix.value / 100.0f;
+    float threshold_db = static_cast<float>(spec_gate_threshold.value);
+    float attack_ms = static_cast<float>(spec_gate_attack.value);
+    float release_ms = static_cast<float>(spec_gate_release.value);
+    float mix = static_cast<float>(spec_gate_mix.value) / 100.0f;
 
     double sr = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
@@ -82,8 +82,8 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     }
 
     float threshold_linear = std::pow(10.0f, threshold_db / 20.0f);
-    float attack_coeff = std::exp(-1.0f / (attack_ms * (float)sr / 1000.0f + 1.0f));
-    float release_coeff = std::exp(-1.0f / (release_ms * (float)sr / 1000.0f + 1.0f));
+    float attack_coeff = std::exp(-1.0f / (attack_ms * static_cast<float>(sr) / 1000.0f + 1.0f));
+    float release_coeff = std::exp(-1.0f / (release_ms * static_cast<float>(sr) / 1000.0f + 1.0f));
 
     int32_t channels = (std::min)(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;

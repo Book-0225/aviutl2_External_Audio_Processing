@@ -90,13 +90,13 @@ bool func_proc_audio_chain_filter(FILTER_PROC_AUDIO* audio) {
         for (int32_t i = 0; i < ChainManager::MAX_PER_ID; i++) {
             if (chain.effect_id[i] != -1) {
                 if (chain.update_count[i] != state->last_update_count[i]) {
-                    levels[i] = (double)chain.level[i];
+                    levels[i] = static_cast<double>(chain.level[i]);
                     state->last_update_count[i] = chain.update_count[i];
                     state->missed_count[i] = 0;
                 } else {
                     if (state->missed_count[i] < INT32_MAX) state->missed_count[i]++;
                     if (state->missed_count[i] >= 10) chain.effect_id[i] = -1;
-                    if (state->missed_count[i] <= 1) levels[i] = (double)chain.level[i];
+                    if (state->missed_count[i] <= 1) levels[i] = static_cast<double>(chain.level[i]);
                     else levels[i] = 0.0;
                 }
             } else {
@@ -146,11 +146,11 @@ bool func_proc_audio_chain_filter(FILTER_PROC_AUDIO* audio) {
                 double norm = 1.0 + alpha;
                 double norm_inv = 1.0 / norm;
 
-                c_b0 = (float)(((1.0 - cs) * 0.5) * norm_inv);
-                c_b1 = (float)((1.0 - cs) * norm_inv);
+                c_b0 = static_cast<float>(((1.0 - cs) * 0.5) * norm_inv);
+                c_b1 = static_cast<float>((1.0 - cs) * norm_inv);
                 c_b2 = c_b0;
-                c_a1 = (float)((-2.0 * cs) * norm_inv);
-                c_a2 = (float)((1.0 - alpha) * norm_inv);
+                c_a1 = static_cast<float>((-2.0 * cs) * norm_inv);
+                c_a2 = static_cast<float>((1.0 - alpha) * norm_inv);
             }
 
             state->filterL.process(pL[k], c_b0, c_b1, c_b2, c_a1, c_a2);

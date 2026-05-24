@@ -814,7 +814,7 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
             double ppq = static_cast<double>(currentSampleIndex) / samplesPerBeat;
             ctx.projectTimeMusic = ppq;
             if (currentTsNum > 0 && currentTsDenom > 0) {
-                double quarterNotesPerBar = (double)currentTsNum * 4.0 / (double)currentTsDenom;
+                double quarterNotesPerBar = static_cast<double>(currentTsNum) * 4.0 / currentTsDenom;
                 int64_t currentBarIndex = static_cast<int64_t>(ppq / quarterNotesPerBar);
                 ctx.barPositionMusic = static_cast<double>(currentBarIndex) * quarterNotesPerBar;
                 ctx.cycleStartMusic = ctx.barPositionMusic;

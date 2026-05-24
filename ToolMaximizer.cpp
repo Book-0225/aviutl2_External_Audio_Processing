@@ -123,7 +123,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
         Avx2Utils::WriteRingBufferAVX2(state->bufferR, pR, buf_size, w_pos, block_count);
 
         for (int32_t k = 0; k < block_count; ++k) {
-            double in_peak = (double)p_peak[k];
+            double in_peak = static_cast<double>(p_peak[k]);
 
             if (in_peak > current_env) {
                 current_env = in_peak;

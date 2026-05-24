@@ -53,15 +53,15 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
-    float sens = (float)wah_sens.value / 20.0f;
-    float base_f = (float)wah_base.value;
-    float range_f = (float)wah_range.value;
-    float q = (float)wah_res.value;
-    float mix = (float)wah_mix.value / 100.0f;
+    float sens = static_cast<float>(wah_sens.value) / 20.0f;
+    float base_f = static_cast<float>(wah_base.value);
+    float range_f = static_cast<float>(wah_range.value);
+    float q = static_cast<float>(wah_res.value);
+    float mix = static_cast<float>(wah_mix.value) / 100.0f;
     double sr = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
-    float att_coeff = std::exp(-1.0f / (30.0f * 0.001f * (float)sr));
-    float rel_coeff = std::exp(-1.0f / (150.0f * 0.001f * (float)sr));
+    float att_coeff = std::exp(-1.0f / (30.0f * 0.001f * static_cast<float>(sr)));
+    float rel_coeff = std::exp(-1.0f / (150.0f * 0.001f * static_cast<float>(sr)));
 
     AutoWahState* state = nullptr;
     {
@@ -93,8 +93,8 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
 
     if (c_b0 == 0.0f) {
         float target_freq = base_f + (current_env * range_f);
-        if (target_freq > (float)sr * 0.45f) target_freq = (float)sr * 0.45f;
-        float omega = 2.0f * (float)M_PI * target_freq / (float)sr;
+        if (target_freq > static_cast<float>(sr) * 0.45f) target_freq = static_cast<float>(sr) * 0.45f;
+        float omega = 2.0f * static_cast<float>(M_PI) * target_freq / static_cast<float>(sr);
         float sn = std::sin(omega);
         float cs = std::cos(omega);
         float alpha = sn / (2.0f * q);
@@ -128,9 +128,9 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
 
             if ((i + k) % CONTROL_RATE == 0) {
                 float target_freq = base_f + (current_env * range_f);
-                if (target_freq > (float)sr * 0.45f) target_freq = (float)sr * 0.45f;
+                if (target_freq > static_cast<float>(sr) * 0.45f) target_freq = static_cast<float>(sr) * 0.45f;
 
-                float omega = 2.0f * (float)M_PI * target_freq / (float)sr;
+                float omega = 2.0f * static_cast<float>(M_PI) * target_freq / static_cast<float>(sr);
                 float sn = std::sin(omega);
                 float cs = std::cos(omega);
                 float alpha = sn / (2.0f * q);

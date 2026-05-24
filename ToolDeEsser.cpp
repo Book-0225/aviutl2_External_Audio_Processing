@@ -51,15 +51,15 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
 
-    float freq = (float)deess_freq.value;
-    float thresh_db = (float)deess_thresh.value;
+    float freq = static_cast<float>(deess_freq.value);
+    float thresh_db = static_cast<float>(deess_thresh.value);
     float thresh_lin = std::pow(10.0f, thresh_db / 20.0f);
-    float max_cut = -(float)deess_amt.value;
-    float q = (float)deess_width.value;
+    float max_cut = -static_cast<float>(deess_amt.value);
+    float q = static_cast<float>(deess_width.value);
     double sr = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
 
-    float att_coeff = std::exp(-1.0f / (5.0f * 0.001f * (float)sr));
-    float rel_coeff = std::exp(-1.0f / (50.0f * 0.001f * (float)sr));
+    float att_coeff = std::exp(-1.0f / (5.0f * 0.001f * static_cast<float>(sr)));
+    float rel_coeff = std::exp(-1.0f / (50.0f * 0.001f * static_cast<float>(sr)));
 
     DeesserState* state = nullptr;
     {
@@ -86,7 +86,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
     else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    float omega_sc = 2.0f * (float)M_PI * freq / (float)sr;
+    float omega_sc = 2.0f * static_cast<float>(M_PI) * freq / static_cast<float>(sr);
     float sn_sc = std::sin(omega_sc);
     float cs_sc = std::cos(omega_sc);
     float alpha_sc = sn_sc / (2.0f * 0.707f);
@@ -96,7 +96,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     float b2_sc = b0_sc;
     float a1_sc = (-2.0f * cs_sc) * norm_sc_inv;
     float a2_sc = (1.0f - alpha_sc) * norm_sc_inv;
-    float omega = 2.0f * (float)M_PI * freq / (float)sr;
+    float omega = 2.0f * static_cast<float>(M_PI) * freq / static_cast<float>(sr);
     float sn = std::sin(omega);
     float cs = std::cos(omega);
     float alpha = sn / (2.0f * q);

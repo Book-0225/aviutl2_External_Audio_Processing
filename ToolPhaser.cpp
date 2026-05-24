@@ -132,12 +132,12 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
         float* p_dry_R = bufR.data() + i;
 
         for (int32_t k = 0; k < block_count; ++k) {
-            float lfo = (float)(std::sin(current_phase) + 1.0f) * 0.5f;
+            float lfo = static_cast<float>(std::sin(current_phase) + 1.0f) * 0.5f;
             current_phase += lfo_inc;
             if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
 
             float freq = min_freq + (max_freq - min_freq) * lfo * depth;
-            float tan_val = (float)std::tan(M_PI * freq / Fs);
+            float tan_val = static_cast<float>(std::tan(M_PI * freq / Fs));
             float a = (tan_val - 1.0f) / (tan_val + 1.0f);
 
             float in_l = p_dry_L[k] + state->last_feedbackL * feedback;
