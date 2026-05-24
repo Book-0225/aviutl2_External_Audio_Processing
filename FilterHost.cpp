@@ -52,16 +52,20 @@ TCHAR filter_ext[] =
     L"CLAP Plugins (*.clap)\0*.clap\0"
     L"All Files (*.*)\0*.*\0\0";
 
-FILTER_ITEM_GROUP general_group(L"General Settings", false);
+FILTER_ITEM_GROUP general_group(L"General Settings", true);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
 FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
+FILTER_ITEM_SEPARATOR sep_all_lr(L"Apply All section");
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
-FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
+FILTER_ITEM_SEPARATOR sep_sec_lr(L"Apply Each section");
+FILTER_ITEM_CHECK_SECTION checks_apply_l(L"Apply to L (Each section)", false);
+FILTER_ITEM_CHECK_SECTION checks_apply_r(L"Apply to R (Each section)", false);
 FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
 FILTER_ITEM_CHECK check_show_param_list(L"Show Param List", false);
 FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
@@ -131,9 +135,13 @@ void* filter_items_host[] = {
     &track_bpm,
     &track_ts_num,
     &track_ts_denom,
+    &toggle_gui_check,
+    &sep_all_lr,
     &check_apply_l,
     &check_apply_r,
-    &toggle_gui_check,
+    &sep_sec_lr,
+    &checks_apply_l,
+    &checks_apply_r,
     &param_group,
     &check_show_param_list,
     &check_param_learn,
@@ -151,6 +159,9 @@ void* filter_items_host[] = {
     &midi_path_param,
     &select_bpm_sync,
     &instance_data_param,
+    &last_recv_data,
+    &last_plugin_data,
+    &last_midi_data,
     nullptr
 };
 
@@ -390,8 +401,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (!is_object) {
         wet_val = static_cast<float>(track_wet.value);
         vol_val = static_cast<float>(track_volume.value);
-        apply_l = check_apply_l.value;
-        apply_r = check_apply_r.value;
+        apply_l = check_apply_l.value || checks_apply_l.value;
+        apply_r = check_apply_r.value || checks_apply_r.value;
     }
 
     bool effective_bypass = (!apply_l && !apply_r) || (wet_val == 0.0f);

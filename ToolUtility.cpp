@@ -8,9 +8,14 @@ constexpr auto TOOL_NAME = L"Utility";
 
 FILTER_ITEM_TRACK tool_gain(L"Gain", 100.0, 0.0, 500.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK tool_pan(L"Pan(L-R)", 0.0, -100.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR tool_all_sep(L"All section");
 FILTER_ITEM_CHECK tool_swap(L"Swap(L/R)", false);
 FILTER_ITEM_CHECK tool_inv_l(L"Invert L", false);
 FILTER_ITEM_CHECK tool_inv_r(L"Invert R", false);
+FILTER_ITEM_SEPARATOR tool_sec_sep(L"Each section");
+FILTER_ITEM_CHECK_SECTION tool_swap_s(L"Swap(L/R) (Each section)", false);
+FILTER_ITEM_CHECK_SECTION tool_inv_l_s(L"Invert L (Each section)", false);
+FILTER_ITEM_CHECK_SECTION tool_inv_r_s(L"Invert R (Each section)", false);
 
 FILTER_ITEM_SELECT::ITEM mono_mode_list[] = {
     { L"Stereo (Off)", 0 },
@@ -25,9 +30,14 @@ FILTER_ITEM_SELECT tool_mono_mode(L"Mono Mode", 0, mono_mode_list);
 void* filter_items_utility[] = {
     &tool_gain,
     &tool_pan,
+    &tool_all_sep,
     &tool_swap,
     &tool_inv_l,
     &tool_inv_r,
+    &tool_sec_sep,
+    &tool_swap_s,
+    &tool_inv_l_s,
+    &tool_inv_r_s,
     &tool_mono_mode,
     nullptr
 };
@@ -39,9 +49,9 @@ bool func_proc_audio_utility(FILTER_PROC_AUDIO* audio) {
 
     float gain_val = static_cast<float>(tool_gain.value);
     float pan_val = static_cast<float>(tool_pan.value);
-    bool do_swap = tool_swap.value;
-    bool do_inv_l = tool_inv_l.value;
-    bool do_inv_r = tool_inv_r.value;
+    bool do_swap = tool_swap.value || tool_swap_s.value;
+    bool do_inv_l = tool_inv_l.value || tool_inv_l_s.value;
+    bool do_inv_r = tool_inv_r.value || tool_inv_r_s.value;
 
     int32_t mono_mode = tool_mono_mode.value;
 

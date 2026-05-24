@@ -9,9 +9,14 @@
 
 constexpr auto TOOL_NAME = L"Modulation";
 
+FILTER_ITEM_SEPARATOR mod_all_sep(L"All section");
 FILTER_ITEM_CHECK mod_chorus(L"Chorus", true);
 FILTER_ITEM_CHECK mod_flanger(L"Flanger", false);
 FILTER_ITEM_CHECK mod_tremolo(L"Tremolo", false);
+FILTER_ITEM_SEPARATOR mod_sec_sep(L"Each section");
+FILTER_ITEM_CHECK_SECTION mod_chorus_s(L"Chorus (Each section)", false);
+FILTER_ITEM_CHECK_SECTION mod_flanger_s(L"Flanger (Each section)", false);
+FILTER_ITEM_CHECK_SECTION mod_tremolo_s(L"Tremolo (Each section)", false);
 FILTER_ITEM_TRACK mod_rate(L"Rate", 1.0, 0.01, 20.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK mod_depth(L"Depth", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK mod_feedback(L"Feedback", 0.0, 0.0, 95.0, 0.1, nullptr, 1.0);
@@ -19,9 +24,14 @@ FILTER_ITEM_TRACK mod_delay(L"Delay", 10.0, 0.1, 50.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK mod_mix(L"Mix", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
 void* filter_items_modulation[] = {
+    &mod_all_sep,
     &mod_chorus,
     &mod_flanger,
     &mod_tremolo,
+    &mod_sec_sep,
+    &mod_chorus_s,
+    &mod_flanger_s,
+    &mod_tremolo_s,
     &mod_rate,
     &mod_depth,
     &mod_feedback,
@@ -75,9 +85,9 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     if (total_samples <= 0) return true;
     int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    bool is_chorus = mod_chorus.value;
-    bool is_flanger = mod_flanger.value;
-    bool is_tremolo = mod_tremolo.value;
+    bool is_chorus = mod_chorus.value || mod_chorus_s.value;
+    bool is_flanger = mod_flanger.value || mod_flanger_s.value;
+    bool is_tremolo = mod_tremolo.value || mod_tremolo_s.value;
     bool is_delay_mod = is_chorus || is_flanger;
 
     float rate = static_cast<float>(mod_rate.value);
