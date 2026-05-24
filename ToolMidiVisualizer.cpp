@@ -180,7 +180,7 @@ void DrawBox(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, int32_
             } else {
                 PIXEL_RGBA fc = fillColor;
                 if (gradient) {
-                    float ratio = static_cast<float>(lx) / rw + ly / rh;
+                    float ratio = static_cast<float>(lx) / rw + static_cast<float>(ly) / rh;
                     float factor = 1.2f - (ratio * 0.4f);
                     fc.r = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.r * factor)));
                     fc.g = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.g * factor)));
