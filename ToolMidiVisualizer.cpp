@@ -126,7 +126,7 @@ PIXEL_RGBA HsvToRgb(double h, double s, double v, uint8_t a = 255) {
     return { static_cast<uint8_t>(r * 255), static_cast<uint8_t>(g * 255), static_cast<uint8_t>(b * 255), a };
 }
 
-inline void BlendPixel(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, PIXEL_RGBA c) {
+void BlendPixel(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, PIXEL_RGBA c) {
     if (x < 0 || y < 0 || x >= w || y >= h) return;
     int32_t idx = y * w + x;
 
@@ -273,6 +273,7 @@ FILTER_ITEM_SELECT::ITEM list_col_mode[] = {
     { L"虹色", 1 },
     { L"チャンネル", 2 },
     { L"強弱", 3 },
+    { L"個別指定", 4 },
     { nullptr }
 };
 FILTER_ITEM_SELECT select_col_mode(L"カラーモード", 1, list_col_mode);
@@ -280,6 +281,23 @@ FILTER_ITEM_COLOR color_base(L"基本色", 0x00FF00);
 FILTER_ITEM_TRACK track_radius(L"角の半径", 2.0, 0.0, 20.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_CHECK check_gradient(L"グラデーション", true);
 FILTER_ITEM_TRACK track_padding(L"余白", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_GROUP group_col_ind(L"色個別指定", false);
+FILTER_ITEM_COLOR col_ch1(L"ch1", 0x00FF00);
+FILTER_ITEM_COLOR col_ch2(L"ch2", 0xFF0000);
+FILTER_ITEM_COLOR col_ch3(L"ch3", 0x0000FF);
+FILTER_ITEM_COLOR col_ch4(L"ch4", 0x00FFFF);
+FILTER_ITEM_COLOR col_ch5(L"ch5", 0xFF00FF);
+FILTER_ITEM_COLOR col_ch6(L"ch6", 0xFFFF00);
+FILTER_ITEM_COLOR col_ch7(L"ch7", 0x0080FF);
+FILTER_ITEM_COLOR col_ch8(L"ch8", 0x8000FF);
+FILTER_ITEM_COLOR col_ch9(L"ch9", 0x80FF00);
+FILTER_ITEM_COLOR col_ch10(L"ch10", 0xFF8000);
+FILTER_ITEM_COLOR col_ch11(L"ch11", 0x008080);
+FILTER_ITEM_COLOR col_ch12(L"ch12", 0x800080);
+FILTER_ITEM_COLOR col_ch13(L"ch13", 0x808000);
+FILTER_ITEM_COLOR col_ch14(L"ch14", 0xC0C0C0);
+FILTER_ITEM_COLOR col_ch15(L"ch15", 0x4040FF);
+FILTER_ITEM_COLOR col_ch16(L"ch16", 0xFF4040);
 FILTER_ITEM_GROUP group_border(L"縁", false);
 FILTER_ITEM_CHECK check_border(L"縁を描画", false);
 FILTER_ITEM_TRACK track_border_w(L"縁幅", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
@@ -288,6 +306,7 @@ FILTER_ITEM_TRACK track_note_alpha(L"ノートの不透明度", 100.0, 0.0, 100.
 FILTER_ITEM_GROUP group_kb(L"装飾");
 FILTER_ITEM_CHECK check_draw_kb(L"キーボード", true);
 FILTER_ITEM_TRACK track_kb_width(L"キーボード幅", 40.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_CHECK check_kb_width_of(L"幅に合わせてノーツ位置を調整", true);
 FILTER_ITEM_TRACK track_kb_black_ratio(L"黒鍵割合", 0.65, 0.1, 1.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK track_kb_led_pos(L"LED位置", 85.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_kb_led_size(L"LEDサイズ", 60.0, 1.0, 100.0, 1.0, nullptr, 1.0);
@@ -346,6 +365,23 @@ void* filter_items_midi_visualizer[] = {
     &track_radius,
     &check_gradient,
     &track_padding,
+    &group_col_ind,
+    &col_ch1,
+    &col_ch2,
+    &col_ch3,
+    &col_ch4,
+    &col_ch5,
+    &col_ch6,
+    &col_ch7,
+    &col_ch8,
+    &col_ch9,
+    &col_ch10,
+    &col_ch11,
+    &col_ch12,
+    &col_ch13,
+    &col_ch14,
+    &col_ch15,
+    &col_ch16,
     &group_border,
     &check_border,
     &track_border_w,
@@ -354,6 +390,7 @@ void* filter_items_midi_visualizer[] = {
     &group_kb,
     &check_draw_kb,
     &track_kb_width,
+    &check_kb_width_of,
     &track_kb_black_ratio,
     &track_kb_led_pos,
     &track_kb_led_size,
@@ -502,7 +539,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     int32_t scrollMode = select_scroll.value;
     int32_t reactionMode = select_reaction.value;
     double zoomT = track_zoom_time.value / 100.0;
-    double scrollPos = track_scroll_pos.value;
     int32_t minKey = static_cast<int32_t>(track_key_min.value);
     int32_t maxKey = static_cast<int32_t>(track_key_max.value);
     if (minKey > maxKey) std::swap(minKey, maxKey);
@@ -528,6 +564,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     bool drawKb = check_draw_kb.value;
     bool drawNotes = check_draw_notes.value;
     double kbWidth = track_kb_width.value;
+    double scrollPos = track_scroll_pos.value + (check_draw_kb.value && check_kb_width_of.value ? kbWidth : 0);
     double blackKeyRatio = track_kb_black_ratio.value;
     double ledPosRatio = track_kb_led_pos.value / 100.0;
     double ledSizeRatio = track_kb_led_size.value / 100.0;
@@ -541,11 +578,52 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     double particleLife = track_particle_time.value;
     bool enableRipple = (rippleMaxR > 0 && rippleLife > 0);
     bool enableParticle = (particleAmt > 0 && particleLife > 0);
+    std::array<FILTER_ITEM_COLOR*, 16> chs = {
+        &col_ch1,
+        &col_ch2,
+        &col_ch3,
+        &col_ch4,
+        &col_ch5,
+        &col_ch6,
+        &col_ch7,
+        &col_ch8,
+        &col_ch9,
+        &col_ch10,
+        &col_ch11,
+        &col_ch12,
+        &col_ch13,
+        &col_ch14,
+        &col_ch15,
+        &col_ch16,
+    };
+    std::array<PIXEL_RGBA, 16> col_vid;
+    for (int32_t i = 0; i < 16; ++i) {
+        col_vid[i] = {
+            chs[i]->value.r,
+            chs[i]->value.g,
+            chs[i]->value.b,
+            255
+        };
+    }
     auto GetNoteColor = [&](const ProcessedNote& note) -> PIXEL_RGBA {
         PIXEL_RGBA col = baseColor;
-        if (colMode == 1) col = HsvToRgb(fmod(note.pitch * 30.0, 360.0), 0.7, 1.0);
-        else if (colMode == 2) col = HsvToRgb(note.channel * 22.5, 0.8, 1.0);
-        else if (colMode == 3) col = HsvToRgb((127 - note.velocity) * 2.0, 1.0, 1.0);
+        switch (colMode) {
+            case 1:
+                col = HsvToRgb(fmod(note.pitch * 30.0, 360.0), 0.7, 1.0);
+                break;
+            case 2:
+                col = HsvToRgb(note.channel * 22.5, 0.8, 1.0);
+                break;
+            case 3:
+                col = HsvToRgb((127 - note.velocity) * 2.0, 1.0, 1.0);
+                break;
+            case 4:
+                col = col_vid[note.channel];
+                break;
+            default:
+                col = HsvToRgb(note.channel * 22.5, 0.8, 1.0);
+                break;
+        }
         col.a = 255;
         return col;
     };
