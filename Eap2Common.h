@@ -27,8 +27,8 @@
 #define GEN_TOOL_NAME(NAME) GENERATE_STR_REPLACE(tool_name, regex_tool_name, NAME)
 #define GEN_FILTER_INFO(NAME) GENERATE_STR_REPLACE(filter_info, regex_info_name, NAME)
 
-extern LOG_HANDLE* g_logger;
 extern HINSTANCE g_hinstance;
+extern LOG_HANDLE* g_log_handle;
 extern EDIT_HANDLE* g_edit_handle;
 extern CONFIG_HANDLE* g_config_handle;
 extern CACHE_HANDLE* g_cache_handle;
@@ -68,22 +68,22 @@ inline void DbgPrint(const std::wstring& message, std::optional<LOG_TYPE> log_ty
 #endif
     switch (log_type.value_or(LOG_INFO)) {
         case LOG_NONE:
-            g_logger->log(g_logger, message.c_str());
+            g_log_handle->log(g_log_handle, message.c_str());
             break;
         case LOG_VERBOSE:
-            g_logger->verbose(g_logger, message.c_str());
+            g_log_handle->verbose(g_log_handle, message.c_str());
             break;
         case LOG_INFO:
-            g_logger->info(g_logger, message.c_str());
+            g_log_handle->info(g_log_handle, message.c_str());
             break;
         case LOG_WARN:
-            g_logger->warn(g_logger, message.c_str());
+            g_log_handle->warn(g_log_handle, message.c_str());
             break;
         case LOG_ERROR:
-            g_logger->error(g_logger, message.c_str());
+            g_log_handle->error(g_log_handle, message.c_str());
             break;
         default:
-            g_logger->info(g_logger, message.c_str());
+            g_log_handle->info(g_log_handle, message.c_str());
             break;
     }
 }

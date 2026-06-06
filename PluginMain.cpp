@@ -127,7 +127,7 @@ static constexpr std::array chain_plugins{
 
 HINSTANCE g_hinstance = nullptr;
 EDIT_HANDLE* g_edit_handle = nullptr;
-LOG_HANDLE* g_logger = nullptr;
+LOG_HANDLE* g_log_handle = nullptr;
 CONFIG_HANDLE* g_config_handle = nullptr;
 CACHE_HANDLE* g_cache_handle = nullptr;
 
@@ -320,7 +320,7 @@ EXTERN_C __declspec(dllexport) void UninitializePlugin() {
 }
 
 EXTERN_C __declspec(dllexport) void InitializeLogger(LOG_HANDLE* logger) {
-    g_logger = logger;
+    g_log_handle = logger;
 }
 
 EXTERN_C __declspec(dllexport) void InitializeConfig(CONFIG_HANDLE* handle) {
