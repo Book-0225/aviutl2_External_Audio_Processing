@@ -69,25 +69,6 @@ struct Version {
     }
 };
 
-inline Version parseVersion(std::wstring_view v) {
-    Version res;
-    try {
-        size_t txt_v = v.find(L'v');
-        if (txt_v != std::wstring_view::npos) v.remove_prefix(txt_v + 1);
-        size_t pos = 0;
-        std::wstring ws(v);
-        res.major = static_cast<uint16_t>(std::stoi(ws, &pos));
-        ws = ws.substr(pos + 1);
-        res.minor = static_cast<uint16_t>(std::stoi(ws, &pos));
-        ws = ws.substr(pos + 1);
-        res.patch = static_cast<uint16_t>(std::stoi(ws, &pos));
-        if (pos < ws.size()) res.letter = static_cast<uint16_t>(ws[pos]);
-        else res.letter = 0;
-    } catch (...) {
-    }
-    return res;
-}
-
 extern const wchar_t regex_info_name[];
 extern const wchar_t regex_tool_name[];
 extern const wchar_t filter_name[];
