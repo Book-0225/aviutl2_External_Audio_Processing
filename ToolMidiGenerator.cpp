@@ -383,7 +383,7 @@ class SF2SynthRenderer : public ISynthRenderer {
 
         tsf_set_volume(tsf_, masterVolume);
         if (reverbLevel > 0.0f) {
-            int32_t rev_val = static_cast<int>(reverbLevel * 127.0f);
+            int32_t rev_val = static_cast<int32_t>(reverbLevel * 127.0f);
             for (int32_t ch = 0; ch < 16; ++ch)
                 tsf_channel_midi_control(tsf_, ch, 91, rev_val);
         }
