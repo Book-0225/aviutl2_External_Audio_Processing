@@ -9,7 +9,7 @@
 
 constexpr auto TOOL_NAME = L"Distortion";
 
-FILTER_ITEM_SEPARATOR dist_all_sep(L"All section");
+FILTER_ITEM_SEPARATOR dist_all_sep(L"All section (Deprecated)");
 FILTER_ITEM_CHECK dist_overdrive(L"Overdrive", true);
 FILTER_ITEM_CHECK dist_fuzz(L"Fuzz", false);
 FILTER_ITEM_CHECK dist_bitcrush(L"Bitcrush", false);

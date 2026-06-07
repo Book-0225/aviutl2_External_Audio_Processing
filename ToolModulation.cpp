@@ -9,7 +9,7 @@
 
 constexpr auto TOOL_NAME = L"Modulation";
 
-FILTER_ITEM_SEPARATOR mod_all_sep(L"All section");
+FILTER_ITEM_SEPARATOR mod_all_sep(L"All section (Deprecated)");
 FILTER_ITEM_CHECK mod_chorus(L"Chorus", true);
 FILTER_ITEM_CHECK mod_flanger(L"Flanger", false);
 FILTER_ITEM_CHECK mod_tremolo(L"Tremolo", false);

@@ -62,7 +62,7 @@ FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
-FILTER_ITEM_SEPARATOR sep_all_lr(L"Apply All section");
+FILTER_ITEM_SEPARATOR sep_all_lr(L"Apply All section (Deprecated)");
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_SEPARATOR sep_sec_lr(L"Apply Each section");
