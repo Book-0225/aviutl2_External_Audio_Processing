@@ -88,6 +88,34 @@ inline void DbgPrint(const std::wstring& message, std::optional<LOG_TYPE> log_ty
     }
 }
 
+inline bool DbgMessage(const std::wstring& lpText, std::optional<LOG_TYPE> log_type = std::nullopt) {
+    std::wstring lpCaption = L"EAP2";
+    UINT uType = MB_OK;
+    LOG_TYPE type = log_type.value_or(LOG_INFO);
+    switch (type) {
+        case LOG_NONE:
+        case LOG_VERBOSE:
+            break;
+        case LOG_INFO:
+            lpCaption += L" Info";
+            uType |= MB_ICONINFORMATION;
+            break;
+        case LOG_WARN:
+            lpCaption += L" Warn";
+            uType |= MB_ICONWARNING;
+            break;
+        case LOG_ERROR:
+            lpCaption += L" Error";
+            uType |= MB_ICONERROR;
+            break;
+        default:
+            break;
+    }
+    DbgPrint(lpText, type);
+    bool res = MessageBox(nullptr, lpText.c_str(), lpCaption.c_str(), uType);
+    return res;
+}
+
 inline LPCWSTR TrText(LPCWSTR text) {
     if (!text || !g_config_handle || !g_config_handle->translate) {
         return text;
@@ -111,7 +139,7 @@ inline Version parseVersion(std::wstring_view v) {
         if (pos < ws.size()) res.letter = static_cast<uint16_t>(ws[pos]);
         else res.letter = 0;
     } catch (...) {
-        DbgPrint(L"Failed parse version", LOG_ERROR);
+        DbgPrint(TrText(L"バージョンの解析に失敗しました。"), LOG_ERROR);
     }
     return res;
 }

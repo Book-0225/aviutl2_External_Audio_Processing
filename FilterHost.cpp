@@ -52,6 +52,8 @@ TCHAR filter_ext[] =
     L"CLAP Plugins (*.clap)\0*.clap\0"
     L"All Files (*.*)\0*.*\0\0";
 
+constexpr char AHS_DB[] = "AudioHostStateDB";
+
 FILTER_ITEM_GROUP general_group(L"General Settings", true);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
 FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
@@ -264,7 +266,7 @@ void func_project_save_impl(PROJECT_FILE* pf) {
         try {
             g_edit_handle->call_edit_section(collect_active_ids_proc);
         } catch (...) {
-            DbgPrint(L"Exception in collect_active_ids_proc", LOG_ERROR);
+            DbgPrint(TrText(L"有効なIDの収集処理で例外が発生しました。"), LOG_ERROR);
         }
     }
     g_active_ids_collector = nullptr;
@@ -273,27 +275,27 @@ void func_project_save_impl(PROJECT_FILE* pf) {
 
     if (!all_data_str.empty()) {
         if (all_data_str.size() > 32 * 1024 * 1024) {
-            DbgPrint(L"State data too large. Skipping.", LOG_ERROR);
-            pf->set_param_string("AudioHostStateDB", "");
+            DbgPrint(TrText(L"状態データが大きすぎます。"), LOG_ERROR);
+            pf->set_param_string(AHS_DB, "");
         } else {
-            pf->set_param_string("AudioHostStateDB", all_data_str.c_str());
-            DbgPrint(L"Saved project state, size: " + std::to_wstring(all_data_str.size()), LOG_INFO);
+            pf->set_param_string(AHS_DB, all_data_str.c_str());
+            DbgPrint(std::wstring(TrText(L"プロジェクトの状態を保存しました。")) + L" size: " + std::to_wstring(all_data_str.size()), LOG_INFO);
         }
     } else {
-        pf->set_param_string("AudioHostStateDB", "");
+        pf->set_param_string(AHS_DB, "");
     }
 }
 
 int32_t ProjectSaveExceptionFilter(uint32_t code, struct _EXCEPTION_POINTERS* ep) {
     if (code == EXCEPTION_ACCESS_VIOLATION) {
-        DbgPrint(L"Access Violation at %p" + StringUtils::PointerToWide(ep->ExceptionRecord->ExceptionAddress), LOG_ERROR);
+        DbgPrint(std::wstring(TrText(L"アクセス違反が発生しました。")) + L" at " + StringUtils::PointerToWide(ep->ExceptionRecord->ExceptionAddress), LOG_ERROR);
         return EXCEPTION_EXECUTE_HANDLER;
     }
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
 void func_project_save_log() {
-    DbgPrint(L"Save aborted. Clearing project data.", LOG_ERROR);
+    DbgPrint(TrText(L"保存が中断されました。プロジェクトデータを消去します。"), LOG_ERROR);
 }
 
 void func_project_save(PROJECT_FILE* pf) {
@@ -303,7 +305,7 @@ void func_project_save(PROJECT_FILE* pf) {
         func_project_save_impl(pf);
     } __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
         func_project_save_log();
-        pf->set_param_string("AudioHostStateDB", "");
+        pf->set_param_string(AHS_DB, "");
     }
 }
 
@@ -312,13 +314,13 @@ void func_project_load(PROJECT_FILE* pf) {
 
     if (!pf) return;
     try {
-        LPCSTR all_data_str = pf->get_param_string("AudioHostStateDB");
+        LPCSTR all_data_str = pf->get_param_string(AHS_DB);
         if (all_data_str) {
             PluginManager::GetInstance().LoadProjectState(all_data_str);
-            DbgPrint(L"Loaded project state, size: " + std::to_wstring(strlen(all_data_str)), LOG_INFO);
+            DbgPrint(std::wstring(TrText(L"プロジェクトの状態を読込ました。")) + L" size: " + std::to_wstring(strlen(all_data_str)), LOG_INFO);
         }
     } catch (...) {
-        DbgPrint(L"Exception in func_project_load", LOG_ERROR);
+        DbgPrint(TrText(L"プロジェクトの読み込み中に例外が発生しました。"), LOG_ERROR);
     }
 }
 
@@ -456,11 +458,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     std::wstring id_suffix = L"";
                     if (current_recv_id >= 1) id_suffix = L" [ID:" + std::to_wstring(current_recv_id) + L"]";
                     rp.newName = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + id_suffix;
-                    if (!current_plugin_path.empty()) {
+                    if (!current_plugin_path.empty())
                         rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + current_plugin_path.filename().wstring() + L")" + midi_suffix + id_suffix;
-                    } else {
+                    else
                         rp.oldNameCandidate = L"";
-                    }
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
             });
@@ -593,7 +594,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     } else {
                         host->HideGui();
                         std::string state = host->GetState();
-                        DbgPrint(L"Plugin GUI hidden, saving state for " + StringUtils::Utf8ToWide(instance_id) + L", (Size: " + std::to_wstring(state.size()) + L", Data: " + StringUtils::Utf8ToWide(state) + L"...)", LOG_INFO);
+                        DbgPrint(L"Plugin GUI hidden, saving state for " + StringUtils::Utf8ToWide(instance_id) + L", (Size: " + std::to_wstring(state.size()) + L", Data: " + StringUtils::Utf8ToWide(state) + L"...)", LOG_VERBOSE);
                         if (!state.empty()) PluginManager::GetInstance().SaveState(instance_id, state);
                     }
                 }
@@ -616,9 +617,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
         g_main_thread_tasks.push_back([effect_id, name]() {
             auto host = PluginManager::GetInstance().GetHost(effect_id);
-            if (host) {
+            if (host)
                 ToolParamListWindow::GetInstance().Show(host, name);
-            }
         });
     } else if (!show_list_current && show_list_prev) {
         if (ToolParamListWindow::GetInstance().IsOwner(instance_id)) {

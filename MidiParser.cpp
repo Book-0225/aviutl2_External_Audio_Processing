@@ -6,13 +6,13 @@
 
 static uint16_t ReadBE16(std::ifstream& f) {
     uint8_t b[2];
-    if (!f.read((char*)b, 2)) return 0;
+    if (!f.read(reinterpret_cast<char*>(b), 2)) return 0;
     return (b[0] << 8) | b[1];
 }
 
 static uint32_t ReadBE32(std::ifstream& f) {
     uint8_t b[4];
-    if (!f.read((char*)b, 4)) return 0;
+    if (!f.read(reinterpret_cast<char*>(b), 4)) return 0;
     return (static_cast<uint32_t>(b[0]) << 24) | (static_cast<uint32_t>(b[1]) << 16) | (static_cast<uint32_t>(b[2]) << 8) | (static_cast<uint32_t>(b[3]));
 }
 
@@ -57,7 +57,7 @@ bool MidiParser::Load(const std::filesystem::path& path) {
             uint32_t len = ReadBE32(f);
             if (memcmp(chunkType, "MTrk", 4) == 0) {
                 std::streampos trackStart = f.tellg();
-                std::streampos trackEnd = trackStart + (std::streampos)len;
+                std::streampos trackEnd = trackStart + static_cast<std::streampos>(len);
                 uint32_t currentTick = 0;
                 uint8_t runningStatus = 0;
                 while (f.tellg() < trackEnd) {
@@ -90,7 +90,7 @@ bool MidiParser::Load(const std::filesystem::path& path) {
                             }
                         } else if (type == 0x58 && metaLen >= 4) {
                             uint8_t d[4];
-                            f.read((char*)d, 4);
+                            f.read(reinterpret_cast<char*>(d), 4);
                             if (metaLen > 4) f.seekg(metaLen - 4, std::ios::cur);
                             uint8_t num = d[0];
                             uint8_t den = 1 << d[1];

@@ -86,7 +86,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
                 m_plugin_state_database[instance_id] = live_state;
             }
         } catch (...) {
-            DbgPrint(L"Failed to save state for Instance: " + StringUtils::Utf8ToWide(instance_id), LOG_WARN);
+            DbgPrint(std::wstring(TrText(L"インスタンスの状態の保存に失敗しました。")) + L": " + StringUtils::Utf8ToWide(instance_id), LOG_WARN);
         }
     }
 
@@ -156,7 +156,7 @@ void PluginManager::LoadProjectState(const std::string& data) {
                     m_param_mappings[key] = mapping;
                 }
             } else {
-                DbgPrint(L"Corrupted state data detected and discarded for ID: " + StringUtils::Utf8ToWide(key), LOG_WARN);
+                DbgPrint(std::wstring(TrText(L"破損した状態データが検出され、破棄されました。")) + L" ID: " + StringUtils::Utf8ToWide(key), LOG_WARN);
             }
         }
         start = end + 1;
@@ -243,13 +243,11 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     auto it = m_last_audio_states.find(effect_id);
     bool needs_reset = false;
     DbgPrint(L"ShouldReset: " + std::to_wstring(effect_id) + L" " + std::to_wstring(current_sample_index) + L" " + std::to_wstring(current_sample_num), LOG_VERBOSE);
-    if (it != m_last_audio_states.end()) {
-        if (current_sample_index != it->second.sample_end) {
+    if (it != m_last_audio_states.end())
+        if (current_sample_index != it->second.sample_end)
             needs_reset = true;
-        }
-    } else {
-        needs_reset = true;
-    }
+        else
+            needs_reset = true;
     DbgPrint(L"ShouldReset result: " + needs_reset ? L"True" : L"False", LOG_VERBOSE);
     return needs_reset;
 }

@@ -33,6 +33,7 @@ void ShowConfigLoadWarning(const ConfigLoadReport& report) {
     if (!report.has_error)
         return;
     std::wstring message = TrText(L"設定ファイル内に無効な値が見つかったため、該当する項目はデフォルト設定で読み込まれました。");
+    DbgPrint(message, LOG_WARN);
     constexpr size_t max_lines = 10;
     for (size_t i = 0; i < report.messages.size() && i < max_lines; ++i)
         message += report.messages[i] + L"\n";
@@ -63,9 +64,8 @@ std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const s
             while (*current != L'\0') {
                 std::wstring_view entry(current);
                 size_t eq = entry.find(L'=');
-                if (eq != std::wstring_view::npos && eq > 0) {
+                if (eq != std::wstring_view::npos && eq > 0)
                     keys.insert(std::wstring(entry.substr(0, eq)));
-                }
                 current += entry.size() + 1;
             }
             return keys;

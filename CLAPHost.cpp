@@ -11,6 +11,27 @@
 #include <vector>
 #include <windows.h>
 
+void ClapLog(LOG_TYPE log_type) {
+    std::wstring message = L"VST ";
+    switch (log_type) {
+        case LOG_NONE:
+        case LOG_VERBOSE:
+        case LOG_INFO:
+            return;
+            break;
+        case LOG_WARN:
+            message += L"Warn";
+            break;
+        case LOG_ERROR:
+            message += L"Error";
+            break;
+        default:
+            return;
+            break;
+    }
+    DbgPrint(message, log_type);
+}
+
 struct ClapHost::Impl {
     Impl(HINSTANCE hInst);
     ~Impl();
@@ -167,7 +188,7 @@ bool ClapHost::Impl::LoadPlugin(const std::filesystem::path& path, double sample
 
     std::wstring wpath = path.wstring();
 
-    hModule = LoadLibraryW(wpath.c_str());
+    hModule = LoadLibrary(wpath.c_str());
     if (!hModule) return false;
 
     clap_plugin_entry_t* entry_proc = reinterpret_cast<clap_plugin_entry_t*>(GetProcAddress(hModule, "clap_plugin_entry"));
@@ -299,7 +320,7 @@ void ClapHost::Impl::ShowGui() {
     wc.lpfnWndProc = ClapHostGuiProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"ClapHostGuiWindowClass";
-    RegisterClassW(&wc);
+    RegisterClass(&wc);
 
     guiWindow = CreateWindowEx(0, wc.lpszClassName, L"CLAP Plugin", WS_OVERLAPPED | WS_CAPTION,
                                CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, hInstance, this);
@@ -397,7 +418,7 @@ bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::Parameter
 
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
-        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_INFO);
+        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_VERBOSE);
         return false;
     }
     strncpy_s(info.name, clapInfo.name, sizeof(info.name) - 1);
@@ -418,7 +439,7 @@ uint32_t ClapHost::Impl::GetParameterID(int32_t index) const {
 
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
-        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_INFO);
+        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_VERBOSE);
         return 0;
     }
 
@@ -432,7 +453,8 @@ int32_t ClapHost::Impl::GetLatencySamples() const {
     }
 
     if (!isReady || !plugin) {
-        DbgPrint(L"[CLAP] plugin not ready", LOG_WARN);
+        ClapLog(LOG_WARN);
+        DbgPrint(L"[CLAP] plugin not ready", LOG_VERBOSE);
         return 0;
     }
 

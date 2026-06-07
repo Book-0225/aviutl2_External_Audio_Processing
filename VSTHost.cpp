@@ -26,6 +26,27 @@
 #include <vector>
 #include <windows.h>
 
+void VSTLog(LOG_TYPE log_type) {
+    std::wstring message = L"VST ";
+    switch (log_type) {
+        case LOG_NONE:
+        case LOG_VERBOSE:
+        case LOG_INFO:
+            return;
+            break;
+        case LOG_WARN:
+            message += L"Warn";
+            break;
+        case LOG_ERROR:
+            message += L"Error";
+            break;
+        default:
+            return;
+            break;
+    }
+    DbgPrint(message, log_type);
+}
+
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 using namespace VST3::Hosting;
@@ -137,7 +158,8 @@ class HostComponentHandler : public IComponentHandler {
 };
 
 void SafeProcessCall_log() {
-    DbgPrint(L"Access Violation inside VST3::process()", LOG_ERROR);
+    VSTLog(LOG_ERROR);
+    DbgPrint(L"Access Violation inside VST3::process()", LOG_VERBOSE);
 }
 
 static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
@@ -221,23 +243,22 @@ struct VstHost::Impl {
 
         if (restartFromActiveState) {
             if (processor->setProcessing(false) != kResultOk) {
-                DbgPrint(L"VST3 setProcessing(false) failed during reconfiguration", LOG_WARN);
+                VSTLog(LOG_WARN);
+                DbgPrint(L"VST3 setProcessing(false) failed during reconfiguration", LOG_VERBOSE);
             }
             if (component->setActive(false) != kResultOk) {
-                DbgPrint(L"VST3 setActive(false) failed during reconfiguration", LOG_WARN);
+                VSTLog(LOG_WARN);
+                DbgPrint(L"VST3 setActive(false) failed during reconfiguration", LOG_VERBOSE);
             }
         }
 
         ProcessSetup setup{ kRealtime, kSample32, blockSize, sampleRate };
-        if (processor->setupProcessing(setup) != kResultOk) {
+        if (processor->setupProcessing(setup) != kResultOk)
             return false;
-        }
-        if (component->setActive(true) != kResultOk) {
+        if (component->setActive(true) != kResultOk)
             return false;
-        }
-        if (processor->setProcessing(true) != kResultOk) {
+        if (processor->setProcessing(true) != kResultOk)
             return false;
-        }
 
         currentSampleRate = sampleRate;
         currentBlockSize = blockSize;
@@ -252,9 +273,8 @@ struct VstHost::Impl {
     std::mutex paramQueueMutex;
 
     int32_t GetLastTouchedParamID() {
-        if (componentHandler) {
+        if (componentHandler)
             return componentHandler->lastTouchedParamID.exchange(-1);
-        }
         return -1;
     }
 
@@ -369,7 +389,8 @@ struct VstHost::Impl {
         }
 
         if (!ApplyProcessingSetup(newRate, currentBlockSize, true)) {
-            DbgPrint(L"Failed to apply VST3 sample-rate change: " + std::to_wstring(newRate), LOG_WARN);
+            VSTLog(LOG_WARN);
+            DbgPrint(L"Failed to apply VST3 sample-rate change: " + std::to_wstring(newRate), LOG_VERBOSE);
             isReady = false;
             return;
         }
@@ -719,7 +740,8 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
     }
 
     if (!ApplyProcessingSetup(currentSampleRate, currentBlockSize, true)) {
-        DbgPrint(L"Failed to reset VST3 processing state", LOG_WARN);
+        VSTLog(LOG_WARN);
+        DbgPrint(L"Failed to reset VST3 processing state", LOG_VERBOSE);
         isReady = false;
         return;
     }
@@ -840,7 +862,8 @@ void VstHost::Impl::ShowGui() {
 
     plugView = owned(controller->createView("editor"));
     if (!plugView) {
-        DbgPrint(L"[VST3 GUI] Failed to create editor view", LOG_INFO);
+        VSTLog(LOG_WARN);
+        DbgPrint(L"[VST3 GUI] Failed to create editor view", LOG_VERBOSE);
         return;
     }
 
@@ -926,7 +949,8 @@ void VstHost::Impl::ShowGui() {
     WNDCLASS existingClass;
     if (!GetClassInfo(hInstance, wc.lpszClassName, &existingClass)) {
         if (!RegisterClass(&wc)) {
-            DbgPrint(L"[VST3 GUI] Failed to register window class", LOG_WARN);
+            VSTLog(LOG_WARN);
+            DbgPrint(L"[VST3 GUI] Failed to register window class", LOG_VERBOSE);
             plugView.reset();
             return;
         }
@@ -949,7 +973,8 @@ void VstHost::Impl::ShowGui() {
                                CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
                                nullptr, nullptr, hInstance, this);
     if (!guiWindow) {
-        DbgPrint(L"[VST3 GUI] Failed to create window (Error: " + std::to_wstring(GetLastError()) + L")", LOG_WARN);
+        VSTLog(LOG_WARN);
+        DbgPrint(L"[VST3 GUI] Failed to create window (Error: " + std::to_wstring(GetLastError()) + L")", LOG_VERBOSE);
         plugView.reset();
         return;
     }
@@ -957,7 +982,8 @@ void VstHost::Impl::ShowGui() {
     windowController = new WindowController(plugView, guiWindow);
     windowController->connect();
     if (plugView->attached(guiWindow, kPlatformTypeHWND) != kResultOk) {
-        DbgPrint(L"[VST3 GUI] Failed to attach plugin view to window", LOG_WARN);
+        VSTLog(LOG_WARN);
+        DbgPrint(L"[VST3 GUI] Failed to attach plugin view to window", LOG_VERBOSE);
         DestroyWindow(guiWindow);
         return;
     }
@@ -979,7 +1005,8 @@ std::string VstHost::Impl::GetState() {
         if (component->getState(&cStream) != kResultOk) return "";
 
         if (controller && controller->getState(&tStream) != kResultOk) {
-            DbgPrint(L"VST3 controller state was not available", LOG_WARN);
+            VSTLog(LOG_WARN);
+            DbgPrint(L"VST3 controller state was not available", LOG_VERBOSE);
         }
 
         int64_t cs = cStream.getSize();
@@ -999,7 +1026,8 @@ std::string VstHost::Impl::GetState() {
             static_cast<size_t>(full.getSize()),
             settings.general.compress_plugin_state);
     } catch (...) {
-        DbgPrint(L"Exception inside VST3 GetState", LOG_ERROR);
+        VSTLog(LOG_ERROR);
+        DbgPrint(L"Exception inside VST3 GetState", LOG_VERBOSE);
         return "";
     }
 }
