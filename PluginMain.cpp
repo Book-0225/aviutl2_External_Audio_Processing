@@ -238,20 +238,21 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     // RequiredVersion()実装前のバージョン用
     if (version < 2003300) {
-        DbgMessage(L"AviUtl2のバージョンが古すぎます。", LOG_ERROR);
+        std::wstring message = std::wstring(L"AviUtl2のバージョンが古すぎます。\n最低バージョン: ") + std::to_wstring(MINIMUM_VERSION);
+        MessageBox(NULL, message.c_str(), L"EAP2 Error", MB_OK | MB_ICONERROR);
         return false;
     }
 
     LoadConfig();
 
     if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {
-        DbgMessage(L"COM 初期化に失敗しました。", LOG_ERROR);
+        DbgMessage(TrText(L"COM 初期化に失敗しました。"), LOG_ERROR);
         return false;
     }
 
     if (!AudioPluginFactory::Initialize(g_hinstance)) {
         CoUninitialize();
-        DbgMessage(L"Audio Plugin Factory の初期化に失敗しました。", LOG_ERROR);
+        DbgMessage(TrText(L"Audio Plugin Factory の初期化に失敗しました。"), LOG_ERROR);
         return false;
     }
 
