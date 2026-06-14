@@ -13,9 +13,9 @@ FILTER_ITEM_CHECK tool_swap(L"Swap(L/R)", false);
 FILTER_ITEM_CHECK tool_inv_l(L"Invert L", false);
 FILTER_ITEM_CHECK tool_inv_r(L"Invert R", false);
 FILTER_ITEM_SEPARATOR tool_sec_sep(L"Each section");
-FILTER_ITEM_CHECK_SECTION tool_swap_s(L"Swap(L/R) (Each section)", false);
-FILTER_ITEM_CHECK_SECTION tool_inv_l_s(L"Invert L (Each section)", false);
-FILTER_ITEM_CHECK_SECTION tool_inv_r_s(L"Invert R (Each section)", false);
+FILTER_ITEM_CHECK_SECTION tool_swap_s(L"Swap(L/R) (Each section)", false, false);
+FILTER_ITEM_CHECK_SECTION tool_inv_l_s(L"Invert L (Each section)", false, false);
+FILTER_ITEM_CHECK_SECTION tool_inv_r_s(L"Invert R (Each section)", false, false);
 
 FILTER_ITEM_SELECT::ITEM mono_mode_list[] = {
     { L"Stereo (Off)", 0 },
