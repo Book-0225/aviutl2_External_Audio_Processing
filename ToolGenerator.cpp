@@ -168,7 +168,8 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
                 rp.defaultName = TOOL_NAME;
                 rp.newName = std::wstring(rp.defaultName) + GetGenParamsString(type);
                 rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
-                g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
+                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
             }
         });
 

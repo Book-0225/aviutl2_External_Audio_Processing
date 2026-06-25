@@ -462,7 +462,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         rp.oldNameCandidate = std::wstring(rp.defaultName) + L" (" + current_plugin_path.filename().wstring() + L")" + midi_suffix + id_suffix;
                     else
                         rp.oldNameCandidate = L"";
-                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                    if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
+                        g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
             });
             wcscpy_s(last_plugin_data.value->last_plugin_path, sizeof(last_plugin_data.value->last_plugin_path), plugin_path.c_str());
@@ -674,7 +675,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     std::wstring old_midi_suffix = L"";
                     if (!old_midi_path.empty()) old_midi_suffix = L" [" + old_midi_path.filename().wstring() + L"]";
                     rp.oldNameCandidate = std::wstring(rp.defaultName) + plugin_suffix + old_midi_suffix + id_suffix;
-                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                    if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
+                        g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
             });
             wcscpy_s(last_midi_data.value->last_midi_path, sizeof(last_midi_data.value->last_midi_path), midi_path_param.value);
@@ -701,7 +703,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     std::wstring old_id_suffix = L"";
                     if (old_id >= 1) old_id_suffix = L" [ID:" + std::to_wstring(old_id) + L"]";
                     rp.oldNameCandidate = std::wstring(rp.defaultName) + plugin_suffix + midi_suffix + old_id_suffix;
-                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                    if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
+                        g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                 }
             });
             last_recv_data.value->last_recv_id = current_recv_id;

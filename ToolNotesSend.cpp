@@ -253,7 +253,8 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
                 rp.defaultName = GEN_TOOL_NAME(TOOL_NAME_MEDIA);
                 rp.newName = std::wstring(rp.defaultName) + GetNotesSendParamsString(note_num, display_id);
                 rp.oldNameCandidate = std::wstring(rp.defaultName) + GetNotesSendParamsString(old_note, old_id);
-                g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
+                    g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
             }
         });
 

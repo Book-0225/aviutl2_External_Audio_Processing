@@ -490,7 +490,8 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                         } else {
                             rp.oldNameCandidate = L"";
                         }
-                        g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
+                        if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
+                            g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
                     }
                 });
                 wcscpy_s(last_midi_path.value->last_midi_path, sizeof(last_midi_path.value->last_midi_path), currentPath.c_str());
