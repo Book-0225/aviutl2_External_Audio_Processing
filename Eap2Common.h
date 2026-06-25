@@ -32,6 +32,7 @@ extern LOG_HANDLE* g_log_handle;
 extern EDIT_HANDLE* g_edit_handle;
 extern CONFIG_HANDLE* g_config_handle;
 extern CACHE_HANDLE* g_cache_handle;
+extern HWND g_host_hwnd;
 
 enum LOG_TYPE {
     LOG_NONE,
@@ -216,3 +217,5 @@ void ToolCleanupResources();
 void CleanupMainFilterResources();
 void func_project_save(PROJECT_FILE* pf);
 void func_project_load(PROJECT_FILE* pf);
+
+void Register_Analyzer(HOST_APP_TABLE* host);

@@ -5,8 +5,6 @@
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
 
-#include <atomic>
-
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 

@@ -36,10 +36,26 @@ inline bool TryParseInt32(const std::wstring& raw, int32_t& out, int32_t minValu
     try {
         std::wstring s = TrimCopy(raw);
         size_t pos = 0;
-        long value = std::stol(s, &pos, 10);
+        int64_t value = std::stoll(s, &pos, 10);
         if (pos != s.size()) return false;
+        if (!std::isfinite(value)) return false;
         if (value < minValue || value > maxValue) return false;
         out = static_cast<int32_t>(value);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+inline bool TryParseDouble(const std::wstring& raw, double& out, double minValue, double maxValue) {
+    try {
+        std::wstring s = TrimCopy(raw);
+        size_t pos = 0;
+        double value = std::stod(s, &pos);
+        if (pos != s.size()) return false;
+        if (!std::isfinite(value)) return false;
+        if (value < minValue || value > maxValue) return false;
+        out = value;
         return true;
     } catch (...) {
         return false;
@@ -68,6 +84,11 @@ struct ConfigEntry {
                     if (!TryParseInt32(s, value, (std::numeric_limits<int32_t>::min)(), (std::numeric_limits<int32_t>::max)())) return false;
                     *target = value;
                     return true;
+                } else if constexpr (std::is_same_v<T, double>) {
+                    double value = 0.0;
+                    if (!TryParseDouble(s, value, std::numeric_limits<double>::lowest(), (std::numeric_limits<double>::max)())) return false;
+                    *target = value;
+                    return true;
                 } else if constexpr (std::is_same_v<T, std::wstring>) {
                     *target = s;
                     return true;
@@ -84,6 +105,7 @@ struct ConfigEntry {
             [target]() {
                 if constexpr (std::is_same_v<T, bool>) return *target ? L"1" : L"0";
                 else if constexpr (std::is_same_v<T, int32_t>) return std::to_wstring(*target);
+                else if constexpr (std::is_same_v<T, double>) return std::to_wstring(*target);
                 else if constexpr (std::is_same_v<T, std::wstring>) return *target;
                 else if constexpr (std::is_same_v<T, Version>) return target->to_hex_wstring();
             }
@@ -148,6 +170,7 @@ struct ModuleConfig {
     bool stereo_disable = false;
     bool utility_disable = false;
     bool midi_gen_disable = false;
+    bool analyzer_disable = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AllToolDisable", L"0", &all_tool_disable, false),
@@ -176,7 +199,8 @@ struct ModuleConfig {
             ConfigEntry::Create(L"SpectralGateDisable", L"0", &spectral_gate_disable, false),
             ConfigEntry::Create(L"StereoDisable", L"0", &stereo_disable, false),
             ConfigEntry::Create(L"UtilityDisable", L"0", &utility_disable, false),
-            ConfigEntry::Create(L"MIDIGeneratorDisable", L"0", &midi_gen_disable, false)
+            ConfigEntry::Create(L"MIDIGeneratorDisable", L"0", &midi_gen_disable, false),
+            ConfigEntry::Create(L"AnalyzerDisable", L"0", &analyzer_disable, false)
         };
     }
 };
@@ -203,6 +227,24 @@ struct VstConfig {
     }
 };
 
+struct AnalyzerConfig {
+    std::wstring categoryName = L"Analyzer";
+    double target_lufs = -14.0; // 目標 Integrated LUFS
+    double target_peak = -1.0;  // 目標 True Peak [dBTP]
+    double sil_db = -60.0;      // 無音判定しきい値 [dBFS]
+    double sil_min_s = 0.5;     // 無音最短継続 [秒]
+    double lufs_tol = 1.0;      // PASS 判定の許容幅 [LU] (±)
+    std::vector<ConfigEntry> getEntries() {
+        return {
+            ConfigEntry::Create(L"TargetLUFS", L"-14.0", &target_lufs, true),
+            ConfigEntry::Create(L"TargetPeak", L"-1.0", &target_peak, true),
+            ConfigEntry::Create(L"Silentdb", L"-60.0", &sil_db, true),
+            ConfigEntry::Create(L"SilentMinSec", L"0.5", &sil_min_s, true),
+            ConfigEntry::Create(L"LUFSTolerance", L"1.0", &lufs_tol, true)
+        };
+    }
+};
+
 struct ExperimentalConfig {
     std::wstring categoryName = L"Experimental";
     bool use_experimental_script_module = false;
@@ -219,6 +261,7 @@ struct AppSettings {
     ModuleConfig module;
     CompatConfig compat;
     VstConfig vst;
+    AnalyzerConfig analyzer;
     ExperimentalConfig exp;
 };
 

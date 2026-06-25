@@ -17,7 +17,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2005000
+#define MINIMUM_VERSION 2005100
 #define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
@@ -132,6 +132,7 @@ EDIT_HANDLE* g_edit_handle = nullptr;
 LOG_HANDLE* g_log_handle = nullptr;
 CONFIG_HANDLE* g_config_handle = nullptr;
 CACHE_HANDLE* g_cache_handle = nullptr;
+HWND g_host_hwnd = nullptr;
 
 std::mutex g_task_queue_mutex;
 std::vector<std::function<void()>> g_main_thread_tasks;
@@ -351,6 +352,9 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->register_project_load_handler(func_project_load);
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });
     g_edit_handle = host->create_edit_handle();
+    g_host_hwnd = g_edit_handle->get_host_app_window();
+    if (!settings.module.analyzer_disable)
+        Register_Analyzer(host);
 }
 
 EXTERN_C __declspec(dllexport) DWORD RequiredVersion() {
