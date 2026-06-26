@@ -4,12 +4,14 @@
 #include <Windows.h>
 #include <array>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
+#include <regex>
 #include <string>
 #include <ShlObj.h>
-#include <regex>
 #include "ChainManager.h"
 #include "MidiParser.h"
 #include "PluginManager.h"
