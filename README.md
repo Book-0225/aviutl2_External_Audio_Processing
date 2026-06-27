@@ -4,7 +4,7 @@
 
 ![VST COMPATIBLE LOGO](https://raw.githubusercontent.com/Book-0225/aviutl2_External_Audio_Processing/refs/heads/master/vst_logo.png)
 
-## 注意事項
+## 注意事項 / Disclaimer
 
 - 無保証です。自己責任で使用してください。  
 このプラグインを利用したことによる、いかなる損害・トラブルについても責任を負いません。
@@ -17,10 +17,10 @@
 致命的な不具合や破壊的変更などが起こりやすいと思われます。  
 使用する際はバックアップを取っておくことをおすすめします。
 
-- V0.0.1x, v0.0.2xでは、VST3プラグイン用の更新を優先して行っていますので、
-  CLAPプラグイン用の更新が遅れています。
-  VST3プラグイン用の更新がある程度完了したら、CLAPプラグイン用の更新も順次行う予定です。
-  それまでの間CLAPプラグインで一部の機能が使えない可能性や不安定な動作が発生する可能性があります。
+> - This plugin is provided "as is" without any warranty. Use it at your own risk.
+> - The author is not responsible for any damages, losses, or issues arising from the use of this plugin.
+> - Compatibility with all VST3/CLAP plugins is not guaranteed. Depending on the plugin implementation, the GUI may not display correctly, the plugin may behave unstably, or AviUtl2 may crash. Bug reports are appreciated.
+> - Versions 0.0.x are early development releases and may contain critical bugs or breaking changes. Backing up your projects before use is strongly recommended.
 
 ## 推奨事項
 
