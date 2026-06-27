@@ -353,7 +353,7 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });
     g_edit_handle = host->create_edit_handle();
     g_host_hwnd = g_edit_handle->get_host_app_window();
-    if (!settings.module.analyzer_disable)
+    if (!settings.module.all_tool_disable && !settings.module.analyzer_disable)
         Register_Analyzer(host);
 }
 
