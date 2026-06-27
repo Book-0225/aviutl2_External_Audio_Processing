@@ -234,13 +234,19 @@ struct AnalyzerConfig {
     double sil_db = -60.0;      // 無音判定しきい値 [dBFS]
     double sil_min_s = 0.5;     // 無音最短継続 [秒]
     double lufs_tol = 1.0;      // PASS 判定の許容幅 [LU] (±)
+    double lufs_fail = 2.0;     // LUFS FAIL判定条件(target + lufs_fail < lufs)
+    double lufs_warn = 8.0;     // LUFS WARN判定条件(target - lufs_warn >= lufs)
+    double peak_fail = 1.0;     // TP FAIL判定条件(target + peak_fail < peak)
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"TargetLUFS", L"-14.0", &target_lufs, true),
             ConfigEntry::Create(L"TargetPeak", L"-1.0", &target_peak, true),
             ConfigEntry::Create(L"Silentdb", L"-60.0", &sil_db, true),
             ConfigEntry::Create(L"SilentMinSec", L"0.5", &sil_min_s, true),
-            ConfigEntry::Create(L"LUFSTolerance", L"1.0", &lufs_tol, true)
+            ConfigEntry::Create(L"LUFSTolerance", L"1.0", &lufs_tol, true),
+            ConfigEntry::Create(L"LUFSFAIL", L"2.0", &lufs_fail, false),
+            ConfigEntry::Create(L"LUFSWARN", L"8.0", &lufs_warn, false),
+            ConfigEntry::Create(L"PEAKFAIL", L"1.0", &peak_fail, false)
         };
     }
 };

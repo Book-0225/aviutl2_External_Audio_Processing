@@ -33,8 +33,8 @@ static const Preset PRESETS[] = {
     { L"Apple Music", -16.0, -1.0 },
     { L"Amazon Music", -14.0, -2.0 },
     { L"Netflix", -27.0, -2.0 },
-    { L"放送 (EBU R128 / NHK)", -23.0, -1.0 },
-    { L"CD マスタリング", -9.0, -0.1 },
+    { L"放送", -23.0, -1.0 },
+    { L"CD", -9.0, -0.1 },
     { L"カスタム", -14.0, -1.0 },
 };
 
@@ -112,6 +112,39 @@ struct KWeight {
     }
 };
 
+struct TruePeakDetector {
+    static constexpr int BUF = 4;
+    double ring[BUF] = {};
+    int pos = 0;
+
+    double push(double x) noexcept {
+        ring[pos] = x;
+        const double p3 = ring[pos];
+        const double p2 = ring[(pos - 1 + BUF) % BUF];
+        const double p1 = ring[(pos - 2 + BUF) % BUF];
+        const double p0 = ring[(pos - 3 + BUF) % BUF];
+        pos = (pos + 1) % BUF;
+        const double a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+        const double b = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+        const double c = -0.5 * p0 + 0.5 * p2;
+        const double d = p1;
+
+        double pk = 0.0;
+        for (int k = 1; k < 4; ++k) {
+            const double t = k * 0.25;
+            const double v = ((a * t + b) * t + c) * t + d;
+            const double av = std::abs(v);
+            if (av > pk) pk = av;
+        }
+        return pk;
+    }
+
+    void reset() noexcept {
+        std::fill(std::begin(ring), std::end(ring), 0.0);
+        pos = 0;
+    }
+};
+
 struct Issue {
     enum Type { CLIP,
                 SILENCE } type;
@@ -146,6 +179,7 @@ static HWND g_hwnd = nullptr;
 static AnalyzeResult g_result;
 static std::mutex g_result_mtx;
 static std::atomic<bool> g_busy{ false };
+static std::atomic<bool> g_abort{ false };
 static std::atomic<int32_t> g_prog{ 0 };
 static std::atomic<int32_t> g_cur_frame{ -1 };
 
@@ -176,6 +210,7 @@ struct SbGeom {
 };
 static SbGeom s_sb;
 static bool s_sb_drag = false;
+static bool s_graph_drag = false;
 static int32_t s_sb_drag_y0 = 0;
 static int32_t s_sb_drag_s0 = 0;
 
@@ -190,12 +225,15 @@ static int32_t s_hovered_issue = -1;
 
 static HWND s_btn_rng = nullptr;
 static HWND s_btn_all = nullptr;
+static HWND s_btn_abort = nullptr;
 static HWND s_combo = nullptr;
 static HWND s_edit_l = nullptr;
 static HWND s_edit_p = nullptr;
 static HWND s_edit_sil = nullptr;
 static HBRUSH s_br_ctrl = nullptr;
 
+static HFONT g_fL = nullptr;
+static HFONT g_fS = nullptr;
 struct BatchBuf {
     std::map<int32_t, std::pair<std::vector<float>, std::vector<float>>> frames;
     std::mutex mtx;
@@ -231,6 +269,44 @@ static void jump_to_frame(int32_t frame) {
     g_edit_handle->call_edit_section_param(&frame, jump_to_frame_cb);
 }
 
+static void jump_from_mouse(int32_t mx) {
+    mx = (std::max)(s_gx, (std::min)(s_gx + s_gw, mx));
+    double vis_f = static_cast<double>(mx - s_gx) / s_gw;
+    double data_f = g_gt_pan + vis_f / g_gt_zoom;
+    data_f = (std::max)(0.0, (std::min)(1.0, data_f));
+
+    AnalyzeResult res;
+    {
+        std::lock_guard<std::mutex> lk(g_result_mtx);
+        res = g_result;
+    }
+
+    if (!res.valid || res.f_end <= res.f_start)
+        return;
+    int32_t tf = res.f_start + static_cast<int32_t>(data_f * (res.f_end - res.f_start));
+    tf = (std::max)(res.f_start, (std::min)(res.f_end, tf));
+    jump_to_frame(tf);
+}
+
+static void center_graph_on_frame(int32_t frame) {
+    AnalyzeResult res;
+    {
+        std::lock_guard<std::mutex> lk(g_result_mtx);
+        res = g_result;
+    }
+
+    if (!res.valid || res.f_end <= res.f_start)
+        return;
+
+    double frac = static_cast<double>(frame - res.f_start) / (res.f_end - res.f_start);
+
+    if (g_gt_zoom <= 1.01 || !(frac < g_gt_pan || frac > g_gt_pan + 1.0 / g_gt_zoom))
+        return;
+
+    g_gt_pan = frac - 0.5 / g_gt_zoom;
+    g_gt_pan = (std::max)(0.0, (std::min)(1.0 - 1.0 / g_gt_zoom, g_gt_pan));
+}
+
 static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, int32_t sr, AnalyzerConfig snap, HWND hwnd) {
     const int32_t mom_len = sr * 400 / 1000;
     const int32_t st_len = sr * 3;
@@ -239,22 +315,27 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
 
     KWeight kw;
     kw.init(sr);
+    TruePeakDetector tpL, tpR;
+    double tp_peak = 0.0;
     std::vector<float> kw_sq;
     kw_sq.reserve(total_frames * (sr / (std::max)(1, rate / scale) + 2));
 
     struct FStat {
         int32_t frame;
         double peak;
-        double rms;
     };
+
     std::vector<FStat> fstats;
     fstats.reserve(total_frames);
 
-    double raw_peak = 0.0;
     BatchBuf batch;
-    bool abort = false;
+    bool abort_flag = false;
 
     for (int32_t bs = f0; bs <= f1; bs += BATCH_SIZE) {
+        if (g_abort.load()) {
+            abort_flag = true;
+            break;
+        }
         const int32_t be = (std::min)(bs + BATCH_SIZE - 1, f1);
         {
             std::lock_guard<std::mutex> lk(batch.mtx);
@@ -263,11 +344,11 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
         for (int32_t f = bs; f <= be; f++) {
             if (!g_edit_handle->rendering_scene_audio(f, &batch, audio_cb)) {
                 g_edit_handle->wait_rendering_task();
-                abort = true;
+                abort_flag = true;
                 break;
             }
         }
-        if (abort) break;
+        if (abort_flag) break;
         g_edit_handle->wait_rendering_task();
         {
             std::lock_guard<std::mutex> lk(batch.mtx);
@@ -278,24 +359,27 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
                 const int32_t n = static_cast<int32_t>(Lbuf.size());
                 if (n == 0) continue;
                 double fp = 0.0;
-                double sq = 0.0;
                 for (int32_t i = 0; i < n; i++) {
-                    double kl = kw.L(Lbuf[i]);
-                    double kr = kw.R(Rbuf[i]);
+                    const double lv = static_cast<double>(Lbuf[i]);
+                    const double rv = static_cast<double>(Rbuf[i]);
+                    const double kl = kw.L(lv);
+                    const double kr = kw.R(rv);
                     kw_sq.push_back(static_cast<float>((kl * kl + kr * kr) * 0.5));
-                    double s = (std::max)(std::abs(static_cast<double>(Lbuf[i])), std::abs(static_cast<double>(Rbuf[i])));
-                    if (s > fp) fp = s;
-                    if (s > raw_peak) raw_peak = s;
-                    sq += static_cast<double>(Lbuf[i]) * Lbuf[i] + static_cast<double>(Rbuf[i]) * Rbuf[i];
+                    const double sp = (std::max)(std::abs(lv), std::abs(rv));
+                    if (sp > fp) fp = sp;
+                    if (sp > tp_peak) tp_peak = sp;
+
+                    const double interp = (std::max)(tpL.push(lv), tpR.push(rv));
+                    if (interp > tp_peak) tp_peak = interp;
                 }
-                fstats.push_back({ f, fp, std::sqrt(sq / (2.0 * n)) });
+                fstats.push_back({ f, fp });
             }
         }
         g_prog.store(static_cast<int32_t>(100.0 * (be - f0 + 1) / total_frames));
         PostMessage(hwnd, WM_PROGRESS, g_prog.load(), 0);
     }
 
-    if (!abort) {
+    if (!abort_flag) {
         AnalyzeResult res;
         res.f_start = f0;
         res.f_end = f1;
@@ -306,25 +390,23 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
 
         const int32_t N = static_cast<int32_t>(kw_sq.size());
         if (N > 0) {
-            res.true_peak = raw_peak > 0.0 ? 20.0 * std::log10(raw_peak) : -100.0;
-
-            std::vector<double> mom_ms;
+            res.true_peak = tp_peak > 0.0 ? 20.0 * std::log10(tp_peak) : -100.0;
+            std::vector<double> mom_ms, st_ms;
             for (int32_t p = 0; p + mom_len <= N; p += step) {
                 double ms = 0.0;
                 for (int32_t i = p; i < p + mom_len; i++) ms += kw_sq[i];
                 ms /= mom_len;
                 mom_ms.push_back(ms);
-                double l = ms_to_lufs(ms);
+                const double l = ms_to_lufs(ms);
                 res.mom_hist.push_back(l);
                 if (l > res.mom_max) res.mom_max = l;
             }
-            std::vector<double> st_ms;
             for (int32_t p = 0; p + st_len <= N; p += step) {
                 double ms = 0.0;
                 for (int32_t i = p; i < p + st_len; i++) ms += kw_sq[i];
                 ms /= st_len;
                 st_ms.push_back(ms);
-                double l = ms_to_lufs(ms);
+                const double l = ms_to_lufs(ms);
                 res.st_hist.push_back(l);
                 if (l > res.st_max) res.st_max = l;
             }
@@ -337,7 +419,7 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
                     double m1 = 0.0;
                     for (auto ms : p1) m1 += ms;
                     m1 /= p1.size();
-                    double rel = ms_to_lufs(m1) - 10.0;
+                    const double rel = ms_to_lufs(m1) - 10.0;
                     std::vector<double> p2;
                     for (auto ms : p1)
                         if (ms_to_lufs(ms) >= rel) p2.push_back(ms);
@@ -351,31 +433,27 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
             if (st_ms.size() >= 2) {
                 std::vector<double> lra_v;
                 for (auto ms : st_ms) {
-                    double l = ms_to_lufs(ms);
+                    const double l = ms_to_lufs(ms);
                     if (l >= -70.0) lra_v.push_back(l);
                 }
                 if (lra_v.size() >= 2) {
                     double avg = 0.0;
                     for (auto ms : st_ms) avg += ms;
                     avg /= st_ms.size();
-                    double rel = ms_to_lufs(avg) - 20.0;
+                    const double rel = ms_to_lufs(avg) - 20.0;
                     std::vector<double> gated;
                     for (auto l : lra_v)
                         if (l >= rel) gated.push_back(l);
                     if (gated.size() >= 2) {
                         std::sort(gated.begin(), gated.end());
-                        const int32_t n = static_cast<int32_t>(gated.size());
-                        res.lra = gated[(std::min)(n - 1, static_cast<int32_t>(n * 0.95))] - gated[(std::max)(0, static_cast<int32_t>(n * 0.10))];
+                        const int32_t gn = static_cast<int32_t>(gated.size());
+                        res.lra = gated[(std::min)(gn - 1, static_cast<int32_t>(gn * 0.95))] - gated[(std::max)(0, static_cast<int32_t>(gn * 0.10))];
                     }
                 }
             }
             {
-                const double sil_lin = std::pow(10.0, snap.sil_db / 20.0);
-                const int32_t sil_min = static_cast<int32_t>(snap.sil_min_s * rate / scale);
                 bool in_clip = false;
-                bool in_sil = false;
                 int32_t clip_s = 0;
-                int32_t sil_s = 0;
                 for (auto& st : fstats) {
                     if (st.peak >= 1.0) {
                         if (!in_clip) {
@@ -388,22 +466,39 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
                             in_clip = false;
                         }
                     }
-                    if (st.rms < sil_lin) {
+                }
+                if (!fstats.empty() && in_clip)
+                    res.issues.push_back({ Issue::CLIP, clip_s, f1 });
+            }
+            {
+                const int32_t spf = (std::max)(1, sr * scale / (std::max)(1, rate));
+                const double sil_pow = std::pow(10.0, snap.sil_db / 10.0);
+                const int32_t win = step;
+                const int32_t sil_min_samp = (std::max)(1, static_cast<int32_t>(snap.sil_min_s * sr));
+
+                bool in_sil = false;
+                int32_t sil_start_s = 0;
+
+                for (int32_t i = 0; i + win <= N; i += win) {
+                    double ms = 0.0;
+                    for (int32_t j = i; j < i + win; j++) ms += kw_sq[j];
+                    ms /= win;
+
+                    if (ms < sil_pow) {
                         if (!in_sil) {
                             in_sil = true;
-                            sil_s = st.frame;
+                            sil_start_s = i;
                         }
                     } else {
                         if (in_sil) {
-                            if (st.frame - sil_s >= sil_min) res.issues.push_back({ Issue::SILENCE, sil_s, st.frame - 1 });
+                            if (i - sil_start_s >= sil_min_samp)
+                                res.issues.push_back({ Issue::SILENCE, f0 + sil_start_s / spf, (std::min)(f1, f0 + (i - 1) / spf) });
                             in_sil = false;
                         }
                     }
                 }
-                if (!fstats.empty()) {
-                    if (in_clip) res.issues.push_back({ Issue::CLIP, clip_s, f1 });
-                    if (in_sil && f1 - sil_s >= sil_min) res.issues.push_back({ Issue::SILENCE, sil_s, f1 });
-                }
+                if (in_sil && N - sil_start_s >= sil_min_samp)
+                    res.issues.push_back({ Issue::SILENCE, f0 + sil_start_s / spf, f1 });
             }
             res.valid = true;
         }
@@ -416,7 +511,11 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
 
 static void start_analysis(int32_t f_start, int32_t f_end) {
     if (g_busy.exchange(true)) return;
+    g_abort.store(false);
     g_prog.store(0);
+    EnableWindow(s_btn_rng, FALSE);
+    EnableWindow(s_btn_all, FALSE);
+    EnableWindow(s_btn_abort, TRUE);
     InvalidateRect(g_hwnd, nullptr, TRUE);
     EDIT_INFO info;
     g_edit_handle->get_edit_info(&info, sizeof(info));
@@ -424,10 +523,13 @@ static void start_analysis(int32_t f_start, int32_t f_end) {
     f_end = (std::min)(f_end, info.frame_max);
     if (f_start > f_end) {
         g_busy.store(false);
+        EnableWindow(s_btn_rng, TRUE);
+        EnableWindow(s_btn_all, TRUE);
+        EnableWindow(s_btn_abort, FALSE);
         return;
     }
-    AnalyzerConfig snap = settings.analyzer;
-    HWND hwnd = g_hwnd;
+    const AnalyzerConfig snap = settings.analyzer;
+    const HWND hwnd = g_hwnd;
     std::thread([=]() { analyze_thread(f_start, f_end, info.rate, info.scale, info.sample_rate, snap, hwnd); }).detach();
 }
 
@@ -463,10 +565,6 @@ static void frame_change_cb(void*) {
     PostMessage(g_hwnd, WM_FRAME_CHANGE, 0, 0);
 }
 
-static HFONT g_fL = nullptr;
-static HFONT g_fS = nullptr;
-static HFONT g_fM = nullptr;
-
 static void dtw(HDC hdc, const wchar_t* s, RECT r, COLORREF c, UINT fmt = DT_LEFT | DT_VCENTER | DT_SINGLELINE) {
     SetTextColor(hdc, c);
     DrawText(hdc, s, -1, &r, fmt);
@@ -487,17 +585,17 @@ static std::wstring fmtDiff(double d) {
 
 static JudgeStatus judge_lufs(double v, const AnalyzerConfig& s) {
     if (v <= -99.0) return JudgeStatus::NONE;
-    double d = v - s.target_lufs;
+    const double d = v - s.target_lufs;
     if (std::abs(d) <= s.lufs_tol) return JudgeStatus::PASS;
-    if (d > s.lufs_tol + 2.0) return JudgeStatus::FAIL;
-    if (d > s.lufs_tol || d < -8.0) return JudgeStatus::WARN;
+    if (d > s.lufs_tol + settings.analyzer.lufs_fail) return JudgeStatus::FAIL;
+    if (d > s.lufs_tol || d <= -settings.analyzer.lufs_warn) return JudgeStatus::WARN;
     return JudgeStatus::PASS;
 }
 
 static JudgeStatus judge_peak(double v, const AnalyzerConfig& s) {
     if (v <= -99.0) return JudgeStatus::NONE;
     if (v <= s.target_peak) return JudgeStatus::PASS;
-    if (v <= s.target_peak + 1.0) return JudgeStatus::WARN;
+    if (v <= s.target_peak + settings.analyzer.peak_fail) return JudgeStatus::WARN;
     return JudgeStatus::FAIL;
 }
 
@@ -542,18 +640,18 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         DeleteObject(b);
     }
 
-    double v_range = v_max - v_min;
-    int32_t gstep = (v_range > 30) ? 10 : (v_range > 12) ? 5
-                                                         : 2;
+    const double v_range = v_max - v_min;
+    const int32_t gstep = (v_range > 30) ? 10 : (v_range > 12) ? 5
+                                                               : 2;
     {
         HPEN pg = CreatePen(PS_SOLID, 1, C_GRID);
         HPEN op = static_cast<HPEN>(SelectObject(hdc, pg));
-        int32_t db = static_cast<int32_t>(std::floor(v_min / gstep) * gstep);
-        for (; static_cast<double>(db) <= v_max; db += gstep) {
+        for (int32_t db = static_cast<int32_t>(std::floor(v_min / gstep) * gstep);
+             static_cast<double>(db) <= v_max; db += gstep) {
             if (static_cast<double>(db) < v_min) continue;
-            int32_t y = yx(static_cast<double>(db));
-            MoveToEx(hdc, gx, y, nullptr);
-            LineTo(hdc, gx + gw, y);
+            int32_t yy = yx(static_cast<double>(db));
+            MoveToEx(hdc, gx, yy, nullptr);
+            LineTo(hdc, gx + gw, yy);
         }
         SelectObject(hdc, op);
         DeleteObject(pg);
@@ -570,17 +668,15 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
     }
 
     SelectObject(hdc, g_fS);
-    {
-        int32_t db = static_cast<int32_t>(std::floor(v_min / gstep) * gstep);
-        for (; static_cast<double>(db) <= v_max; db += gstep) {
-            if (static_cast<double>(db) < v_min) continue;
-            int32_t y = yx(static_cast<double>(db));
-            wchar_t lb[8];
-            swprintf_s(lb, L"%d", db);
-            RECT lr = { gx + gw + 2, y - 7, gx + gw + 30, y + 7 };
-            SetTextColor(hdc, C_GRIDLBL);
-            DrawText(hdc, lb, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        }
+    for (int32_t db = static_cast<int32_t>(std::floor(v_min / gstep) * gstep);
+         static_cast<double>(db) <= v_max; db += gstep) {
+        if (static_cast<double>(db) < v_min) continue;
+        int32_t yy = yx(static_cast<double>(db));
+        wchar_t lb[8];
+        swprintf_s(lb, L"%d", db);
+        RECT lr = { gx + gw + 2, yy - 7, gx + gw + 30, yy + 7 };
+        SetTextColor(hdc, C_GRIDLBL);
+        DrawText(hdc, lb, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (target_lufs > v_min && target_lufs < v_max) {
         int32_t ty = yx(target_lufs);
@@ -591,7 +687,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         DrawText(hdc, tl, -1, &tlr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
-    double t_end = t_pan + 1.0 / t_zoom;
+    const double t_end = t_pan + 1.0 / t_zoom;
     auto draw_series = [&](const std::vector<double>& h, COLORREF col, int32_t lw = 1) {
         const int32_t n = static_cast<int32_t>(h.size());
         if (n < 2) return;
@@ -651,6 +747,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             s_br_ctrl = CreateSolidBrush(C_CTRL);
             s_btn_rng = CreateWindow(L"BUTTON", L"選択範囲を計測", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
             s_btn_all = CreateWindow(L"BUTTON", L"シーン全体を計測", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
+            s_btn_abort = CreateWindow(L"BUTTON", L"■ 中止", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 312, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
             s_combo = CreateWindow(L"COMBOBOX", nullptr, WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, 8, 42, 300, 200, hwnd, reinterpret_cast<HMENU>(10), g_hinstance, nullptr);
             for (auto& p : PRESETS) SendMessage(s_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(p.name));
             s_edit_l = CreateWindow(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
@@ -667,7 +764,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return reinterpret_cast<LRESULT>(s_br_ctrl);
         }
         case WM_COMMAND: {
-            const int32_t id = LOWORD(wp), notif = HIWORD(wp);
+            const int32_t id = LOWORD(wp);
+            const int32_t notif = HIWORD(wp);
             if ((id == 1 || id == 2) && !g_busy.load()) {
                 if (g_edit_handle->get_edit_state() != g_edit_handle->EDIT_STATE_EDIT) {
                     MessageBox(hwnd, L"プレビュー中や書き出し中は計測できません。", L"EAP2 Analyzer", MB_ICONWARNING);
@@ -685,6 +783,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 } else {
                     start_analysis(0, info.frame_max);
                 }
+                break;
+            }
+            if (id == 3) {
+                g_abort.store(true);
                 break;
             }
             if (id == 10 && notif == CBN_SELCHANGE) {
@@ -741,7 +843,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     }
                 } else {
                     if (g_gt_zoom > 1.01) {
-                        double step = 0.2 / g_gt_zoom;
+                        double step = 0.3 / g_gt_zoom;
                         g_gt_pan -= delta * step;
                         g_gt_pan = (std::max)(0.0, (std::min)(1.0 - 1.0 / g_gt_zoom, g_gt_pan));
                     }
@@ -783,30 +885,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 return 0;
             }
             if (s_gw > 0 && mx >= s_gx && mx < s_gx + s_gw && my >= s_gy && my < s_gy + s_gh) {
-                double vis_f = static_cast<double>(mx - s_gx) / s_gw;
-                double data_f = g_gt_pan + vis_f / g_gt_zoom;
-                data_f = (std::max)(0.0, (std::min)(1.0, data_f));
-                AnalyzeResult res;
-                {
-                    std::lock_guard<std::mutex> lk(g_result_mtx);
-                    res = g_result;
-                }
-                if (res.valid && res.f_end > res.f_start) {
-                    int32_t tf = res.f_start + static_cast<int32_t>(data_f * (res.f_end - res.f_start));
-                    tf = (std::max)(res.f_start, (std::min)(res.f_end, tf));
-                    jump_to_frame(tf);
-                }
+                s_graph_drag = true;
+                SetCapture(hwnd);
+                jump_from_mouse(mx);
                 return 0;
             }
             for (auto& hit : s_issue_hits) {
                 if (my >= hit.y0 && my < hit.y1) {
                     jump_to_frame(hit.f_start);
+                    center_graph_on_frame(hit.f_start);
+                    InvalidateRect(hwnd, nullptr, FALSE);
                     return 0;
                 }
             }
             return 0;
         }
         case WM_LBUTTONUP:
+            if (s_graph_drag) {
+                s_graph_drag = false;
+                ReleaseCapture();
+            }
             if (s_sb_drag) {
                 s_sb_drag = false;
                 ReleaseCapture();
@@ -827,7 +925,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
 
         case WM_MOUSEMOVE: {
+            const int32_t mx = static_cast<int32_t>(LOWORD(lp));
             const int32_t my = static_cast<int32_t>(HIWORD(lp));
+
+            if (s_graph_drag) {
+                jump_from_mouse(mx);
+                return 0;
+            }
 
             if (s_sb_drag) {
                 int32_t dy = my - s_sb_drag_y0;
@@ -838,12 +942,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 return 0;
             }
             int32_t new_hover = -1;
-            for (int32_t i = 0; i < static_cast<int32_t>(s_issue_hits.size()); i++) {
+            for (int32_t i = 0; i < static_cast<int32_t>(s_issue_hits.size()); i++)
                 if (my >= s_issue_hits[i].y0 && my < s_issue_hits[i].y1) {
                     new_hover = i;
                     break;
                 }
-            }
             if (new_hover != s_hovered_issue) {
                 s_hovered_issue = new_hover;
                 InvalidateRect(hwnd, nullptr, FALSE);
@@ -892,6 +995,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_gv_max = 0.0;
             EnableWindow(s_btn_rng, TRUE);
             EnableWindow(s_btn_all, TRUE);
+            EnableWindow(s_btn_abort, FALSE);
             InvalidateRect(hwnd, nullptr, TRUE);
             break;
 
@@ -920,7 +1024,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             FONT_INFO* font = g_config_handle->get_font_info(g_config_handle, "DefaultFamily");
             if (!g_fL) g_fL = CreateFont(24, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
             if (!g_fS) g_fS = CreateFont(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
-            if (!g_fM) g_fM = CreateFont(20, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
             SelectObject(mdc, g_fS);
 
             dtw(mdc, L"目標 LUFS", { 64, 74, 120, 94 }, C_LABEL);
@@ -975,7 +1078,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 const AnalyzerConfig& sn = res.snap;
                 {
                     HBRUSH b = CreateSolidBrush(C_PANEL);
-                    RECT r = { 8, y, W - 8, y + 128 };
+                    RECT r = { 8, y, W - 8, y + 140 };
                     FillRect(mdc, &r, b);
                     DeleteObject(b);
                 }
@@ -1001,7 +1104,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 };
                 const int32_t rh = 25;
                 for (int32_t i = 0; i < 5; i++) {
-                    int32_t ry = y + 1 + i * rh;
+                    const int32_t ry = y + 1 + i * rh;
                     Row& row = rows[i];
                     SelectObject(mdc, g_fS);
                     dtw(mdc, row.label, { 14, ry + 6, 140, ry + rh }, C_LABEL);
@@ -1026,7 +1129,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         DeleteObject(p);
                     }
                 }
-                y += 132;
+                {
+                    wchar_t rng_buf[64];
+                    swprintf_s(rng_buf, L"解析範囲  F%d 〜 F%d", res.f_start + 1, res.f_end + 1);
+                    dtw(mdc, rng_buf, { 14, y + 128, W - 14, y + 140 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                }
+
+                y += 144;
             }
 
             if (!paint_end && (!res.st_hist.empty() || !res.mom_hist.empty())) {
@@ -1199,10 +1308,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 DeleteObject(g_fS);
                 g_fS = nullptr;
             }
-            if (g_fM) {
-                DeleteObject(g_fM);
-                g_fM = nullptr;
-            }
             return 0;
     }
     return DefWindowProc(hwnd, msg, wp, lp);
@@ -1217,7 +1322,7 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     wc.hbrBackground = nullptr;
     wc.lpszClassName = L"EAP2_Analyzer";
     RegisterClassEx(&wc);
-    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD, 0, 0, 340, 580, g_host_hwnd, nullptr, g_hinstance, nullptr);
+    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD, 0, 0, 340, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
     host->register_window_client(L"EAP2 Analyzer", g_hwnd);
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
 }
