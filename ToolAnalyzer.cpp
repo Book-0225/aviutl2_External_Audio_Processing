@@ -1292,6 +1292,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             EndPaint(hwnd, &ps);
             return 0;
         }
+        case WM_CONTEXTMENU:
+            POINT pt;
+            GetCursorPos(&pt);
+            ScreenToClient(hwnd, &pt);
+            if (s_gw > 0 && pt.x >= s_gx && pt.x < s_gx + s_gw && pt.y >= s_gy && pt.y < s_gy + s_gh)
+                return 0;
+            break;
         case WM_SIZE:
             InvalidateRect(hwnd, nullptr, TRUE);
             return 0;
