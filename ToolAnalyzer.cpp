@@ -33,9 +33,9 @@ static const Preset PRESETS[] = {
     { L"Apple Music", -16.0, -1.0 },
     { L"Amazon Music", -14.0, -2.0 },
     { L"Netflix", -27.0, -2.0 },
-    { L"放送", -23.0, -1.0 },
+    { L"Broadcast", -23.0, -1.0 },
     { L"CD", -9.0, -0.1 },
-    { L"カスタム", -14.0, -1.0 },
+    { L"Custom", -14.0, -1.0 },
 };
 
 static constexpr int32_t PRESET_COUNT = 7;
@@ -732,9 +732,9 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
     }
 
     if (t_zoom > 1.01 || v_min != -54.0 || v_max != 0.0) {
-        wchar_t zi[48];
-        if (t_zoom > 1.01) swprintf_s(zi, L"T×%.1f  右クリックでリセット", t_zoom);
-        else swprintf_s(zi, L"右クリックでリセット");
+        wchar_t zi[64];
+        if (t_zoom > 1.01) swprintf_s(zi, (L"T×%.1f " + std::wstring(TrText(L"右クリックでリセット"))).c_str(), t_zoom);
+        else swprintf_s(zi, TrText(L"右クリックでリセット"));
         RECT zr = { lx, gy, gx + gw, gy + 14 };
         SetTextColor(hdc, C_GRIDLBL);
         DrawText(hdc, zi, -1, &zr, DT_RIGHT | DT_TOP | DT_SINGLELINE);
@@ -745,9 +745,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CREATE: {
             s_br_ctrl = CreateSolidBrush(C_CTRL);
-            s_btn_rng = CreateWindow(L"BUTTON", L"選択範囲を計測", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
-            s_btn_all = CreateWindow(L"BUTTON", L"シーン全体を計測", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
-            s_btn_abort = CreateWindow(L"BUTTON", L"■ 中止", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 312, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
+            s_btn_rng = CreateWindow(L"BUTTON", TrText(L"選択範囲を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
+            s_btn_all = CreateWindow(L"BUTTON", TrText(L"シーン全体を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
+            s_btn_abort = CreateWindow(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 312, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
             s_combo = CreateWindow(L"COMBOBOX", nullptr, WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, 8, 42, 300, 200, hwnd, reinterpret_cast<HMENU>(10), g_hinstance, nullptr);
             for (auto& p : PRESETS) SendMessage(s_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(p.name));
             s_edit_l = CreateWindow(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
@@ -768,7 +768,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int32_t notif = HIWORD(wp);
             if ((id == 1 || id == 2) && !g_busy.load()) {
                 if (g_edit_handle->get_edit_state() != g_edit_handle->EDIT_STATE_EDIT) {
-                    MessageBox(hwnd, L"プレビュー中や書き出し中は計測できません。", L"EAP2 Analyzer", MB_ICONWARNING);
+                    MessageBox(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), L"EAP2 Analyzer", MB_ICONWARNING);
                     break;
                 }
                 read_controls_to_settings();
@@ -776,7 +776,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 g_edit_handle->get_edit_info(&info, sizeof(info));
                 if (id == 1) {
                     if (info.select_range_start < 0 || info.select_range_end < 0) {
-                        MessageBox(hwnd, L"タイムラインでフレーム範囲を選択してから計測してください", L"EAP2 Analyzer", MB_ICONWARNING);
+                        MessageBox(hwnd, TrText(L"タイムラインでフレーム範囲を選択してから計測してください"), L"EAP2 Analyzer", MB_ICONWARNING);
                         break;
                     }
                     start_analysis(info.select_range_start, info.select_range_end);
@@ -1026,9 +1026,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!g_fS) g_fS = CreateFont(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
             SelectObject(mdc, g_fS);
 
-            dtw(mdc, L"目標 LUFS", { 64, 74, 120, 94 }, C_LABEL);
-            dtw(mdc, L"TP limit", { 196, 74, 246, 94 }, C_LABEL);
-            dtw(mdc, L"無音 dBFS", { 304, 74, 360, 94 }, C_LABEL);
+            dtw(mdc, TrText(L"目標 LUFS"), { 64, 74, 128, 94 }, C_LABEL);
+            dtw(mdc, TrText(L"TP Limit"), { 196, 74, 246, 94 }, C_LABEL);
+            dtw(mdc, TrText(L"無音 dBFS"), { 304, 74, 370, 94 }, C_LABEL);
 
             {
                 HPEN p = CreatePen(PS_SOLID, 1, C_BORDER);
@@ -1057,8 +1057,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     DeleteObject(b);
                 }
                 SelectObject(mdc, g_fS);
-                wchar_t pg[32];
-                swprintf_s(pg, L"計測中... %d%%", prog);
+                wchar_t pg[64];
+                swprintf_s(pg, (std::wstring(TrText(L"計測中")) + L"... %d%%").c_str(), prog);
                 dtw(mdc, pg, pb, C_TEXT, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 paint_end = true;
             }
@@ -1070,7 +1070,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             if (!paint_end && !res.valid) {
                 RECT r = { 0, y + 16, W, y + 36 };
-                dtw(mdc, L"「計測」ボタンを押してください", r, C_LABEL, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                dtw(mdc, TrText(L"「計測」ボタンを押してください"), r, C_LABEL, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 paint_end = true;
             }
 
@@ -1130,8 +1130,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     }
                 }
                 {
-                    wchar_t rng_buf[64];
-                    swprintf_s(rng_buf, L"解析範囲  F%d 〜 F%d", res.f_start + 1, res.f_end + 1);
+                    wchar_t rng_buf[96];
+                    swprintf_s(rng_buf, (std::wstring(TrText(L"解析範囲")) + L"  F%d 〜 F%d").c_str(), res.f_start + 1, res.f_end + 1);
                     dtw(mdc, rng_buf, { 14, y + 128, W - 14, y + 140 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
 
@@ -1197,9 +1197,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
                 y += 4;
                 SelectObject(mdc, g_fS);
-                dtw(mdc, L"問題箇所", { 8, y, 108, y + 16 }, C_YELLOW);
+                dtw(mdc, TrText(L"問題箇所"), { 8, y, 108, y + 16 }, C_YELLOW);
                 {
-                    const wchar_t* flt_lbl[] = { L"全", L"C", L"S" };
+                    const wchar_t* flt_lbl[] = { L"All", L"C", L"S" };
                     COLORREF flt_col[] = { C_TEXT, C_RED, C_LABEL };
                     int32_t bx = 112;
                     for (int32_t fi = 0; fi < 3; fi++) {
@@ -1221,9 +1221,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     }
                 }
                 {
-                    wchar_t cnt[32];
-                    if (g_issue_filter != 0) swprintf_s(cnt, L"%d / %d件", flt_cnt, total_iss);
-                    else swprintf_s(cnt, L"%d件", total_iss);
+                    wchar_t cnt[64];
+                    if (g_issue_filter != 0) swprintf_s(cnt, L"%d / %d issues", flt_cnt, total_iss);
+                    else swprintf_s(cnt, L"%d issues", total_iss);
                     dtw(mdc, cnt, { W - 60, y, W - 8, y + 16 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
                 y += 18;
@@ -1254,10 +1254,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
                     wchar_t buf[128];
                     if (iss.type == Issue::CLIP) {
-                        swprintf_s(buf, L"● クリッピング  F%d〜F%d", iss.f_start + 1, iss.f_end + 1);
+                        swprintf_s(buf, (L"● " + std::wstring(TrText(L"クリッピング")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
                         dtw(mdc, buf, { 14, iy, list_r, iy + ITEM_H }, C_RED);
                     } else {
-                        swprintf_s(buf, L"○ 無音区間  F%d〜F%d", iss.f_start + 1, iss.f_end + 1);
+                        swprintf_s(buf, (L"○ " + std::wstring(TrText(L"無音区間")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
                         dtw(mdc, buf, { 14, iy, list_r, iy + ITEM_H }, C_LABEL);
                     }
                 }
@@ -1329,7 +1329,7 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     wc.hbrBackground = nullptr;
     wc.lpszClassName = L"EAP2_Analyzer";
     RegisterClassEx(&wc);
-    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD, 0, 0, 340, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
+    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
     host->register_window_client(L"EAP2 Analyzer", g_hwnd);
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
 }
