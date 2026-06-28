@@ -1098,9 +1098,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 Row rows[] = {
                     { L"Integrated LUFS", fmtL(res.integrated), L"LUFS", j_int, bstr[static_cast<int32_t>(j_int)], ldiff },
                     { L"True Peak", fmtL(res.true_peak), L"dBTP", j_peak, bstr[static_cast<int32_t>(j_peak)], 0.0 },
-                    { L"LRA", [&] {wchar_t b[16];swprintf_s(b,L"%.1f",res.lra);return std::wstring(b); }(), L"LU", JudgeStatus::NONE, L"", 0.0 },
-                    { L"Short-term Max", fmtL(res.st_max), L"LUFS", JudgeStatus::NONE, L"", 0.0 },
-                    { L"Momentary Max", fmtL(res.mom_max), L"LUFS", JudgeStatus::NONE, L"", 0.0 },
+                    { L"Loudness Range", [&] {wchar_t b[16];swprintf_s(b,L"%.1f",res.lra);return std::wstring(b); }(), L"LU", JudgeStatus::NONE, L"", 0.0 },
+                    { L"Max Short-term", fmtL(res.st_max), L"LUFS", JudgeStatus::NONE, L"", 0.0 },
+                    { L"Max Momentary", fmtL(res.mom_max), L"LUFS", JudgeStatus::NONE, L"", 0.0 },
                 };
                 const int32_t rh = 25;
                 for (int32_t i = 0; i < 5; i++) {
