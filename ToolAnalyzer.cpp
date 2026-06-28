@@ -1329,7 +1329,7 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     wc.hbrBackground = nullptr;
     wc.lpszClassName = L"EAP2_Analyzer";
     RegisterClassEx(&wc);
-    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
+    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD | WS_CLIPCHILDREN, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
     host->register_window_client(L"EAP2 Analyzer", g_hwnd);
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
 }
