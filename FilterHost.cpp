@@ -263,6 +263,16 @@ void func_project_save_impl(PROJECT_FILE* pf) {
     std::set<std::string> active_ids_in_project;
     g_active_ids_collector = &active_ids_in_project;
     if (g_edit_handle) {
+        if (settings.compat.check_save_scene) {
+            EDIT_INFO info;
+            g_edit_handle->get_edit_info(&info, sizeof(info));
+            if (info.scene_id != 0) {
+                if (settings.general.notify_save_warn)
+                    DbgMessage(TrText(L"恐らくルートシーン以外から保存されたため\nEAP2の一部状態データの保存をスキップしました。"), LOG_WARN);
+                g_active_ids_collector = nullptr;
+                return;
+            }
+        }
         try {
             g_edit_handle->call_edit_section(collect_active_ids_proc);
         } catch (...) {

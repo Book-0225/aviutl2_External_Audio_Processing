@@ -132,11 +132,13 @@ struct GeneralConfig {
     bool auto_rename_disable = false;
     bool enable_experimental = false;
     bool compress_plugin_state = true;
+    bool notify_save_warn = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AutoRenameDisable", L"1", &auto_rename_disable, true),
             ConfigEntry::Create(L"EnableExperimental", L"0", &enable_experimental, false),
-            ConfigEntry::Create(L"CompressPluginState", L"1", &compress_plugin_state, true)
+            ConfigEntry::Create(L"CompressPluginState", L"1", &compress_plugin_state, true),
+            ConfigEntry::Create(L"NotifySaveWarn", L"0", &notify_save_warn, true)
         };
     }
 };
@@ -209,10 +211,12 @@ struct CompatConfig {
     std::wstring categoryName = L"Compat";
     bool use_new_reverb = false;
     bool use_new_generator = false;
+    bool check_save_scene = true;
     std::vector<ConfigEntry> getEntries() {
         return {
-            ConfigEntry::Create(L"UseNewReverb", L"0", &use_new_reverb, true),
-            ConfigEntry::Create(L"UseNewGenerator", L"0", &use_new_generator, true)
+            ConfigEntry::Create(L"UseNewReverb", L"0", &use_new_reverb, false),
+            ConfigEntry::Create(L"UseNewGenerator", L"0", &use_new_generator, false),
+            ConfigEntry::Create(L"CheckSaveScene", L"1", &check_save_scene, true)
         };
     }
 };
