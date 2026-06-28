@@ -1,5 +1,6 @@
 ﻿#include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "MigrateConfig.h"
 
 #include <filesystem>
 #include <fstream>
@@ -32,7 +33,7 @@ std::filesystem::path GetConfigPath() {
 void ShowConfigLoadWarning(const ConfigLoadReport& report) {
     if (!report.has_error)
         return;
-    std::wstring message = TrText(L"設定ファイル内に無効な値が見つかったため、該当する項目はデフォルト設定で読み込まれました。");
+    std::wstring message = std::wstring(TrText(L"設定ファイル内に無効な値が見つかったため、")) + L"\n" + TrText(L"該当する項目はデフォルト設定で読み込まれました。");
     DbgPrint(message, LOG_WARN);
     constexpr size_t max_lines = 10;
     for (size_t i = 0; i < report.messages.size() && i < max_lines; ++i)
@@ -113,6 +114,14 @@ void LoadConfig() {
     std::filesystem::path path = GetConfigPath();
     if (!std::filesystem::exists(path))
         CreateConfig(path);
+
+    if (!MigrateConfig(path)) {
+        DbgMessage(std::wstring(TrText(L"設定ファイル移行エラー")) + L"\n" + TrText(L"デフォルト設定で読み込まれました。"), LOG_ERROR);
+        settings = AppSettings{};
+        new_settings = settings;
+        return;
+    }
+
     ApplyToAllCategories([](const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
         EnsureCategoryDefaults(categoryName, entries, path);
     },
@@ -122,6 +131,8 @@ void LoadConfig() {
         LoadCategory(categoryName, entries, path, report);
     },
                          settings, path);
+    if (parseVersion(settings.info.version) > parseVersion(plugin_version))
+        DbgMessage(L"設定ファイルが現在のプラグインより新しいバージョンで作成されています", LOG_WARN);
     new_settings = settings;
     ShowConfigLoadWarning(report);
 }

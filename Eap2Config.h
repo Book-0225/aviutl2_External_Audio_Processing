@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#define CONFIG_VERSION L"1"
+
 inline std::wstring TrimCopy(std::wstring s) {
     auto is_space = [](wchar_t ch) { return std::iswspace(ch) != 0; };
     while (!s.empty() && is_space(s.front())) s.erase(s.begin());
@@ -119,10 +121,12 @@ struct ConfigInfo {
     std::wstring categoryName = L"Info";
     std::wstring version;
     std::wstring version_data;
+    int32_t config_version = -1;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"Version", plugin_version, &version, false),
-            ConfigEntry::Create(L"VersionData", parseVersion(plugin_version).to_hex_wstring(), &version_data, false)
+            ConfigEntry::Create(L"VersionData", parseVersion(plugin_version).to_hex_wstring(), &version_data, false),
+            ConfigEntry::Create(L"ConfigVersion", CONFIG_VERSION, &config_version, false)
         };
     }
 };

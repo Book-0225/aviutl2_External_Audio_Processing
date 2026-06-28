@@ -62,6 +62,8 @@
     <ClInclude Include="Eap2Info.h" />
     <ClInclude Include="Eap2Version.h" />
     <ClInclude Include="IAudioPluginHost.h" />
+    <ClInclude Include="Migrate0To1.h" />
+    <ClInclude Include="MigrateConfig.h" />
     <ClInclude Include="NotesManager.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PluginType.h" />

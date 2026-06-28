@@ -60,6 +60,8 @@
     <ClInclude Include="SynthCommon.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Eap2Version.h" />
+    <ClInclude Include="MigrateConfig.h" />
+    <ClInclude Include="Migrate0To1.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />
