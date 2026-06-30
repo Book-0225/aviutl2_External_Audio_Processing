@@ -19,6 +19,13 @@ FILTER_ITEM_TRACK dyn_comp_ratio(L"Comp Ratio", 1.0, 1.0, 20.0, 0.1, nullptr, 1.
 FILTER_ITEM_TRACK dyn_comp_attack(L"Comp Attack", 5.0, 0.1, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK dyn_comp_release(L"Comp Release", 50.0, 10.0, 1000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK dyn_comp_makeup(L"Makeup Gain", 0.0, 0.0, 30.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_GROUP upcomp_group(L"Upward Comp Settings", true);
+FILTER_ITEM_TRACK dyn_upcomp_thresh(L"Upward Thresh", -40.0, -90.0, 0.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dyn_upcomp_ratio(L"Upward Ratio", 1.0, 1.0, 20.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dyn_upcomp_range(L"Upward Range", 12.0, 0.0, 60.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dyn_upcomp_attack(L"Upward Attack", 5.0, 0.1, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_TRACK dyn_upcomp_release(L"Upward Release", 50.0, 10.0, 1000.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_GROUP lim_group(L"", true);
 FILTER_ITEM_TRACK dyn_limiter(L"Limiter", 0.0, -20.0, 0.0, 0.1, nullptr, 1.0);
 
 void* filter_items_dynamics[] = {
@@ -32,6 +39,13 @@ void* filter_items_dynamics[] = {
     &dyn_comp_attack,
     &dyn_comp_release,
     &dyn_comp_makeup,
+    &upcomp_group,
+    &dyn_upcomp_thresh,
+    &dyn_upcomp_ratio,
+    &dyn_upcomp_range,
+    &dyn_upcomp_attack,
+    &dyn_upcomp_release,
+    &lim_group,
     &dyn_limiter,
     nullptr
 };
@@ -39,6 +53,7 @@ void* filter_items_dynamics[] = {
 struct DynamicsState {
     double gate_gain = 1.0;
     double comp_envelope = 0.0;
+    double upcomp_envelope = 0.0;
     int64_t last_sample_index = -1;
 };
 
@@ -54,14 +69,22 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     double gate_th_db = dyn_gate_thresh.value;
     double gate_att_ms = dyn_gate_att.value;
     double gate_rel_ms = dyn_gate_rel.value;
+
     double comp_th_db = dyn_comp_thresh.value;
     double comp_ratio = dyn_comp_ratio.value;
     double comp_att_ms = dyn_comp_attack.value;
     double comp_rel_ms = dyn_comp_release.value;
     double comp_makeup_db = dyn_comp_makeup.value;
+
+    double upcomp_th_db = dyn_upcomp_thresh.value;
+    double upcomp_ratio = dyn_upcomp_ratio.value;
+    double upcomp_range_db = dyn_upcomp_range.value;
+    double upcomp_att_ms = dyn_upcomp_attack.value;
+    double upcomp_rel_ms = dyn_upcomp_release.value;
+
     double lim_db = dyn_limiter.value;
 
-    if (gate_th_db <= -90.0 && comp_ratio == 1.0 && comp_makeup_db == 0.0 && lim_db >= 0.0) {
+    if (gate_th_db <= -90.0 && comp_ratio == 1.0 && comp_makeup_db == 0.0 && upcomp_ratio == 1.0 && lim_db >= 0.0) {
         return true;
     }
 
@@ -73,6 +96,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
             state->last_sample_index != audio->object->sample_index) {
             state->gate_gain = 1.0;
             state->comp_envelope = 0.0;
+            state->upcomp_envelope = 0.0;
         }
         state->last_sample_index = audio->object->sample_index + total_samples;
     }
@@ -86,8 +110,12 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     double comp_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_att_ms) * 0.001 * Fs));
     double comp_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_rel_ms) * 0.001 * Fs));
 
+    double upcomp_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, upcomp_att_ms) * 0.001 * Fs));
+    double upcomp_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, upcomp_rel_ms) * 0.001 * Fs));
+
     double makeup_lin = std::pow(10.0, comp_makeup_db / 20.0);
     bool use_comp = (comp_ratio > 1.0 || comp_makeup_db > 0.0);
+    bool use_upcomp = (upcomp_ratio > 1.0);
 
     float lim_lin = static_cast<float>(std::pow(10.0, lim_db / 20.0));
 
@@ -107,6 +135,8 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
 
     double current_gate_gain = state->gate_gain;
     double current_comp_env = state->comp_envelope;
+    double current_upcomp_env = state->upcomp_envelope;
+
     Avx2Utils::PeakDetectStereoAVX2(peak_buf.data(), bufL.data(), bufR.data(), total_samples);
     Avx2Utils::ThresholdAVX2(gate_target_buf.data(), peak_buf.data(), total_samples, static_cast<float>(gate_th_lin));
 
@@ -145,7 +175,29 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
                 comp_gain *= makeup_lin;
             }
 
-            temp_gain[k] = static_cast<float>(current_gate_gain * comp_gain);
+            double comped_abs = gated_abs * comp_gain;
+
+            double upcomp_gain = 1.0;
+            if (use_upcomp) {
+                if (comped_abs > current_upcomp_env)
+                    current_upcomp_env += upcomp_att_coef * (comped_abs - current_upcomp_env);
+                else
+                    current_upcomp_env += upcomp_rel_coef * (comped_abs - current_upcomp_env);
+
+                double up_env_db = (current_upcomp_env > 1.0e-6) ? 20.0 * std::log10(current_upcomp_env) : -120.0;
+                double gain_increase_db = 0.0;
+
+                if (up_env_db < upcomp_th_db) {
+                    gain_increase_db = (upcomp_th_db - up_env_db) * (1.0 - 1.0 / upcomp_ratio);
+
+                    if (gain_increase_db > upcomp_range_db) {
+                        gain_increase_db = upcomp_range_db;
+                    }
+                }
+                upcomp_gain = std::pow(10.0, gain_increase_db / 20.0);
+            }
+
+            temp_gain[k] = static_cast<float>(current_gate_gain * comp_gain * upcomp_gain);
         }
 
         Avx2Utils::MultiplyBufferAVX2(pL, temp_gain, block_count);
@@ -159,6 +211,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
 
     state->gate_gain = current_gate_gain;
     state->comp_envelope = current_comp_env;
+    state->upcomp_envelope = current_upcomp_env;
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);
