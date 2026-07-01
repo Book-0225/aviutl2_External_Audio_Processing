@@ -1566,7 +1566,7 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 8. `cd ..`
 9. `au2 release`
 
-上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2/mod2`と`release/External_Audio_Processing2.au2pkg.zip`が生成されるはずです。
+上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`と`release/External_Audio_Processing2.au2pkg.zip`が生成されるはずです。
 
 ## Credits
 
