@@ -41,6 +41,9 @@ jobs:
                     throw "Tag '$tag' already exists."
                   }
 
+            - name: Add msbuild to PATH
+              uses: microsoft/setup-msbuild@v3
+
             - name: Get VST3 SDK commit
               id: vst3sdk-sha
               shell: pwsh
