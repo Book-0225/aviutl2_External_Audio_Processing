@@ -1,0 +1,137 @@
+name: Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Skip GitHub Release"
+                type: boolean
+                default: true
+
+permissions:
+    contents: write
+
+concurrency:
+    group: release
+    cancel-in-progress: false
+
+jobs:
+    release:
+        runs-on: windows-2025-vs2026
+        timeout-minutes: 45
+
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  submodules: recursive
+
+            - name: Read Version
+              id: version
+              shell: pwsh
+              run: |
+                  $version = ./scripts/get_version.ps1
+                  "version=$version" >> $env:GITHUB_OUTPUT
+
+            - name: Check Tag
+              shell: pwsh
+              run: |
+                  $tag = "v${{ steps.version.outputs.version }}"
+                  git fetch --tags
+                  if (git tag --list $tag) {
+                    throw "Tag '$tag' already exists."
+                  }
+
+            - name: Get VST3 SDK commit
+              id: vst3sdk-sha
+              shell: pwsh
+              run: |
+                  $sha = git -C vst3sdk rev-parse HEAD
+                  "sha=$sha" >> $env:GITHUB_OUTPUT
+
+            - name: Cache VST3 SDK build
+              id: vst3sdk-cache
+              uses: actions/cache@v6
+              with:
+                  path: vst3sdk_build
+                  key: windows-2025-vs2026-vst3sdk-${{ steps.vst3sdk-sha.outputs.sha }}
+
+            - name: Resolve latest aviutl2-cli version
+              id: aviutl2-cli-version
+              shell: pwsh
+              run: |
+                  $response = Invoke-RestMethod `
+                      -Uri "https://crates.io/api/v1/crates/aviutl2-cli" `
+                      -Headers @{ "User-Agent" = "aviutl2-release-workflow" }
+                  $version = $response.crate.max_stable_version
+                  "version=$version" >> $env:GITHUB_OUTPUT
+
+            - name: Cache cargo (aviutl2-cli)
+              id: cargo-cache
+              uses: actions/cache@v6
+              with:
+                  path: |
+                      ~\.cargo\bin
+                      ~\.cargo\registry
+                  key: windows-2025-vs2026-cargo-aviutl2-cli-${{ steps.aviutl2-cli-version.outputs.version }}
+
+            - name: Install aviutl2-cli
+              if: steps.cargo-cache.outputs.cache-hit != 'true'
+              shell: pwsh
+              run: cargo install aviutl2-cli --version ${{ steps.aviutl2-cli-version.outputs.version }} --locked
+
+            - name: Setup SDK
+              shell: pwsh
+              run: ./scripts/setup_sdk.ps1
+
+            - name: Configure VST3 SDK
+              if: steps.vst3sdk-cache.outputs.cache-hit != 'true'
+              run: |
+                  cmake -S vst3sdk -B vst3sdk_build
+
+            - name: Build VST3 SDK
+              if: steps.vst3sdk-cache.outputs.cache-hit != 'true'
+              run: |
+                  cmake --build vst3sdk_build --config Release
+
+            - name: Package
+              run: au2 release
+
+            - name: Read Release Notes
+              shell: pwsh
+              run: |
+                  ./scripts/get_release_notes.ps1 -Version "${{ steps.version.outputs.version }}" | Out-File release_notes.md -Encoding utf8
+
+
+            - name: Verify Outputs
+              shell: pwsh
+              run: |
+                  $files = @(
+                    "release/External_Audio_Processing2.au2pkg.zip"
+                  )
+
+                  foreach ($file in $files) {
+                    if (-not (Test-Path $file)) {
+                      throw "Missing artifact: $file"
+                    }
+                  }
+
+            - name: Upload Artifact
+              if: ${{ inputs.dry_run }}
+              uses: actions/upload-artifact@v7
+              with:
+                name: build-files
+                retention-days: 7
+                path: |
+                    release/External_Audio_Processing2.au2pkg.zip
+                    release_notes.md
+
+            - name: Create Release
+              if: ${{ !inputs.dry_run }}
+              uses: softprops/action-gh-release@v3
+              with:
+                  tag_name: v${{ steps.version.outputs.version }}
+                  name: v${{ steps.version.outputs.version }}
+                  body_path: release_notes.md
+                  generate_release_notes: true
+                  files: |
+                      release/External_Audio_Processing2.au2pkg.zip
