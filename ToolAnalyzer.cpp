@@ -318,7 +318,7 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
     TruePeakDetector tpL, tpR;
     double tp_peak = 0.0;
     std::vector<float> kw_sq;
-    kw_sq.reserve(total_frames * (sr / (std::max)(1, rate / scale) + 2));
+    kw_sq.reserve(total_frames * (static_cast<int64_t>(sr) / (std::max)(1, rate / scale) + 2));
 
     struct FStat {
         int32_t frame;

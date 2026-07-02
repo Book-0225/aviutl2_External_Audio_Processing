@@ -742,7 +742,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
         int32_t rectW = bx1 - bx0 + 1;
         int32_t rectH = by1 - by0 + 1;
         thread_local std::vector<float> rippleMask;
-        rippleMask.assign(rectW * rectH, 0.0f);
+        rippleMask.assign(static_cast<int64_t>(rectW) * rectH, 0.0f);
         Avx2Utils::ComputeRingAlphaMaskAVX2(rippleMask.data(), bx0, by0, rectW, rectH, w, h, static_cast<float>(cx), static_cast<float>(cy), static_cast<float>(radius), static_cast<float>(thick));
         for (int32_t yy = 0; yy < rectH; ++yy) {
             int32_t img_y = by0 + yy;
