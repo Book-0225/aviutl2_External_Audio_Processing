@@ -158,7 +158,7 @@ v0.0.28で修正しました。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version 2.00 beta52以降(beta52で動作確認をしています)
+- AviUtl ExEdit2 version 2.00 beta53a以降(beta53aで動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。(一部の機能のみ)
@@ -537,6 +537,14 @@ VST3プラグインのみで動く機能など、機能によってはどちら�
 
 - `速度`:  
   ノートの流れる速度を指定します。
+
+- `ノーツ速度を固定`:  
+  BPM変化に関わらずノーツ速度を固定します  
+  テンポ変化時は長さを調整します
+
+- `固定表示BPM`:  
+  上記`ノーツ速度を固定`時の速度基準となるBPMです  
+  ここで指定したBPMで再生した場合と同じ速度でノーツが流れます
 
 #### フィルタ
 
@@ -1240,6 +1248,12 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 - 各行をクリックすると該当フレームへジャンプします
 
 ## 改版履歴
+
+- **v0.0.34**
+  - BPM変化に対応
+  - MIDI Visualizerのグリッド描画順を修正
+  - MIDI Visualizerの色が正しく反映されない問題を修正
+  - 動作に必要なAviUtl ExEdit2のバージョンをv2.00 beta53a以降に変更
 
 - **v0.0.33**
   - Dynamicsにアップワードコンプレッサーを追加
