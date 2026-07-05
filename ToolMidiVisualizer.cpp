@@ -554,7 +554,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     data.imgBuf.resize(static_cast<size_t>(w) * h);
     std::vector<PIXEL_RGBA>& imgBuf = data.imgBuf;
     uint8_t bgAlpha = UINT8_MAX - static_cast<uint8_t>((track_bg_alpha.value / 100.0) * UINT8_MAX);
-    PIXEL_RGBA bgCol = { static_cast<uint8_t>(color_bg.value.b), static_cast<uint8_t>(color_bg.value.g), static_cast<uint8_t>(color_bg.value.r), bgAlpha };
+    PIXEL_RGBA bgCol = { static_cast<uint8_t>(color_bg.value.r), static_cast<uint8_t>(color_bg.value.g), static_cast<uint8_t>(color_bg.value.b), bgAlpha };
     Avx2Utils::FillBufferRGBAx8(imgBuf.data(), w * h, bgCol);
     double currentTime = video->object->time + track_offset.value;
     double speedMul = track_speed_mul.value;
@@ -752,6 +752,8 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     auto GetNoteColor = [&](const ProcessedNote& note) -> PIXEL_RGBA {
         PIXEL_RGBA col = baseColor;
         switch (colMode) {
+            case 0:
+                return baseColor;
             case 1:
                 col = HsvToRgb(fmod(note.pitch * 30.0, 360.0), 0.7, 1.0);
                 break;
@@ -835,7 +837,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     PIXEL_RGBA colorBlackKey = { 40, 40, 40, 255 };
     PIXEL_RGBA keyBorderCol = { 0, 0, 0, 255 };
     PIXEL_RGBA gridColH = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 100 };
-    PIXEL_RGBA gridColV = { static_cast<uint8_t>(color_grid.value.b), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.r), 100 };
+    PIXEL_RGBA gridColV = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 100 };
     auto DrawLED = [&](int32_t kx, int32_t ky, int32_t kw, int32_t kh, PIXEL_RGBA col) {
         col.a = ledAlpha;
         int32_t ledSize = 0;
