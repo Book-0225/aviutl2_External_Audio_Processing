@@ -356,7 +356,7 @@ FILTER_ITEM_TRACK track_kb_led_pos(L"LED位置", 85.0, 0.0, 100.0, 1.0, nullptr,
 FILTER_ITEM_TRACK track_kb_led_size(L"LEDサイズ", 60.0, 1.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_kb_led_alpha(L"LED不透明度", 75.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_COLOR color_grid(L"グリッド色", 0xFFFFFF);
-FILTER_ITEM_TRACK track_grid_width(L"グリッド幅", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_TRACK track_grid_width(L"グリッド幅", 1.0, 0.0, 10.0, 1.0, L"無効", 1.0);
 FILTER_ITEM_CHECK check_grid_h(L"キーグリッド", true);
 FILTER_ITEM_CHECK check_grid_v(L"ビートグリッド", false);
 FILTER_ITEM_GROUP group_effect(L"エフェクト");
@@ -836,8 +836,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     PIXEL_RGBA colorWhiteKey = { 240, 240, 240, 255 };
     PIXEL_RGBA colorBlackKey = { 40, 40, 40, 255 };
     PIXEL_RGBA keyBorderCol = { 0, 0, 0, 255 };
-    PIXEL_RGBA gridColH = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 100 };
-    PIXEL_RGBA gridColV = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 100 };
+    PIXEL_RGBA gridCol = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 100 };
     auto DrawLED = [&](int32_t kx, int32_t ky, int32_t kw, int32_t kh, PIXEL_RGBA col) {
         col.a = ledAlpha;
         int32_t ledSize = 0;
@@ -909,127 +908,6 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
             }
         }
     };
-    for (int32_t i = 0; i < range; i++) {
-        int32_t noteNum = minKey + i;
-        bool currentIsBlack = isBlackKey(noteNum);
-        int32_t n = noteNum % 12;
-        if (n < 0) n += 12;
-        bool isActive = keyIsActive[noteNum];
-        PIXEL_RGBA activeCol = activeKeyColors[noteNum];
-        int32_t kx = 0, ky = 0, kw = 0, kh = 0;
-        int32_t sinkOffsetX = 0;
-        int32_t sinkOffsetY = 0;
-        if (isActive) {
-            if (scrollMode == 0) sinkOffsetX = sinkDepth;
-            else if (scrollMode == 1) sinkOffsetX = -sinkDepth;
-            else if (scrollMode == 2) sinkOffsetY = -sinkDepth;
-            else if (scrollMode == 3) sinkOffsetY = sinkDepth;
-        }
-        if (scrollMode == 0 || scrollMode == 1) {
-            kh = static_cast<int32_t>(ceil(keySize));
-            kw = static_cast<int32_t>(kbWidth);
-            ky = h - static_cast<int32_t>((i + 1) * keySize);
-            kx = (scrollMode == 0) ? 0 : w - kw;
-            if (check_grid_h.value) {
-                int32_t gy = ky + kh;
-                if (gy < h && gy >= 0) {
-                    for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
-                        int32_t y = gy + gwid;
-                        if (y < h && y >= 0) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), 0, y, w, w, h, gridColH);
-                    }
-                }
-            }
-            if (drawKb && kw > 0) {
-                PIXEL_RGBA bgCol = colorWhiteKey;
-                PIXEL_RGBA bkCol = colorBlackKey;
-                if (reactionMode == 1 && isActive) {
-                    if (currentIsBlack) bkCol = activeCol;
-                    else bgCol = activeCol;
-                }
-                if (currentIsBlack) {
-                    DrawBox(imgBuf.data(), w, h, kx, ky, kw, kh, colorWhiteKey, {}, 0, 0, false);
-                    int32_t cy = ky + kh / 2;
-                    if (cy >= 0 && cy < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), kx, cy, kw, w, h, keyBorderCol);
-                    double shortKw = kw * blackKeyRatio;
-                    int32_t diff = kw - static_cast<int32_t>(shortKw);
-                    int32_t blackKw = static_cast<int32_t>(shortKw);
-                    int32_t blackKx = kx;
-                    if (scrollMode == 0) blackKx += diff;
-                    DrawBox(imgBuf.data(), w, h, blackKx + sinkOffsetX, ky + sinkOffsetY, blackKw, kh, bkCol, keyBorderCol, 1, 0, false);
-                    if (reactionMode == 2 && isActive) DrawLED(blackKx + sinkOffsetX, ky + sinkOffsetY, blackKw, kh, activeCol);
-                } else {
-                    DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, bgCol, {}, 0, 0, false);
-                    if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, activeCol);
-                    if (n == 0 || n == 5) {
-                        int32_t by = ky + kh - 1;
-                        if (by >= 0 && by < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), kx, by, kw, w, h, keyBorderCol);
-                    }
-                }
-            }
-        } else {
-            kw = static_cast<int32_t>(ceil(keySize));
-            kh = static_cast<int32_t>(kbWidth);
-            kx = static_cast<int32_t>(i * keySize);
-            ky = (scrollMode == 2) ? h - kh : 0;
-            if (check_grid_h.value) {
-                int32_t gx = kx;
-                if (gx < w && gx >= 0) {
-                    for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
-                        int32_t x = gx + gwid;
-                        if (x >= 0 && x < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), x, 0, h, w, h, gridColV);
-                    }
-                }
-            }
-            if (drawKb && kh > 0) {
-                PIXEL_RGBA bgCol = colorWhiteKey;
-                PIXEL_RGBA bkCol = colorBlackKey;
-                if (reactionMode == 1 && isActive) {
-                    if (currentIsBlack) bkCol = activeCol;
-                    else bgCol = activeCol;
-                }
-                if (currentIsBlack) {
-                    DrawBox(imgBuf.data(), w, h, kx, ky, kw, kh, colorWhiteKey, {}, 0, 0, false);
-                    int32_t cx = kx + kw / 2;
-                    if (cx >= 0 && cx < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), cx, ky, kh, w, h, keyBorderCol);
-                    double shortKh = kh * blackKeyRatio;
-                    int32_t diff = kh - static_cast<int32_t>(shortKh);
-                    int32_t blackKh = static_cast<int32_t>(shortKh);
-                    int32_t blackKy = ky;
-                    if (scrollMode == 3) blackKy += diff;
-                    DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, blackKy + sinkOffsetY, kw, blackKh, bkCol, keyBorderCol, 1, 0, false);
-                    if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, blackKy + sinkOffsetY, kw, blackKh, activeCol);
-                } else {
-                    DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, bgCol, {}, 0, 0, false);
-                    if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, activeCol);
-                    if (n == 0 || n == 5) {
-                        if (kx >= 0 && kx < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), kx, ky, kh, w, h, keyBorderCol);
-                    }
-                }
-            }
-        }
-    }
-    if (enableRipple) {
-        for (const auto& ev : effectEvents) {
-            if (ev.pitch < minKey || ev.pitch > maxKey) continue;
-            int32_t i = ev.pitch - minKey;
-            int32_t cx = 0, cy = 0;
-            int32_t sPos = static_cast<int32_t>(scrollPos);
-            if (scrollMode == 0 || scrollMode == 1) {
-                int32_t kh = static_cast<int32_t>(ceil(keySize));
-                int32_t ky = h - static_cast<int32_t>((i + 1) * keySize);
-                cy = ky + kh / 2;
-                if (scrollMode == 0) cx = sPos;
-                else cx = w - sPos;
-            } else {
-                int32_t kw = static_cast<int32_t>(ceil(keySize));
-                int32_t kx = static_cast<int32_t>(i * keySize);
-                cx = kx + kw / 2;
-                if (scrollMode == 2) cy = h - sPos;
-                else cy = sPos;
-            }
-            RenderRipple(cx, cy, ev.color, ev.timeSec);
-        }
-    }
     if (check_grid_v.value && tpqn > 0) {
         PIXEL_RGBA beatCol = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 80 };
         PIXEL_RGBA measureCol = { static_cast<uint8_t>(color_grid.value.r), static_cast<uint8_t>(color_grid.value.g), static_cast<uint8_t>(color_grid.value.b), 160 };
@@ -1091,6 +969,129 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                     }
                 }
             }
+        }
+    }
+    if (check_grid_h.value) {
+        for (int32_t i = 0; i < range; ++i) {
+            if (scrollMode == 0 || scrollMode == 1) {
+                int32_t kh = static_cast<int32_t>(ceil(keySize));
+                int32_t gy = h - static_cast<int32_t>((i + 1) * keySize) + kh;
+                for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
+                    int32_t y = gy + gwid;
+                    if (y >= 0 && y < h)
+                        Avx2Utils::BlendLineRGBAx8(imgBuf.data(), 0, y, w, w, h, gridCol);
+                }
+            } else {
+                int32_t gx = static_cast<int32_t>(i * keySize);
+                for (int32_t gwid = 0; gwid < grid_width; ++gwid) {
+                    int32_t x = gx + gwid;
+                    if (x >= 0 && x < w)
+                        Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), x, 0, h, w, h, gridCol);
+                }
+            }
+        }
+    }
+    for (int32_t i = 0; i < range; i++) {
+        int32_t noteNum = minKey + i;
+        bool currentIsBlack = isBlackKey(noteNum);
+        int32_t n = noteNum % 12;
+        if (n < 0) n += 12;
+        bool isActive = keyIsActive[noteNum];
+        PIXEL_RGBA activeCol = activeKeyColors[noteNum];
+        int32_t kx = 0, ky = 0, kw = 0, kh = 0;
+        int32_t sinkOffsetX = 0;
+        int32_t sinkOffsetY = 0;
+        if (isActive) {
+            if (scrollMode == 0) sinkOffsetX = sinkDepth;
+            else if (scrollMode == 1) sinkOffsetX = -sinkDepth;
+            else if (scrollMode == 2) sinkOffsetY = -sinkDepth;
+            else if (scrollMode == 3) sinkOffsetY = sinkDepth;
+        }
+        if (scrollMode == 0 || scrollMode == 1) {
+            kh = static_cast<int32_t>(ceil(keySize));
+            kw = static_cast<int32_t>(kbWidth);
+            ky = h - static_cast<int32_t>((i + 1) * keySize);
+            kx = (scrollMode == 0) ? 0 : w - kw;
+            if (drawKb && kw > 0) {
+                PIXEL_RGBA bgCol = colorWhiteKey;
+                PIXEL_RGBA bkCol = colorBlackKey;
+                if (reactionMode == 1 && isActive) {
+                    if (currentIsBlack) bkCol = activeCol;
+                    else bgCol = activeCol;
+                }
+                if (currentIsBlack) {
+                    DrawBox(imgBuf.data(), w, h, kx, ky, kw, kh, colorWhiteKey, {}, 0, 0, false);
+                    int32_t cy = ky + kh / 2;
+                    if (cy >= 0 && cy < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), kx, cy, kw, w, h, keyBorderCol);
+                    double shortKw = kw * blackKeyRatio;
+                    int32_t diff = kw - static_cast<int32_t>(shortKw);
+                    int32_t blackKw = static_cast<int32_t>(shortKw);
+                    int32_t blackKx = kx;
+                    if (scrollMode == 0) blackKx += diff;
+                    DrawBox(imgBuf.data(), w, h, blackKx + sinkOffsetX, ky + sinkOffsetY, blackKw, kh, bkCol, keyBorderCol, 1, 0, false);
+                    if (reactionMode == 2 && isActive) DrawLED(blackKx + sinkOffsetX, ky + sinkOffsetY, blackKw, kh, activeCol);
+                } else {
+                    DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, bgCol, {}, 0, 0, false);
+                    if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, activeCol);
+                    if (n == 0 || n == 5) {
+                        int32_t by = ky + kh - 1;
+                        if (by >= 0 && by < h) Avx2Utils::BlendLineRGBAx8(imgBuf.data(), kx, by, kw, w, h, keyBorderCol);
+                    }
+                }
+            }
+        } else {
+            kw = static_cast<int32_t>(ceil(keySize));
+            kh = static_cast<int32_t>(kbWidth);
+            kx = static_cast<int32_t>(i * keySize);
+            ky = (scrollMode == 2) ? h - kh : 0;
+            if (drawKb && kh > 0) {
+                PIXEL_RGBA bgCol = colorWhiteKey;
+                PIXEL_RGBA bkCol = colorBlackKey;
+                if (reactionMode == 1 && isActive) {
+                    if (currentIsBlack) bkCol = activeCol;
+                    else bgCol = activeCol;
+                }
+                if (currentIsBlack) {
+                    DrawBox(imgBuf.data(), w, h, kx, ky, kw, kh, colorWhiteKey, {}, 0, 0, false);
+                    int32_t cx = kx + kw / 2;
+                    if (cx >= 0 && cx < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), cx, ky, kh, w, h, keyBorderCol);
+                    double shortKh = kh * blackKeyRatio;
+                    int32_t diff = kh - static_cast<int32_t>(shortKh);
+                    int32_t blackKh = static_cast<int32_t>(shortKh);
+                    int32_t blackKy = ky;
+                    if (scrollMode == 3) blackKy += diff;
+                    DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, blackKy + sinkOffsetY, kw, blackKh, bkCol, keyBorderCol, 1, 0, false);
+                    if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, blackKy + sinkOffsetY, kw, blackKh, activeCol);
+                } else {
+                    DrawBox(imgBuf.data(), w, h, kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, bgCol, {}, 0, 0, false);
+                    if (reactionMode == 2 && isActive) DrawLED(kx + sinkOffsetX, ky + sinkOffsetY, kw, kh, activeCol);
+                    if (n == 0 || n == 5) {
+                        if (kx >= 0 && kx < w) Avx2Utils::BlendVerticalLineRGBAx8(imgBuf.data(), kx, ky, kh, w, h, keyBorderCol);
+                    }
+                }
+            }
+        }
+    }
+    if (enableRipple) {
+        for (const auto& ev : effectEvents) {
+            if (ev.pitch < minKey || ev.pitch > maxKey) continue;
+            int32_t i = ev.pitch - minKey;
+            int32_t cx = 0, cy = 0;
+            int32_t sPos = static_cast<int32_t>(scrollPos);
+            if (scrollMode == 0 || scrollMode == 1) {
+                int32_t kh = static_cast<int32_t>(ceil(keySize));
+                int32_t ky = h - static_cast<int32_t>((i + 1) * keySize);
+                cy = ky + kh / 2;
+                if (scrollMode == 0) cx = sPos;
+                else cx = w - sPos;
+            } else {
+                int32_t kw = static_cast<int32_t>(ceil(keySize));
+                int32_t kx = static_cast<int32_t>(i * keySize);
+                cx = kx + kw / 2;
+                if (scrollMode == 2) cy = h - sPos;
+                else cy = sPos;
+            }
+            RenderRipple(cx, cy, ev.color, ev.timeSec);
         }
     }
     if (drawNotes) {
