@@ -159,10 +159,6 @@ inline Version parseVersion(std::wstring_view v) {
     return res;
 }
 
-extern std::atomic<double> g_shared_bpm;
-extern std::atomic<int32_t> g_shared_ts_num;
-extern std::atomic<int32_t> g_shared_ts_denom;
-
 #define TYPE_AUDIO_FILTER_OBJECT FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_FILTER
 #define TYPE_VIDEO_MEDIA FILTER_PLUGIN_TABLE::FLAG_VIDEO | FILTER_PLUGIN_TABLE::FLAG_INPUT
 #define TYPE_AUDIO_MEDIA FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT
