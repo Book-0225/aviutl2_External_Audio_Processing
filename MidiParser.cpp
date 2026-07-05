@@ -177,6 +177,23 @@ int64_t MidiParser::GetTickAtTime(double time) const {
     return it->tick + static_cast<int64_t>(ticks + 0.5);
 }
 
+double MidiParser::GetTimeAtTick(double tick) const {
+    double safeTpqn = (m_tpqn > 0) ? static_cast<double>(m_tpqn) : 480.0;
+    if (m_tempoMap.empty()) return tick * 60.0 / (120.0 * safeTpqn);
+    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), tick,
+                               [](double tk, const TempoMapEntry& entry) {
+                                   return tk < entry.tick;
+                               });
+    if (it == m_tempoMap.begin()) {
+        const auto& first = m_tempoMap.front();
+        double safeMpqn = (first.mpqn > 0) ? static_cast<double>(first.mpqn) : 500000.0;
+        return first.time + (tick - first.tick) * safeMpqn / (1000000.0 * safeTpqn);
+    }
+    --it;
+    double safeMpqn = (it->mpqn > 0) ? static_cast<double>(it->mpqn) : 500000.0;
+    return it->time + (tick - it->tick) * safeMpqn / (1000000.0 * safeTpqn);
+}
+
 double MidiParser::GetBpmAtTime(double time) const {
     if (m_tempoMap.empty()) return 120.0;
     auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), time,

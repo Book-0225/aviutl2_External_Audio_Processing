@@ -8,8 +8,11 @@
 #include "PluginManager.h"
 #include "PluginType.h"
 #include "StringUtils.h"
+#include "TempoUtils.h"
 #include "ToolParamListWindow.h"
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <map>
 #include <set>
@@ -726,21 +729,113 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
 
         double current_time_sec = static_cast<double>(current_pos) / audio->scene->sample_rate;
-        if (sync_bpm == 1) {
-            bpm = ms.parser.GetBpmAtTime(current_time_sec);
-            auto ts_evt = ms.parser.GetTimeSignatureAt(static_cast<uint32_t>(ms.parser.GetTickAtTime(current_time_sec)));
-            if (ts_evt.numerator > 0 && ts_evt.denominator > 0) {
-                ts_num = ts_evt.numerator;
-                ts_denom = ts_evt.denominator;
+        std::vector<BPM_INFO> aviutl_bpm_list;
+        std::vector<AviUtl_Tempo_Segment> aviutl_segments;
+        double aviutl_tick_at_zero = 0.0;
+        std::vector<AviUtl_Tempo_Segment> manual_segments;
+        OBJECT_HANDLE self_obj = audio->edit ? audio->edit->find_object(audio->object->layer, audio->object->frame_s) : nullptr;
+        double frames_per_sec = (audio->scene->scale > 0)
+                                    ? static_cast<double>(audio->scene->rate) / audio->scene->scale
+                                    : 30.0;
+        double time_total = audio->object->time_total;
+        LPCWSTR filter_track_name = is_object ? filter_name_media : filter_name;
+
+        auto get_track_value_at = [&](LPCWSTR item, double local_sec, double fallback) -> double {
+            if (!audio->edit || !self_obj || frames_per_sec <= 0.0) return fallback;
+            double clamped = (std::max)(0.0, (std::min)(local_sec, time_total));
+            double global_frame = static_cast<double>(audio->object->frame_s) + clamped * frames_per_sec;
+            double value = fallback;
+            if (!audio->edit->get_object_track_value(self_obj, filter_track_name, item, global_frame, &value))
+                return fallback;
+            return value;
+        };
+
+        double manual_tick_rate = (track_bpm.value > 0.0)
+                                      ? (track_bpm.value * ms.parser.GetTPQN() / 60.0)
+                                      : (120.0 * ms.parser.GetTPQN() / 60.0);
+        if (sync_bpm == 2) {
+            aviutl_bpm_list = get_all_bpm(audio->edit);
+            aviutl_segments = build_aviutl_tempo_segments(aviutl_bpm_list, ms.parser.GetTPQN());
+            aviutl_tick_at_zero = aviutl_cumulative_tick(aviutl_segments, 0.0);
+        } else if (sync_bpm == 0 && self_obj && frames_per_sec > 0.0) {
+            double end_time_sec = static_cast<double>(current_pos + total_samples) / audio->scene->sample_rate;
+            if (host_for_audio) {
+                end_time_sec += static_cast<double>(host_for_audio->GetLatencySamples()) / audio->scene->sample_rate;
             }
-        } else if (sync_bpm == 2) {
-            bpm = g_shared_bpm.load();
-            ts_num = g_shared_ts_num.load();
-            ts_denom = g_shared_ts_denom.load();
-        } else {
-            bpm = track_bpm.value;
+            double frame_len = 1.0 / frames_per_sec;
+            double max_time_sec = (std::max)(0.0, (std::min)(end_time_sec + frame_len, time_total));
+            int32_t segment_count = static_cast<int32_t>(std::ceil(max_time_sec * frames_per_sec)) + 1;
+            segment_count = (std::max)(1, segment_count);
+            manual_segments.reserve(segment_count);
+
+            double cum_tick = 0.0;
+            double prev_time = 0.0;
+            double prev_bpm = get_track_value_at(L"BPM", 0.0, track_bpm.value);
+            if (prev_bpm < 0.1) prev_bpm = 0.1;
+            manual_segments.push_back({ 0.0, 0.0, prev_bpm * ms.parser.GetTPQN() / 60.0 });
+
+            for (int32_t i = 1; i < segment_count; ++i) {
+                double t = (std::min)(i * frame_len, max_time_sec);
+                cum_tick += (t - prev_time) * manual_segments.back().ticks_per_sec;
+                double bpm_at_t = get_track_value_at(L"BPM", t, track_bpm.value);
+                if (bpm_at_t < 0.1) bpm_at_t = 0.1;
+                manual_segments.push_back({ t, cum_tick, bpm_at_t * ms.parser.GetTPQN() / 60.0 });
+                prev_time = t;
+            }
         }
-        if (bpm < 0.1) bpm = 0.1;
+
+        auto get_bpm_and_signature_at = [&](double time_sec, double& out_bpm, int32_t& out_num, int32_t& out_denom) {
+            if (sync_bpm == 1) {
+                out_bpm = ms.parser.GetBpmAtTime(time_sec);
+                auto ts_evt = ms.parser.GetTimeSignatureAt(static_cast<uint32_t>(ms.parser.GetTickAtTime(time_sec)));
+                if (ts_evt.numerator > 0 && ts_evt.denominator > 0) {
+                    out_num = ts_evt.numerator;
+                    out_denom = ts_evt.denominator;
+                }
+            } else if (sync_bpm == 2) {
+                const BPM_INFO* bpm_info = get_bpm_info(aviutl_bpm_list, time_sec);
+                if (bpm_info && bpm_info->tempo > 0) {
+                    out_bpm = bpm_info->tempo;
+                    Time_Signature sig = get_time_signature(*bpm_info);
+                    out_num = sig.numerator;
+                    out_denom = sig.denominator;
+                } else {
+                    out_bpm = track_bpm.value;
+                }
+            } else {
+                out_bpm = get_track_value_at(L"BPM", time_sec, track_bpm.value);
+            }
+            if (out_bpm < 0.1) out_bpm = 0.1;
+        };
+
+        auto time_to_midi_tick = [&](double time_sec) -> int64_t {
+            if (sync_bpm == 1) {
+                return ms.parser.GetTickAtTime(time_sec);
+            }
+            if (sync_bpm == 2 && !aviutl_segments.empty()) {
+                return static_cast<int64_t>(std::floor(aviutl_cumulative_tick(aviutl_segments, time_sec) - aviutl_tick_at_zero));
+            }
+            if (sync_bpm == 0 && !manual_segments.empty()) {
+                return static_cast<int64_t>(std::floor(aviutl_cumulative_tick(manual_segments, time_sec)));
+            }
+            return static_cast<int64_t>(std::floor(time_sec * manual_tick_rate));
+        };
+
+        auto midi_tick_to_time = [&](double tick) -> double {
+            if (sync_bpm == 1) {
+                return ms.parser.GetTimeAtTick(tick);
+            }
+            if (sync_bpm == 2 && !aviutl_segments.empty()) {
+                return aviutl_time_at_tick(aviutl_segments, tick + aviutl_tick_at_zero);
+            }
+            if (sync_bpm == 0 && !manual_segments.empty()) {
+                return aviutl_time_at_tick(manual_segments, tick);
+            }
+            if (manual_tick_rate <= 0.0) return 0.0;
+            return tick / manual_tick_rate;
+        };
+
+        get_bpm_and_signature_at(current_time_sec, bpm, ts_num, ts_denom);
 
         if (should_reset) {
             host_for_audio->Reset(current_pos, bpm, ts_num, ts_denom);
@@ -846,15 +941,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             int64_t end_tick = 0;
 
             if (ms.parser.GetTPQN() > 0) {
-                if (sync_bpm == 1) {
-                    start_tick = ms.parser.GetTickAtTime(time_start);
-                    end_tick = ms.parser.GetTickAtTime(time_end);
-                } else {
-                    double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
-                    if (samplesPerTick < 0.001) samplesPerTick = 0.001;
-                    start_tick = static_cast<int64_t>(current_block_pos / samplesPerTick);
-                    end_tick = static_cast<int64_t>((current_block_pos + block_size) / samplesPerTick);
-                }
+                start_tick = time_to_midi_tick(time_start);
+                end_tick = time_to_midi_tick(time_end);
+                if (end_tick < start_tick) std::swap(start_tick, end_tick);
 
                 const auto& all_events = ms.parser.GetEvents();
                 auto it = std::lower_bound(all_events.begin(), all_events.end(), start_tick,
@@ -865,16 +954,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
                     int32_t delta_samples = 0;
 
-                    if (sync_bpm == 1) {
-                        int64_t tick_diff = it->absoluteTick - start_tick;
-                        int64_t total_tick_diff = end_tick - start_tick;
-                        if (total_tick_diff > 0) delta_samples = static_cast<int32_t>(static_cast<double>(tick_diff) / total_tick_diff * block_size);
-                    } else {
-                        double samplesPerTick = (60.0 * audio->scene->sample_rate) / (bpm * ms.parser.GetTPQN());
-                        double raw_delta = (it->absoluteTick * samplesPerTick) - current_block_pos;
-                        if (raw_delta > block_size) raw_delta = block_size;
-                        delta_samples = static_cast<int32_t>(raw_delta);
-                    }
+                    double event_time_sec = midi_tick_to_time(static_cast<double>(it->absoluteTick));
+                    double raw_delta = (event_time_sec - time_start) * audio->scene->sample_rate;
+                    if (raw_delta > block_size) raw_delta = block_size;
+                    delta_samples = static_cast<int32_t>(std::floor(raw_delta + 0.5));
 
                     if (delta_samples < 0) delta_samples = 0;
                     if (delta_samples >= block_size) delta_samples = block_size - 1;
@@ -882,6 +965,11 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     midi_events_for_block.push_back({ delta_samples, it->status, it->data1, it->data2 });
                 }
             }
+
+            double block_bpm = bpm;
+            int32_t block_ts_num = ts_num;
+            int32_t block_ts_denom = ts_denom;
+            get_bpm_and_signature_at(time_start, block_bpm, block_ts_num, block_ts_denom);
 
             host_for_audio->ProcessAudio(
                 inL.data() + processed,
@@ -891,9 +979,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 block_size,
                 channels,
                 current_block_pos,
-                bpm,
-                ts_num,
-                ts_denom,
+                block_bpm,
+                block_ts_num,
+                block_ts_denom,
                 midi_events_for_block);
 
             processed += block_size;

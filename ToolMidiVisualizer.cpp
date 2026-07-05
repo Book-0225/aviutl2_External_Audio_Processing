@@ -4,6 +4,7 @@
 #include "MidiParser.h"
 #include "PluginManager.h"
 #include "StringUtils.h"
+#include "TempoUtils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -219,6 +220,47 @@ void DrawRing(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t cx, int32_t cy, flo
     }
 }
 
+struct MidiTempoSegment {
+    double start_tick;
+    double start_time_sec;
+    double sec_per_tick;
+};
+
+template <typename TempoEventList>
+std::vector<MidiTempoSegment> BuildMidiTempoSegments(const TempoEventList& tempos, uint16_t tpqn) {
+    std::vector<MidiTempoSegment> segs;
+    double safeTpqn = (tpqn > 0) ? static_cast<double>(tpqn) : 1.0;
+    double defaultSecPerTick = 500000.0 / (1e6 * safeTpqn);
+
+    bool hasZero = !tempos.empty() && tempos.front().absoluteTick == 0;
+    if (!hasZero) segs.push_back({ 0.0, 0.0, defaultSecPerTick });
+
+    for (const auto& t : tempos) {
+        double tick = static_cast<double>(t.absoluteTick);
+        double secPerTick = static_cast<double>(t.mpqn) / (1e6 * safeTpqn);
+        double startTime = 0.0;
+        if (!segs.empty()) {
+            double dt = tick - segs.back().start_tick;
+            startTime = segs.back().start_time_sec + dt * segs.back().sec_per_tick;
+        }
+        segs.push_back({ tick, startTime, secPerTick });
+    }
+    return segs;
+}
+
+double MidiTickToTime(const std::vector<MidiTempoSegment>& segs, double tick) {
+    if (segs.empty()) return 0.0;
+    if (tick <= segs.front().start_tick) {
+        const auto& s = segs.front();
+        return s.start_time_sec + (tick - s.start_tick) * s.sec_per_tick;
+    }
+    auto it = std::upper_bound(
+        segs.begin(), segs.end(), tick,
+        [](double tk, const MidiTempoSegment& s) { return tk < s.start_tick; });
+    const MidiTempoSegment& seg = *(it - 1);
+    return seg.start_time_sec + (tick - seg.start_tick) * seg.sec_per_tick;
+}
+
 FILTER_ITEM_FILE track_file(L"MIDI File", L"", L"MIDI File (*.mid)\0*.mid;*.midi\0");
 FILTER_ITEM_GROUP group_canvas(L"表示設定");
 FILTER_ITEM_TRACK track_width(L"幅", 1280.0, 10.0, 4000.0, 1.0, nullptr, 1.0);
@@ -262,6 +304,8 @@ FILTER_ITEM_TRACK track_manual_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullp
 FILTER_ITEM_TRACK track_manual_num(L"分子(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_manual_denom(L"分母(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_speed_mul(L"速度", 1.0, 0.1, 10.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_CHECK check_constant_speed(L"ノーツ速度を固定", false);
+FILTER_ITEM_TRACK track_ref_bpm(L"固定表示BPM", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_GROUP group_filter(L"フィルタ", false);
 FILTER_ITEM_TRACK track_ch_target(L"チャンネル", 0, 0, 16, 1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_vel_min(L"最小強度", 0, 0, 127, 1, nullptr, 1.0);
@@ -354,6 +398,8 @@ void* filter_items_midi_visualizer[] = {
     &track_manual_num,
     &track_manual_denom,
     &track_speed_mul,
+    &check_constant_speed,
+    &track_ref_bpm,
     &group_filter,
     &track_ch_target,
     &track_vel_min,
@@ -516,6 +562,12 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     uint16_t tpqn = data.parser.GetTPQN();
     double ticksPerSec = 0;
     double bpm = 120.0;
+
+    std::vector<BPM_INFO> bpm_list;
+    std::vector<AviUtl_Tempo_Segment> segments;
+    double avu_cum_zero = 0.0;
+    std::vector<MidiTempoSegment> midiTempoSegs;
+
     if (select_bpm_sync_visualizer.value == 1) {
         currentTick = data.parser.GetTickAtTime(currentTime * speedMul);
         auto& tempos = data.parser.GetTempoEvents();
@@ -525,10 +577,21 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
             else break;
         }
         if (mpqn > 0) bpm = 60000000.0 / mpqn;
+        midiTempoSegs = BuildMidiTempoSegments(tempos, tpqn);
     } else if (select_bpm_sync_visualizer.value == 2) {
-        bpm = g_shared_bpm.load();
-        if (bpm <= 0) bpm = 120;
-        currentTick = static_cast<int64_t>(currentTime * (bpm * tpqn / 60.0) * speedMul);
+        bpm_list = get_all_bpm(video->edit);
+        segments = build_aviutl_tempo_segments(bpm_list, tpqn);
+
+        const BPM_INFO* info = get_bpm_info(bpm_list, currentTime);
+        bpm = (info && info->tempo > 0) ? info->tempo : 120.0;
+
+        if (segments.empty()) {
+            currentTick = static_cast<int64_t>(currentTime * (bpm * tpqn / 60.0) * speedMul);
+        } else {
+            avu_cum_zero = aviutl_cumulative_tick(segments, 0.0);
+            double cum_now = aviutl_cumulative_tick(segments, currentTime);
+            currentTick = static_cast<int64_t>((cum_now - avu_cum_zero) * speedMul);
+        }
     } else {
         bpm = track_manual_bpm.value;
         if (bpm <= 0) bpm = 120;
@@ -537,9 +600,89 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
 
     ticksPerSec = (bpm * tpqn / 60.0) * speedMul;
     if (ticksPerSec <= 0) ticksPerSec = 1;
+
+    OBJECT_HANDLE selfObj = video->edit->find_object(video->object->layer, video->object->frame_s);
+    if (selfObj) {
+        double framesPerSec = (video->scene->scale > 0)
+                                  ? static_cast<double>(video->scene->rate) / video->scene->scale
+                                  : 30.0;
+        double timeTotal = video->object->time_total;
+
+        auto GetTrackValueAt = [&](LPCWSTR item, double localSec, double fallback) -> double {
+            double clamped = (std::max)(0.0, (std::min)(localSec, timeTotal));
+            double globalFrame = static_cast<double>(video->object->frame_s) + clamped * framesPerSec;
+            double value = fallback;
+            if (!video->edit->get_object_track_value(selfObj, GEN_TOOL_NAME(TOOL_NAME), item, globalFrame, &value))
+                return fallback;
+            return value;
+        };
+
+        auto InstantTempoTickRate = [&](double localSec) -> double {
+            if (select_bpm_sync_visualizer.value == 1) {
+                if (midiTempoSegs.empty()) return (120.0 * tpqn) / 60.0;
+                double midiTick = static_cast<double>(data.parser.GetTickAtTime(localSec));
+                auto it = std::upper_bound(midiTempoSegs.begin(), midiTempoSegs.end(), midiTick,
+                                           [](double tk, const MidiTempoSegment& s) { return tk < s.start_tick; });
+                const auto& seg = (it == midiTempoSegs.begin()) ? midiTempoSegs.front() : *(it - 1);
+                return (seg.sec_per_tick > 0) ? (1.0 / seg.sec_per_tick) : ((120.0 * tpqn) / 60.0);
+            } else if (select_bpm_sync_visualizer.value == 2) {
+                if (segments.empty()) return (120.0 * tpqn) / 60.0;
+                auto it = std::upper_bound(segments.begin(), segments.end(), localSec,
+                                           [](double time, const AviUtl_Tempo_Segment& s) { return time < s.start_time; });
+                const auto& seg = (it == segments.begin()) ? segments.front() : *(it - 1);
+                return seg.ticks_per_sec;
+            } else {
+                double manualBpm = GetTrackValueAt(L"BPM(手動)", localSec, track_manual_bpm.value);
+                if (manualBpm <= 0) manualBpm = 120.0;
+                return (manualBpm * tpqn) / 60.0;
+            }
+        };
+
+        double target = currentTime;
+        double sign = (target < 0.0) ? -1.0 : 1.0;
+        double hi = std::fabs(target);
+        double frameLen = (framesPerSec > 0) ? (1.0 / framesPerSec) : (1.0 / 30.0);
+        double accumTick = 0.0;
+        for (double t = 0.0; t < hi; t += frameLen) {
+            double dt = (std::min)(frameLen, hi - t);
+            double mid = sign * (t + dt * 0.5);
+            double rate = InstantTempoTickRate(mid);
+            double spd = GetTrackValueAt(L"速度", mid, track_speed_mul.value);
+            accumTick += dt * rate * spd;
+        }
+        currentTick = static_cast<int64_t>(sign * accumTick);
+
+        double instRate = InstantTempoTickRate(target);
+        double instSpeed = GetTrackValueAt(L"速度", target, track_speed_mul.value);
+        ticksPerSec = instRate * instSpeed;
+        if (ticksPerSec <= 0) ticksPerSec = 1;
+    }
+
     int32_t scrollMode = select_scroll.value;
     int32_t reactionMode = select_reaction.value;
     double zoomT = track_zoom_time.value / 100.0;
+
+    bool fixedSpeed = check_constant_speed.value && select_bpm_sync_visualizer.value != 0;
+    double fixedPixelsPerSec = 0.0;
+    if (fixedSpeed) {
+        double refBpm = track_ref_bpm.value;
+        if (refBpm <= 0) refBpm = 120.0;
+        fixedPixelsPerSec = zoomT * (refBpm * tpqn / 60.0) * speedMul;
+    }
+    auto TickOffsetPixels = [&](double tick) -> double {
+        if (!fixedSpeed) {
+            return (tick - static_cast<double>(currentTick)) * zoomT;
+        }
+        double t = currentTime;
+        if (select_bpm_sync_visualizer.value == 1) {
+            if (speedMul != 0.0) t = MidiTickToTime(midiTempoSegs, tick) / speedMul;
+        } else if (select_bpm_sync_visualizer.value == 2) {
+            double rawCumTick = avu_cum_zero + (speedMul != 0.0 ? tick / speedMul : 0.0);
+            t = aviutl_time_at_tick(segments, rawCumTick);
+        }
+        return (t - currentTime) * fixedPixelsPerSec;
+    };
+
     int32_t minKey = static_cast<int32_t>(track_key_min.value);
     int32_t maxKey = static_cast<int32_t>(track_key_max.value);
     if (minKey > maxKey) std::swap(minKey, maxKey);
@@ -896,28 +1039,42 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
             int64_t maxTick = currentTick + tickOffset;
             int64_t startLoopTick = (minTick / tpqn) * tpqn;
             for (int64_t t = startLoopTick; t < maxTick; t += tpqn) {
-                auto ts = data.parser.GetTimeSignatureAt(static_cast<uint32_t>(t));
+                TimeSignatureEvent ts = data.parser.GetTimeSignatureAt(static_cast<uint32_t>(t));
                 int64_t measureLen;
+                int64_t phaseTick = ts.absoluteTick;
                 switch (select_bpm_sync_visualizer.value) {
                     case 1:
                         measureLen = static_cast<int64_t>(ts.numerator) * tpqn * 4 / ts.denominator;
                         break;
-                    case 2:
-                        measureLen = g_shared_ts_num.load() * tpqn * 4 / g_shared_ts_denom.load();
+                    case 2: {
+                        double rawCumTick = avu_cum_zero + (speedMul != 0.0 ? static_cast<double>(t) / speedMul : 0.0);
+                        double tTime = aviutl_time_at_tick(segments, rawCumTick);
+                        const BPM_INFO* bpm_info = get_bpm_info(bpm_list, tTime);
+                        if (bpm_info) {
+                            Time_Signature sig = get_time_signature(*bpm_info);
+                            measureLen = static_cast<int64_t>(sig.numerator) * tpqn * 4 / sig.denominator;
+                            double phaseTime = bpm_info->start + bpm_info->offset;
+                            double phaseCumTick = aviutl_cumulative_tick(segments, phaseTime);
+                            phaseTick = static_cast<int64_t>(std::llround(phaseCumTick - avu_cum_zero));
+                        } else {
+                            measureLen = tpqn * 4;
+                        }
                         break;
+                    }
                     default:
                         measureLen = static_cast<int64_t>(track_manual_num.value * tpqn * 4 / track_manual_denom.value);
                         break;
                 }
                 if (measureLen == 0) measureLen = tpqn * 4;
-                int64_t relTick = t - ts.absoluteTick;
+
+                int64_t relTick = t - phaseTick;
                 bool isMeasure = (relTick >= 0) && (relTick % measureLen == 0);
-                int64_t diff = t - currentTick;
+                double diffPixels = TickOffsetPixels(static_cast<double>(t));
                 int32_t pos = 0;
-                if (scrollMode == 0) pos = static_cast<int32_t>(scrollPos + diff * zoomT);
-                else if (scrollMode == 1) pos = static_cast<int32_t>(w - (scrollPos + diff * zoomT));
-                else if (scrollMode == 2) pos = static_cast<int32_t>(h - (scrollPos + diff * zoomT));
-                else if (scrollMode == 3) pos = static_cast<int32_t>(scrollPos + diff * zoomT);
+                if (scrollMode == 0) pos = static_cast<int32_t>(scrollPos + diffPixels);
+                else if (scrollMode == 1) pos = static_cast<int32_t>(w - (scrollPos + diffPixels));
+                else if (scrollMode == 2) pos = static_cast<int32_t>(h - (scrollPos + diffPixels));
+                else if (scrollMode == 3) pos = static_cast<int32_t>(scrollPos + diffPixels);
                 if (pos < -2 || pos > maxDim + 2) continue;
                 PIXEL_RGBA col = isMeasure ? measureCol : beatCol;
                 if (scrollMode == 0 || scrollMode == 1) {
@@ -940,38 +1097,38 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
             if (hidePerc && note.channel == 9) continue;
             if (note.pitch < minKey || note.pitch > maxKey) continue;
             if (note.velocity < minVel) continue;
-            int64_t diffStart = static_cast<int64_t>(note.startTick) - currentTick;
-            int64_t diffEnd = static_cast<int64_t>(note.endTick) - currentTick;
+            double diffStartPixels = TickOffsetPixels(static_cast<double>(note.startTick));
+            double diffEndPixels = TickOffsetPixels(static_cast<double>(note.endTick));
             if (reactionMode > 0) {
-                if (diffEnd <= 0) continue;
-                if (diffStart < 0) diffStart = 0;
+                if (diffEndPixels <= 0) continue;
+                if (diffStartPixels < 0) diffStartPixels = 0;
             }
             int32_t x = 0, y = 0, rw = 0, rh = 0;
             int32_t keyIndex = note.pitch - minKey;
             if (scrollMode == 0) {
-                int32_t nStart = static_cast<int32_t>(scrollPos + diffStart * zoomT);
-                int32_t nEnd = static_cast<int32_t>(scrollPos + diffEnd * zoomT);
+                int32_t nStart = static_cast<int32_t>(scrollPos + diffStartPixels);
+                int32_t nEnd = static_cast<int32_t>(scrollPos + diffEndPixels);
                 x = nStart;
                 rw = nEnd - nStart;
                 rh = static_cast<int32_t>(keySize);
                 y = h - static_cast<int32_t>((keyIndex + 1) * keySize);
             } else if (scrollMode == 1) {
-                int32_t nStart = static_cast<int32_t>(w - (scrollPos + diffStart * zoomT));
-                int32_t nEnd = static_cast<int32_t>(w - (scrollPos + diffEnd * zoomT));
+                int32_t nStart = static_cast<int32_t>(w - (scrollPos + diffStartPixels));
+                int32_t nEnd = static_cast<int32_t>(w - (scrollPos + diffEndPixels));
                 x = nEnd;
                 rw = nStart - nEnd;
                 rh = static_cast<int32_t>(keySize);
                 y = h - static_cast<int32_t>((keyIndex + 1) * keySize);
             } else if (scrollMode == 2) {
-                int32_t nStart = static_cast<int32_t>(h - (scrollPos + diffStart * zoomT));
-                int32_t nEnd = static_cast<int32_t>(h - (scrollPos + diffEnd * zoomT));
+                int32_t nStart = static_cast<int32_t>(h - (scrollPos + diffStartPixels));
+                int32_t nEnd = static_cast<int32_t>(h - (scrollPos + diffEndPixels));
                 y = nEnd;
                 rh = nStart - nEnd;
                 rw = static_cast<int32_t>(keySize);
                 x = static_cast<int32_t>(keyIndex * keySize);
             } else if (scrollMode == 3) {
-                int32_t nStart = static_cast<int32_t>(scrollPos + diffStart * zoomT);
-                int32_t nEnd = static_cast<int32_t>(scrollPos + diffEnd * zoomT);
+                int32_t nStart = static_cast<int32_t>(scrollPos + diffStartPixels);
+                int32_t nEnd = static_cast<int32_t>(scrollPos + diffEndPixels);
                 y = nStart;
                 rh = nEnd - nStart;
                 rw = static_cast<int32_t>(keySize);

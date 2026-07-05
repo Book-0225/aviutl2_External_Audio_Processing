@@ -38,6 +38,7 @@ class MidiParser {
     const std::vector<TempoEvent>& GetTempoEvents() const { return m_tempoEvents; }
     uint16_t GetTPQN() const { return m_tpqn; }
     int64_t GetTickAtTime(double time) const;
+    double GetTimeAtTick(double tick) const;
     double GetBpmAtTime(double time) const;
     TimeSignatureEvent GetTimeSignatureAt(uint32_t tick) const;
 

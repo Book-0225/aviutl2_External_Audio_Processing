@@ -1,6 +1,7 @@
 ﻿#include "Eap2Common.h"
 #include "MidiParser.h"
 #include "SynthCommon.h"
+#include "TempoUtils.h"
 
 #define TSF_IMPLEMENTATION
 #include "tsf.h"
@@ -453,6 +454,9 @@ class MidiPlayer {
     size_t next_event_index = 0;
     double current_Fs = 44100.0;
 
+    double manual_tick_accum = 0.0;
+    double manual_tick_time = -1.0;
+
     MidiPlayer() = default;
     bool Load(const std::filesystem::path& path) {
         if (currentMidiPath == path && !parser.GetEvents().empty()) return true;
@@ -466,6 +470,8 @@ class MidiPlayer {
         if (renderer) renderer->Reset();
         last_sample_pos = -1;
         next_event_index = 0;
+        manual_tick_accum = 0.0;
+        manual_tick_time = -1.0;
     }
 
     void AllNotesOff() {
@@ -606,7 +612,6 @@ bool func_proc_audio_midi(FILTER_PROC_AUDIO* audio) {
     double offset_sec = midi_offset.value;
     double fixed_bpm = midi_fixed_bpm.value;
     int32_t sync_mode = midi_sync_mode.value;
-    double global_bpm = g_shared_bpm.load();
 
     MidiPlayer* player = nullptr;
     bool seek_detected = false;
@@ -669,18 +674,55 @@ bool func_proc_audio_midi(FILTER_PROC_AUDIO* audio) {
         player->last_sample_pos = current_obj_sample_index + total_samples;
     }
     uint16_t tpqn = player->parser.GetTPQN();
-    double tick_factor = 0.0;
-    if (sync_mode == 0) tick_factor = (fixed_bpm * tpqn) / 60.0;
-    else if (sync_mode == 2) tick_factor = (global_bpm * tpqn) / 60.0;
+    double tick_factor = (fixed_bpm * tpqn) / 60.0;
+    std::vector<AviUtl_Tempo_Segment> segments;
+    double tick_at_offset = 0.0;
+    if (sync_mode == 2) {
+        std::vector<BPM_INFO> bpm_list = get_all_bpm(audio->edit);
+        segments = build_aviutl_tempo_segments(bpm_list, tpqn);
+        tick_at_offset = aviutl_cumulative_tick(segments, offset_sec);
+    }
+
+    bool use_manual_naive = (sync_mode == 0) || (sync_mode == 2 && segments.empty());
+    double buf_t_start = static_cast<double>(current_obj_sample_index) / Fs;
+    if (use_manual_naive) {
+        bool discontinuous = seek_detected || renderer_dirty ||
+                             current_obj_sample_index == 0 ||
+                             player->manual_tick_time < 0.0;
+        if (!discontinuous) {
+            double dt_check = buf_t_start - player->manual_tick_time;
+            if (dt_check < 0.0 || dt_check > 1.0) discontinuous = true;
+        }
+
+        if (discontinuous) {
+            double midi_time0 = buf_t_start - offset_sec;
+            player->manual_tick_accum = (midi_time0 > 0.0) ? midi_time0 * tick_factor : 0.0;
+        } else {
+            double dt = buf_t_start - player->manual_tick_time;
+            double midi_time_start = buf_t_start - offset_sec;
+            if (midi_time_start >= 0.0)
+                player->manual_tick_accum += dt * tick_factor;
+            else
+                player->manual_tick_accum = 0.0;
+        }
+        player->manual_tick_time = buf_t_start;
+    }
+
     auto TimeToTick = [&](double t_sec) -> int64_t {
         double midi_time = t_sec - offset_sec;
         if (midi_time < 0) return -1;
         if (sync_mode == 1) return player->parser.GetTickAtTime(midi_time);
-        return static_cast<int64_t>(midi_time * tick_factor);
+        if (sync_mode == 2 && !segments.empty()) {
+            double cum_now = aviutl_cumulative_tick(segments, t_sec);
+            return static_cast<int64_t>(cum_now - tick_at_offset);
+        }
+        double local_dt = t_sec - buf_t_start;
+        if (local_dt < 0.0) local_dt = 0.0;
+        return static_cast<int64_t>(player->manual_tick_accum + local_dt * tick_factor);
     };
 
     if (seek_detected || renderer_dirty || current_obj_sample_index == 0) {
-        double t0 = static_cast<double>(current_obj_sample_index) / Fs;
+        double t0 = buf_t_start;
         player->PreRoll(t0, TimeToTick);
     }
 
