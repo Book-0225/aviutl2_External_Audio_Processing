@@ -64,6 +64,13 @@ FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+FILTER_ITEM_SELECT::ITEM sync_mode[] = {
+    { L"同期しない", 0 },
+    { L"MIDIにBPMを同期", 1 },
+    { L"AviUtlにBPMを同期", 2 },
+    { nullptr }
+};
+FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
 FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
 FILTER_ITEM_SEPARATOR sep_all_lr(L"Apply All section (Deprecated)");
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
@@ -112,13 +119,6 @@ FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
 FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0, L"無効", 1.0);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
-FILTER_ITEM_SELECT::ITEM sync_mode[] = {
-    { L"同期しない", 0 },
-    { L"MIDIにBPMを同期", 1 },
-    { L"AviUtlにBPMを同期", 2 },
-    { nullptr }
-};
-FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
 struct InstanceLastRecvData {
     int32_t last_recv_id = -1;
 };
@@ -140,6 +140,7 @@ void* filter_items_host[] = {
     &track_bpm,
     &track_ts_num,
     &track_ts_denom,
+    &select_bpm_sync,
     &toggle_gui_check,
     &sep_all_lr,
     &check_apply_l,
@@ -162,7 +163,6 @@ void* filter_items_host[] = {
     &midi_group,
     &track_recv_id,
     &midi_path_param,
-    &select_bpm_sync,
     &instance_data_param,
     &last_recv_data,
     &last_plugin_data,
@@ -176,6 +176,7 @@ void* filter_items_host_media[] = {
     &track_bpm,
     &track_ts_num,
     &track_ts_denom,
+    &select_bpm_sync,
     &toggle_gui_check,
     &param_group,
     &check_show_param_list,
@@ -192,7 +193,6 @@ void* filter_items_host_media[] = {
     &midi_group,
     &track_recv_id,
     &midi_path_param,
-    &select_bpm_sync,
     &instance_data_param,
     &last_recv_data,
     &last_plugin_data,
