@@ -1,3 +1,7 @@
+[Language]
+Information=EAP2 English
+SubLanguage=Default
+
 [External_Audio_Processing2.aux2]
 EAP2の設定を再読込=Reload settings EAP2
 EAP2の設定を再読込しますか？(一部は再起動後に反映)=Reload EAP2 settings? (Some changes will take effect after restart)
