@@ -47,3 +47,5 @@ TP Limit=TP Limit
 デフォルト設定で読み込まれました。=Default settings have been loaded.
 設定ファイル移行エラー=Configuration migration failed
 設定ファイルが現在のプラグインより新しいバージョンで作成されています=The configuration file was created with a newer version of the plugin.
+EAP2でVST3/CLAPファイルをフィルタオブジェクトとして追加(Ctrlでフィルタ効果, Shiftでメディアオブジェクト)=Add VST3/CLAP files as Filter Object in EAP2 (Ctrl: Filter Effect, Shift: Media Object)
+EAP2でMIDIファイルを再生用オブジェクトとして追加(CtrlまたはShiftで表示用オブジェクト)=Add MIDI files as playback objects in EAP2 (Ctrl or Shift: Display Object)

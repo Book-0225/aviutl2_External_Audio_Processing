@@ -293,6 +293,70 @@ void ToolCleanupResources() {
     CleanupMidiGeneratorResources();
 }
 
+void func_proc_file_drop_plugin(EDIT_SECTION* edit, LPCWSTR file) {
+    std::filesystem::path path = file;
+    std::string utf8_path = path.u8string();
+    EDIT_INFO* info = edit->info;
+    int32_t layer = info->layer;
+    int32_t frame = info->frame;
+    int32_t layer_max = info->layer_max;
+    std::wstring target_name = filter_plugin_table_host.name;
+    int32_t mode = 1;
+    edit->get_mouse_layer_frame(&layer, &frame);
+    for (; layer <= layer_max; layer++)
+        if (!edit->find_object(layer, frame))
+            break;
+    if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
+        mode = 0;
+    else if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
+        mode = 2;
+    if (mode == 1)
+        target_name = filter_plugin_table_host_media.name;
+    OBJECT_HANDLE obj = edit->create_object(target_name.c_str(), layer, frame, 30);
+    if (!obj)
+        return;
+    if (mode == 0) {
+        std::string alias = edit->get_object_alias(obj);
+        edit->delete_object(obj);
+        std::string target_name_str = StringUtils::WideToUtf8(target_name);
+        std::string target = "[Object.0]\r\neffect.name=" + target_name_str;
+        std::string replacement =
+            "[Object.0]\r\neffect.name=" + StringUtils::WideToUtf8(L"フィルタオブジェクト") + "\r\n"
+                                                                                              "[Object.1]\r\neffect.name=" +
+            target_name_str;
+        size_t pos = alias.find(target);
+        if (pos != std::string::npos)
+            alias.replace(pos, target.length(), replacement);
+        obj = edit->create_object_from_alias(alias.c_str(), layer, frame, 30);
+        if (!obj)
+            return;
+    }
+    edit->set_object_item_value(obj, target_name.c_str(), L"プラグイン", utf8_path.c_str());
+}
+
+void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
+    std::filesystem::path path = file;
+    std::string utf8_path = path.u8string();
+    EDIT_INFO* info = edit->info;
+    int32_t layer = info->layer;
+    int32_t frame = info->frame;
+    int32_t layer_max = info->layer_max;
+    std::wstring target_name = filter_plugin_table_midi_gen.name;
+    int32_t mode = 0;
+    edit->get_mouse_layer_frame(&layer, &frame);
+    for (; layer <= layer_max; layer++)
+        if (!edit->find_object(layer, frame))
+            break;
+    if (GetAsyncKeyState(VK_SHIFT) & 0x8000 || GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+        target_name = filter_plugin_table_midi_visualizer.name;
+        mode = 1;
+    }
+    OBJECT_HANDLE obj = edit->create_object(target_name.c_str(), layer, frame, 30);
+    if (!obj)
+        return;
+    edit->set_object_item_value(obj, target_name.c_str(), mode ? L"MIDI File" : L"MIDIファイル", utf8_path.c_str());
+}
+
 EXTERN_C __declspec(dllexport) void UninitializePlugin() {
     KillTimer(nullptr, g_timer_id);
 
@@ -327,6 +391,8 @@ EXTERN_C __declspec(dllexport) COMMON_PLUGIN_TABLE* GetCommonPluginTable(void) {
 }
 
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
+    host->register_file_drop_handler(TrText(L"EAP2でVST3/CLAPファイルをフィルタオブジェクトとして追加(Ctrlでフィルタ効果, Shiftでメディアオブジェクト)"), L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0", &func_proc_file_drop_plugin);
+    host->register_file_drop_handler(TrText(L"EAP2でMIDIファイルを再生用オブジェクトとして追加(CtrlまたはShiftで表示用オブジェクト)"), L"MIDI File (*.mid)\0*.mid;*.midi\0", &func_proc_file_drop_midi);
     host->register_config_menu(TrText(L"EAP2の設定を再読込"), [](HWND hwnd, HINSTANCE dllhinst) {
         if (MessageBox(hwnd, TrText(L"EAP2の設定を再読込しますか？(一部は再起動後に反映)"), TrText(L"EAP2 設定再読込"), MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig();
     });

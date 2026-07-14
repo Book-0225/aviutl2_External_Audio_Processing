@@ -19,17 +19,14 @@ struct CompressedBlobHeader {
     uint64_t originalSize;
 };
 
-inline std::string WideToUtf8(LPCWSTR w) {
-    if (!w || !w[0]) return "";
-    int32_t size_needed = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
+inline std::string WideToUtf8(const std::wstring& w) {
+    if (w.empty()) return "";
+    int32_t size_needed = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1, nullptr, 0, nullptr, nullptr);
     if (size_needed <= 0) return "";
-
     std::string result(size_needed, 0);
-    WideCharToMultiByte(CP_UTF8, 0, w, -1, &result[0], size_needed, nullptr, nullptr);
-
-    if (!result.empty() && result.back() == '\0') {
+    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1, &result[0], size_needed, nullptr, nullptr);
+    if (!result.empty() && result.back() == '\0')
         result.pop_back();
-    }
     return result;
 }
 
@@ -37,13 +34,10 @@ inline std::wstring Utf8ToWide(const std::string& s) {
     if (s.empty()) return L"";
     int32_t size_needed = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
     if (size_needed <= 0) return L"";
-
     std::wstring result(size_needed, 0);
     MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &result[0], size_needed);
-
-    if (!result.empty() && result.back() == L'\0') {
+    if (!result.empty() && result.back() == L'\0')
         result.pop_back();
-    }
     return result;
 }
 
