@@ -232,6 +232,7 @@ bool ClapHost::Impl::LoadPlugin(const std::filesystem::path& path, double sample
 
 void ClapHost::Impl::ReleasePlugin() {
     if (!plugin) return;
+    HideGui();
     if (plugin->stop_processing) plugin->stop_processing(plugin);
     plugin->deactivate(plugin);
     plugin->destroy(plugin);
