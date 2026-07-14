@@ -9,7 +9,7 @@ version = "0.0.34"
 debug_group = "msbuild External_Audio_Processing2.slnx /p:Configuration=Debug /p:Platform=x64"
 release_group = "msbuild External_Audio_Processing2.slnx /p:Configuration=Release /p:Platform=x64"
 
-[artifacts.External_Audio_Processing2_aul2]
+[artifacts.English_External_Audio_Processing2_aul2]
 source = "English.External_Audio_Processing2.aul2"
 enabled = true
 destination = "Language/English.External_Audio_Processing2.aul2"
