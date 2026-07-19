@@ -14,6 +14,11 @@ source = "English.External_Audio_Processing2.aul2"
 enabled = true
 destination = "Language/English.External_Audio_Processing2.aul2"
 
+[artifacts.Default_External_Audio_Processing2_aul2]
+source = "Default.External_Audio_Processing2.aul2"
+enabled = true
+destination = "Language/Default.External_Audio_Processing2.aul2"
+
 [artifacts.EAP2_obj2]
 source = "@EAP2.obj2"
 enabled = false
