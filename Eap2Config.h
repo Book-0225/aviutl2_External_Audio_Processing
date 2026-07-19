@@ -137,12 +137,14 @@ struct GeneralConfig {
     bool enable_experimental = false;
     bool compress_plugin_state = true;
     bool notify_save_warn = false;
+    bool disable_dropin = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"AutoRenameDisable", L"1", &auto_rename_disable, true),
             ConfigEntry::Create(L"EnableExperimental", L"0", &enable_experimental, false),
             ConfigEntry::Create(L"CompressPluginState", L"1", &compress_plugin_state, true),
-            ConfigEntry::Create(L"NotifySaveWarn", L"0", &notify_save_warn, true)
+            ConfigEntry::Create(L"NotifySaveWarn", L"0", &notify_save_warn, true),
+            ConfigEntry::Create(L"DisableDropin", L"0", &disable_dropin, false)
         };
     }
 };

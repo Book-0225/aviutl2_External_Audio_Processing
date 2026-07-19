@@ -391,8 +391,10 @@ EXTERN_C __declspec(dllexport) COMMON_PLUGIN_TABLE* GetCommonPluginTable(void) {
 }
 
 EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
-    host->register_file_drop_handler(TrText(L"EAP2でVST3/CLAPファイルをフィルタオブジェクトとして追加(Ctrlでフィルタ効果, Shiftでメディアオブジェクト)"), L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0", &func_proc_file_drop_plugin);
-    host->register_file_drop_handler(TrText(L"EAP2でMIDIファイルを再生用オブジェクトとして追加(CtrlまたはShiftで表示用オブジェクト)"), L"MIDI File (*.mid)\0*.mid;*.midi\0", &func_proc_file_drop_midi);
+    if (!settings.general.disable_dropin) {
+        host->register_file_drop_handler(TrText(L"EAP2でVST3/CLAPファイルをフィルタオブジェクトとして追加(Ctrlでフィルタ効果, Shiftでメディアオブジェクト)"), L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0", &func_proc_file_drop_plugin);
+        host->register_file_drop_handler(TrText(L"EAP2でMIDIファイルを再生用オブジェクトとして追加(CtrlまたはShiftで表示用オブジェクト)"), L"MIDI File (*.mid)\0*.mid;*.midi\0", &func_proc_file_drop_midi);
+    }
     host->register_config_menu(TrText(L"EAP2の設定を再読込"), [](HWND hwnd, HINSTANCE dllhinst) {
         if (MessageBox(hwnd, TrText(L"EAP2の設定を再読込しますか？(一部は再起動後に反映)"), TrText(L"EAP2 設定再読込"), MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig();
     });
