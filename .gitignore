@@ -9,3 +9,5 @@ External*/
 /.aviutl2-cli
 /release
 rust
+*.md
+!README.md
