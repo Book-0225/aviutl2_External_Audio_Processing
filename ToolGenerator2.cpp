@@ -140,5 +140,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_generator2 = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_generator2,
     nullptr,
-    func_proc_audio_generator2
+    func_proc_audio_generator2,
+    nullptr,
+    nullptr
 };

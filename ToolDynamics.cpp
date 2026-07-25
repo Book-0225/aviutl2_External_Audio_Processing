@@ -230,5 +230,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_dynamics = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_dynamics,
     nullptr,
-    func_proc_audio_dynamics
+    func_proc_audio_dynamics,
+    nullptr,
+    nullptr
 };

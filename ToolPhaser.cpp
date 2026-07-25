@@ -180,5 +180,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_phaser = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_phaser,
     nullptr,
-    func_proc_audio_phaser
+    func_proc_audio_phaser,
+    nullptr,
+    nullptr
 };

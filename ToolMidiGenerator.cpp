@@ -765,5 +765,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_midi_gen = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_midi_gen,
     nullptr,
-    func_proc_audio_midi
+    func_proc_audio_midi,
+    nullptr,
+    nullptr
 };

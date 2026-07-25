@@ -363,5 +363,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_pitch_shift = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_pitch_shift,
     nullptr,
-    func_proc_audio_pitch_shift
+    func_proc_audio_pitch_shift,
+    nullptr,
+    nullptr
 };

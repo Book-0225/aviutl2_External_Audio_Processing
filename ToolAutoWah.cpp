@@ -180,5 +180,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_autowah = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_autowah,
     nullptr,
-    func_proc_audio_autowah
+    func_proc_audio_autowah,
+    nullptr,
+    nullptr
 };

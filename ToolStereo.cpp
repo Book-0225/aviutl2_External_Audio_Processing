@@ -70,5 +70,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_stereo = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_stereo,
     nullptr,
-    func_proc_audio_stereo
+    func_proc_audio_stereo,
+    nullptr,
+    nullptr
 };

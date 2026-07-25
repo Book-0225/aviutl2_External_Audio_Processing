@@ -91,5 +91,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_send = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_chain_send,
     nullptr,
-    func_proc_audio_chain_send
+    func_proc_audio_chain_send,
+    nullptr,
+    nullptr
 };

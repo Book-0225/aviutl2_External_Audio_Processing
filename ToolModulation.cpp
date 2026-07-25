@@ -229,5 +229,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_modulation = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_modulation,
     nullptr,
-    func_proc_audio_modulation
+    func_proc_audio_modulation,
+    nullptr,
+    nullptr
 };

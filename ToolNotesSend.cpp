@@ -291,5 +291,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media = {
     GEN_FILTER_INFO(TOOL_NAME_MEDIA),
     filter_items_notes_send,
     nullptr,
-    func_proc_audio_notes_send
+    func_proc_audio_notes_send,
+    nullptr,
+    nullptr
 };

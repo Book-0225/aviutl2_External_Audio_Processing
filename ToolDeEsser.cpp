@@ -169,5 +169,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_deesser = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_deesser,
     nullptr,
-    func_proc_audio_deesser
+    func_proc_audio_deesser,
+    nullptr,
+    nullptr
 };

@@ -274,5 +274,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_eq = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_eq,
     nullptr,
-    func_proc_audio_eq
+    func_proc_audio_eq,
+    nullptr,
+    nullptr
 };

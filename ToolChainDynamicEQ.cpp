@@ -187,5 +187,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_dyn_eq = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_chain_dyn_eq,
     nullptr,
-    func_proc_audio_chain_dyn_eq
+    func_proc_audio_chain_dyn_eq,
+    nullptr,
+    nullptr
 };

@@ -192,5 +192,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_spatial = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_spatial,
     nullptr,
-    func_proc_audio_spatial
+    func_proc_audio_spatial,
+    nullptr,
+    nullptr
 };

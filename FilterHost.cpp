@@ -1078,7 +1078,9 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     GEN_FILTER_INFO(FILTER_NAME),
     filter_items_host,
     nullptr,
-    func_proc_audio_host
+    func_proc_audio_host,
+    nullptr,
+    nullptr
 };
 
 FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
@@ -1088,5 +1090,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
     GEN_FILTER_INFO(FILTER_NAME_MEDIA),
     filter_items_host_media,
     nullptr,
-    func_proc_audio_host_media
+    func_proc_audio_host_media,
+    nullptr,
+    nullptr
 };

@@ -200,5 +200,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_distortion = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_distortion,
     nullptr,
-    func_proc_audio_distortion
+    func_proc_audio_distortion,
+    nullptr,
+    nullptr
 };

@@ -156,5 +156,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_spectral_gate,
     nullptr,
-    func_proc_audio_spectral_gate
+    func_proc_audio_spectral_gate,
+    nullptr,
+    nullptr
 };

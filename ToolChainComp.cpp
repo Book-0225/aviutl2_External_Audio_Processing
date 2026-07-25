@@ -157,5 +157,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_comp = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_chain_comp,
     nullptr,
-    func_proc_audio_chain_comp
+    func_proc_audio_chain_comp,
+    nullptr,
+    nullptr
 };

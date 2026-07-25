@@ -318,5 +318,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_reverb = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_reverb,
     nullptr,
-    func_proc_audio_reverb
+    func_proc_audio_reverb,
+    nullptr,
+    nullptr
 };

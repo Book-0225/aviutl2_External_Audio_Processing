@@ -169,5 +169,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_maximizer = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_maximizer,
     nullptr,
-    func_proc_maximizer
+    func_proc_maximizer,
+    nullptr,
+    nullptr
 };

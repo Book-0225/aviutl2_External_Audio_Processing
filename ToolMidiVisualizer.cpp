@@ -1217,5 +1217,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_midi_visualizer,
     func_proc_video_midi_visualizer,
+    nullptr,
+    nullptr,
     nullptr
 };

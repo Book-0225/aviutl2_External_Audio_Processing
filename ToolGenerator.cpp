@@ -265,5 +265,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_generator = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_generator,
     nullptr,
-    func_proc_audio_generator
+    func_proc_audio_generator,
+    nullptr,
+    nullptr
 };

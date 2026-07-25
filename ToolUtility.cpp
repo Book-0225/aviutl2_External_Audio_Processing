@@ -119,5 +119,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_utility = {
     GEN_FILTER_INFO(TOOL_NAME),
     filter_items_utility,
     nullptr,
-    func_proc_audio_utility
+    func_proc_audio_utility,
+    nullptr,
+    nullptr
 };
