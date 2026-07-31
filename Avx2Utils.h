@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <immintrin.h>
 #include <vector>
 
@@ -948,4 +949,26 @@ inline void BlendVerticalLineRGBAx8(PIXEL_RGBA* buf, int32_t x, int32_t startY, 
     }
     _mm256_zeroupper();
 }
+
+inline void ComplexMulAccumulateAVX2(std::complex<float>* acc, const std::complex<float>* a, const std::complex<float>* b, size_t count) {
+    const float* pa = reinterpret_cast<const float*>(a);
+    const float* pb = reinterpret_cast<const float*>(b);
+    float* pacc = reinterpret_cast<float*>(acc);
+    size_t i = 0;
+    for (; i + 4 <= count; i += 4) {
+        __m256 va = _mm256_loadu_ps(pa + i * 2);
+        __m256 vb = _mm256_loadu_ps(pb + i * 2);
+        __m256 vacc = _mm256_loadu_ps(pacc + i * 2);
+        __m256 ar_ar = _mm256_moveldup_ps(va);
+        __m256 ai_ai = _mm256_movehdup_ps(va);
+        __m256 b_swap = _mm256_shuffle_ps(vb, vb, 0xB1);
+        __m256 t1 = _mm256_mul_ps(ar_ar, vb);
+        __m256 t2 = _mm256_mul_ps(ai_ai, b_swap);
+        __m256 prod = _mm256_addsub_ps(t1, t2);
+        _mm256_storeu_ps(pacc + i * 2, _mm256_add_ps(vacc, prod));
+    }
+    for (; i < count; ++i) acc[i] += a[i] * b[i];
+    _mm256_zeroupper();
+}
+
 } // namespace Avx2Utils

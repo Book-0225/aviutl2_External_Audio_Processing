@@ -41,6 +41,8 @@
     <ClCompile Include="Eap2mod2.cpp" />
     <ClCompile Include="ToolAnalyzer.cpp" />
     <ClCompile Include="TempoUtils.h" />
+    <ClCompile Include="ToolConvolutionReverb.cpp" />
+    <ClCompile Include="Wavloader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />
@@ -63,6 +65,9 @@
     <ClInclude Include="Eap2Version.h" />
     <ClInclude Include="MigrateConfig.h" />
     <ClInclude Include="Migrate0To1.h" />
+    <ClInclude Include="ConvolutionEngine.h" />
+    <ClInclude Include="FftUtils.h" />
+    <ClInclude Include="Reverb.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />

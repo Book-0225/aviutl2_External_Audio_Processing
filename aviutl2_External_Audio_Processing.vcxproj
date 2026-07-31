@@ -26,6 +26,7 @@
     <ClCompile Include="ToolChainDynamicEQ.cpp" />
     <ClCompile Include="ToolChainFilter.cpp" />
     <ClCompile Include="ToolChainGate.cpp" />
+    <ClCompile Include="ToolConvolutionReverb.cpp" />
     <ClCompile Include="ToolDeEsser.cpp" />
     <ClCompile Include="ToolDynamics.cpp" />
     <ClCompile Include="ToolEQ.cpp" />
@@ -54,20 +55,24 @@
     <ClCompile Include="ToolPhaser.cpp" />
     <ClCompile Include="ToolSpectralGate.cpp" />
     <ClCompile Include="ToolMidiVisualizer.cpp" />
+    <ClCompile Include="Wavloader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPluginFactory.h" />
     <ClInclude Include="ChainManager.h" />
     <ClInclude Include="ClapHost.h" />
+    <ClInclude Include="ConvolutionEngine.h" />
     <ClInclude Include="Eap2Config.h" />
     <ClInclude Include="Eap2Info.h" />
     <ClInclude Include="Eap2Version.h" />
+    <ClInclude Include="FftUtils.h" />
     <ClInclude Include="IAudioPluginHost.h" />
     <ClInclude Include="Migrate0To1.h" />
     <ClInclude Include="MigrateConfig.h" />
     <ClInclude Include="NotesManager.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PluginType.h" />
+    <ClInclude Include="Reverb.h" />
     <ClInclude Include="SynthCommon.h" />
     <ClInclude Include="VstHost.h" />
     <ClInclude Include="Eap2Common.h" />

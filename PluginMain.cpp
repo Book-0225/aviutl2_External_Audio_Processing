@@ -85,7 +85,8 @@ static constexpr std::array all_plugins{
     &filter_plugin_table_spectral_gate,
     &filter_plugin_table_midi_visualizer,
     &filter_plugin_table_notes_send_media,
-    &filter_plugin_table_midi_gen
+    &filter_plugin_table_midi_gen,
+    &filter_plugin_table_convolution_reverb
 };
 
 static constexpr std::array tool_plugins{
@@ -111,7 +112,8 @@ static constexpr std::array tool_plugins{
     &filter_plugin_table_spectral_gate,
     &filter_plugin_table_midi_visualizer,
     &filter_plugin_table_notes_send_media,
-    &filter_plugin_table_midi_gen
+    &filter_plugin_table_midi_gen,
+    &filter_plugin_table_convolution_reverb
 };
 
 static constexpr std::array host_plugins{
@@ -291,6 +293,7 @@ void ToolCleanupResources() {
     CleanupMidiVisualizerResources();
     CleanupGeneratorResources2();
     CleanupMidiGeneratorResources();
+    CleanupConvolutionReverbResources();
 }
 
 void func_proc_file_drop_plugin(EDIT_SECTION* edit, LPCWSTR file) {
