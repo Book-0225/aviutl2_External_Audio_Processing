@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "Reverb.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,34 +41,6 @@ const int32_t PROCESS_BLOCK_SIZE = 64;
 float Lerp(float a, float b, float t) {
     return a + t * (b - a);
 }
-
-class OnePoleLPF {
-  public:
-    float store = 0.0f;
-    float a0 = 1.0f;
-    float b1 = 0.0f;
-
-    void set_cutoff(float cutoff, float sample_rate) {
-        if (cutoff >= sample_rate * 0.49f) {
-            a0 = 1.0f;
-            b1 = 0.0f;
-            return;
-        }
-        float costh = 2.0f - cosf(2.0f * 3.14159f * cutoff / sample_rate);
-        b1 = costh - sqrtf(costh * costh - 1.0f);
-        a0 = 1.0f - b1;
-    }
-
-    void set_damping(float damping) {
-        b1 = damping;
-        a0 = 1.0f - b1;
-    }
-
-    inline float process(float in) {
-        store = in * a0 + store * b1;
-        return store;
-    }
-};
 
 class ModDelayLine {
   public:
@@ -149,11 +122,16 @@ class VariableAllPass {
 struct ReverbState2 {
     VariableAllPass diffusers[4];
     const int32_t diff_tunings[4] = { 142, 107, 379, 277 };
-    ModDelayLine delayL, delayR;
-    OnePoleLPF dampL, dampR;
-    VariableAllPass tankAP_L, tankAP_R;
-    ModDelayLine postDelayL, postDelayR;
-    OnePoleLPF inputLPF, inputHPF;
+    ModDelayLine delayL;
+    ModDelayLine delayR;
+    OnePoleLPF dampL;
+    OnePoleLPF dampR;
+    VariableAllPass tankAP_L;
+    VariableAllPass tankAP_R;
+    ModDelayLine postDelayL;
+    ModDelayLine postDelayR;
+    OnePoleLPF inputLPF;
+    OnePoleLPF inputHPF;
     const float tL_d1_base = 672.0f;
     const float tL_ap_base = 1800.0f;
     const float tL_d2_base = 4453.0f;
