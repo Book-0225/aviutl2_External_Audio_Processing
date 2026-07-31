@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FftUtils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -106,33 +107,6 @@ struct GranularState : public IPitchShiftState {
     }
 };
 
-static void fft_inplace(std::complex<float>* data, int32_t n, bool inverse) {
-    for (int32_t i = 1, j = 0; i < n; ++i) {
-        int32_t bit = n >> 1;
-        for (; j & bit; bit >>= 1) j ^= bit;
-        j ^= bit;
-        if (i < j) std::swap(data[i], data[j]);
-    }
-    for (int32_t len = 2; len <= n; len <<= 1) {
-        const float ang = static_cast<float>((inverse ? M_PI * 2 : M_PI * -2) / len);
-        const std::complex<float> wlen(std::cos(ang), std::sin(ang));
-        for (int32_t i = 0; i < n; i += len) {
-            std::complex<float> w(1.0f, 0.0f);
-            for (int32_t j = 0; j < (len >> 1); ++j) {
-                auto u = data[i + j];
-                auto v = data[i + j + (len >> 1)] * w;
-                data[i + j] = u + v;
-                data[i + j + (len >> 1)] = u - v;
-                w *= wlen;
-            }
-        }
-    }
-    if (inverse) {
-        const float inv_n = 1.0f / static_cast<float>(n);
-        for (int32_t i = 0; i < n; ++i) data[i] *= inv_n;
-    }
-}
-
 static inline float wrap_phase(float p) {
     while (p > M_PI) p -= static_cast<float>(M_PI * 2);
     while (p < -M_PI) p += static_cast<float>(M_PI * 2);
@@ -213,7 +187,7 @@ struct PhaseVocoderState : public IPitchShiftState {
         auto do_channel = [&](const std::vector<float>& in_buf, std::vector<float>& ana_phase, std::vector<float>& syn_phase, std::vector<float>& out_buf) {
             const int32_t frame_start = (in_write - FFT_SIZE + IN_SIZE) % IN_SIZE;
             for (int32_t j = 0; j < FFT_SIZE; ++j) fft_buf[j] = { in_buf[(frame_start + j) % IN_SIZE] * hann[j], 0.0f };
-            fft_inplace(fft_buf.data(), FFT_SIZE, false);
+            FftUtils::FftInplace(fft_buf.data(), FFT_SIZE, false);
             for (int32_t k = 0; k < NUM_BINS; ++k) {
                 const float phase = std::arg(fft_buf[k]);
                 mag[k] = std::abs(fft_buf[k]);
@@ -261,7 +235,7 @@ struct PhaseVocoderState : public IPitchShiftState {
             }
             for (int32_t k = 0; k < NUM_BINS; ++k) fft_buf[k] = std::polar(out_mag[k], syn_phase[k]);
             for (int32_t k = NUM_BINS; k < FFT_SIZE; ++k) fft_buf[k] = std::conj(fft_buf[FFT_SIZE - k]);
-            fft_inplace(fft_buf.data(), FFT_SIZE, true);
+            FftUtils::FftInplace(fft_buf.data(), FFT_SIZE, true);
             for (int32_t j = 0; j < FFT_SIZE; ++j) {
                 const int32_t p = (out_write_pos + j) % OUT_SIZE;
                 out_buf[p] += fft_buf[j].real() * hann[j] * ola_gain;
