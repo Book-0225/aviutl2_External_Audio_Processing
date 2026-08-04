@@ -22,12 +22,7 @@ struct ConfigLoadReport {
 };
 
 std::filesystem::path GetConfigPath() {
-    HMODULE hModule = nullptr;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&GetConfigPath), &hModule);
-    wchar_t path[MAX_PATH];
-    GetModuleFileName(hModule, path, MAX_PATH);
-    std::filesystem::path dllPath(path);
-    return dllPath.replace_extension(L".ini");
+    return GetDllPath().replace_extension(L".ini");
 }
 
 void ShowConfigLoadWarning(const ConfigLoadReport& report) {

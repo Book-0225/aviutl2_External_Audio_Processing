@@ -159,6 +159,15 @@ inline Version parseVersion(std::wstring_view v) {
     return res;
 }
 
+inline std::filesystem::path GetDllPath() {
+    HMODULE hModule = nullptr;
+    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&GetDllPath), &hModule);
+    wchar_t path[MAX_PATH];
+    GetModuleFileName(hModule, path, MAX_PATH);
+    std::filesystem::path dllPath(path);
+    return dllPath;
+}
+
 #define TYPE_AUDIO_FILTER_OBJECT FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_FILTER
 #define TYPE_VIDEO_MEDIA FILTER_PLUGIN_TABLE::FLAG_VIDEO | FILTER_PLUGIN_TABLE::FLAG_INPUT
 #define TYPE_AUDIO_MEDIA FILTER_PLUGIN_TABLE::FLAG_AUDIO | FILTER_PLUGIN_TABLE::FLAG_INPUT
