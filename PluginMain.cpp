@@ -226,51 +226,6 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
     return true;
 }
 
-EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
-    // RequiredVersion()実装前のバージョン用
-    if (version < 2003300) {
-        std::wstring message = std::wstring(L"AviUtl2のバージョンが古すぎます。\n最低バージョン: ") + std::to_wstring(MINIMUM_VERSION);
-        MessageBox(NULL, message.c_str(), L"EAP2 Error", MB_OK | MB_ICONERROR);
-        return false;
-    }
-
-    LoadConfig();
-
-    if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {
-        DbgMessage(TrText(L"COM 初期化に失敗しました。"), LOG_ERROR);
-        return false;
-    }
-
-    if (!AudioPluginFactory::Initialize(g_hinstance)) {
-        CoUninitialize();
-        DbgMessage(TrText(L"Audio Plugin Factory の初期化に失敗しました。"), LOG_ERROR);
-        return false;
-    }
-
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = MessageWndProc;
-    wc.hInstance = g_hinstance;
-    wc.lpszClassName = EAP2_MW_CLASS;
-    if (!RegisterClass(&wc)) {
-        AudioPluginFactory::Uninitialize();
-        CoUninitialize();
-        return false;
-    }
-
-    g_hMessageWindow = CreateWindow(wc.lpszClassName, L"EAP2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
-    if (!g_hMessageWindow) {
-        UnregisterClass(EAP2_MW_CLASS, g_hinstance);
-        AudioPluginFactory::Uninitialize();
-        CoUninitialize();
-        DbgMessage(TrText(L"メッセージウィンドウの作成に失敗しました。"), LOG_ERROR);
-        return false;
-    }
-
-    SetTimer(nullptr, g_timer_id, 50, TimerProc);
-    DbgPrint(TrText(L"EAP2の初期化に成功しました。"), LOG_INFO);
-    return true;
-}
-
 void ToolCleanupResources() {
     CleanupSpectralGateResources();
     CleanupSpatialResources();
@@ -358,6 +313,51 @@ void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
     if (!obj)
         return;
     edit->set_object_item_value(obj, target_name.c_str(), mode ? L"MIDI File" : L"MIDIファイル", utf8_path.c_str());
+}
+
+EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
+    // RequiredVersion()実装前のバージョン用
+    if (version < 2003300) {
+        std::wstring message = std::wstring(L"AviUtl2のバージョンが古すぎます。\n最低バージョン: ") + std::to_wstring(MINIMUM_VERSION);
+        MessageBox(NULL, message.c_str(), L"EAP2 Error", MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    LoadConfig();
+
+    if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {
+        DbgMessage(TrText(L"COM 初期化に失敗しました。"), LOG_ERROR);
+        return false;
+    }
+
+    if (!AudioPluginFactory::Initialize(g_hinstance)) {
+        CoUninitialize();
+        DbgMessage(TrText(L"Audio Plugin Factory の初期化に失敗しました。"), LOG_ERROR);
+        return false;
+    }
+
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = MessageWndProc;
+    wc.hInstance = g_hinstance;
+    wc.lpszClassName = EAP2_MW_CLASS;
+    if (!RegisterClass(&wc)) {
+        AudioPluginFactory::Uninitialize();
+        CoUninitialize();
+        return false;
+    }
+
+    g_hMessageWindow = CreateWindow(wc.lpszClassName, L"EAP2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
+    if (!g_hMessageWindow) {
+        UnregisterClass(EAP2_MW_CLASS, g_hinstance);
+        AudioPluginFactory::Uninitialize();
+        CoUninitialize();
+        DbgMessage(TrText(L"メッセージウィンドウの作成に失敗しました。"), LOG_ERROR);
+        return false;
+    }
+
+    SetTimer(nullptr, g_timer_id, 50, TimerProc);
+    DbgPrint(TrText(L"EAP2の初期化に成功しました。"), LOG_INFO);
+    return true;
 }
 
 EXTERN_C __declspec(dllexport) void UninitializePlugin() {
