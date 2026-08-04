@@ -49,3 +49,6 @@ TP Limit=TP Limit
 設定ファイルが現在のプラグインより新しいバージョンで作成されています=The configuration file was created with a newer version of the plugin.
 EAP2でVST3/CLAPファイルをフィルタオブジェクトとして追加(Ctrlでフィルタ効果, Shiftでメディアオブジェクト)=Add VST3/CLAP files as Filter Object in EAP2 (Ctrl: Filter Effect, Shift: Media Object)
 EAP2でMIDIファイルを再生用オブジェクトとして追加(CtrlまたはShiftで表示用オブジェクト)=Add MIDI files as playback objects in EAP2 (Ctrl or Shift: Display Object)
+計測するオブジェクトを選択してください=Please select the object to analyze.
+名称未設定=Name not set
+midi2EAP2はEAP2の標準投込機能と干渉する場合があります。\nmidi2EAP2を削除し、EAP2標準投込機能を利用することをお勧めします。\nこの表示はEAP2の設定で無効化出来ます。=midi2EAP2 may interfere with EAP2's standard drop feature.\nWe recommend deleting midi2EAP2 and using EAP2's standard drop feature instead.\nYou can disable this message in EAP2's settings.
