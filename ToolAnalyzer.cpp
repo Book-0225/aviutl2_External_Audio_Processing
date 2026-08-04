@@ -1,10 +1,10 @@
 ﻿#include "Eap2Common.h"
 #include "Eap2Config.h"
 
-static constexpr int32_t BATCH_SIZE = 64;
 static constexpr UINT WM_PROGRESS = WM_USER + 1;
 static constexpr UINT WM_DONE = WM_USER + 2;
 static constexpr UINT WM_FRAME_CHANGE = WM_USER + 3;
+static constexpr UINT_PTR ANALYSIS_TIMER_ID = 1;
 
 static constexpr COLORREF C_BG = RGB(18, 18, 22);
 static constexpr COLORREF C_PANEL = RGB(26, 26, 34);
@@ -173,6 +173,8 @@ struct AnalyzeResult {
     int32_t fps_rate = 30;
     int32_t fps_scale = 1;
     int32_t sample_rate = 44100;
+    bool is_object = false;
+    std::wstring obj_name;
 };
 
 static HWND g_hwnd = nullptr;
@@ -225,6 +227,8 @@ static int32_t s_hovered_issue = -1;
 
 static HWND s_btn_rng = nullptr;
 static HWND s_btn_all = nullptr;
+static HWND s_btn_obj = nullptr;
+static HWND s_btn_obj_ae = nullptr;
 static HWND s_btn_abort = nullptr;
 static HWND s_combo = nullptr;
 static HWND s_edit_l = nullptr;
@@ -259,6 +263,30 @@ static int32_t frame_to_hist_idx(const AnalyzeResult& res, int32_t frame) {
     const int32_t rel = frame - res.f_start;
     if (rel < 0) return -1;
     return (rel * spf) / step;
+}
+
+struct ObjPickResult {
+    OBJECT_HANDLE obj = nullptr;
+    int32_t f_start = 0;
+    int32_t f_end = 0;
+    std::wstring name;
+    bool found = false;
+};
+
+static void pick_target_object_cb(void* p, EDIT_SECTION* edit) {
+    ObjPickResult* r = static_cast<ObjPickResult*>(p);
+    OBJECT_HANDLE obj = edit->get_selected_object(0);
+    if (!obj) obj = edit->get_focus_object();
+    if (!obj) return;
+
+    const OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(obj);
+    LPCWSTR nm = edit->get_object_name(obj);
+
+    r->obj = obj;
+    r->f_start = lf.start;
+    r->f_end = lf.end;
+    r->name = nm ? nm : L"";
+    r->found = true;
 }
 
 static void jump_to_frame_cb(void* p, EDIT_SECTION* edit) {
@@ -307,104 +335,74 @@ static void center_graph_on_frame(int32_t frame) {
     g_gt_pan = (std::max)(0.0, (std::min)(1.0 - 1.0 / g_gt_zoom, g_gt_pan));
 }
 
-static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, int32_t sr, AnalyzerConfig snap, HWND hwnd) {
-    const int32_t mom_len = sr * 400 / 1000;
-    const int32_t st_len = sr * 3;
-    const int32_t step = sr * 100 / 1000;
-    const int32_t total_frames = f1 - f0 + 1;
+struct FStat {
+    int32_t frame;
+    double peak;
+};
+
+struct AnalysisState {
+    int32_t f0 = 0;
+    int32_t f1 = 0;
+    int32_t rate = 30;
+    int32_t scale = 1;
+    int32_t sr = 44100;
+    AnalyzerConfig snap{};
+    HWND hwnd = nullptr;
+    OBJECT_HANDLE target_obj = nullptr;
+    std::wstring obj_name;
+    bool aplly_effect = false;
+
+    int32_t mom_len = 0;
+    int32_t st_len = 0;
+    int32_t step = 0;
+    int32_t total_frames = 0;
 
     KWeight kw;
-    kw.init(sr);
-    TruePeakDetector tpL, tpR;
+    TruePeakDetector tpL;
+    TruePeakDetector tpR;
     double tp_peak = 0.0;
     std::vector<float> kw_sq;
-    kw_sq.reserve(total_frames * (static_cast<int64_t>(sr) / (std::max)(1, rate / scale) + 2));
-
-    struct FStat {
-        int32_t frame;
-        double peak;
-    };
-
     std::vector<FStat> fstats;
-    fstats.reserve(total_frames);
 
     BatchBuf batch;
+    int32_t bs = 0;
     bool abort_flag = false;
+};
 
-    for (int32_t bs = f0; bs <= f1; bs += BATCH_SIZE) {
-        if (g_abort.load()) {
-            abort_flag = true;
-            break;
-        }
-        const int32_t be = (std::min)(bs + BATCH_SIZE - 1, f1);
-        {
-            std::lock_guard<std::mutex> lk(batch.mtx);
-            batch.frames.clear();
-        }
-        for (int32_t f = bs; f <= be; f++) {
-            if (!g_edit_handle->rendering_scene_audio(f, &batch, audio_cb)) {
-                g_edit_handle->wait_rendering_task();
-                abort_flag = true;
-                break;
-            }
-        }
-        if (abort_flag) break;
-        g_edit_handle->wait_rendering_task();
-        {
-            std::lock_guard<std::mutex> lk(batch.mtx);
-            for (int32_t f = bs; f <= be; f++) {
-                auto it = batch.frames.find(f);
-                if (it == batch.frames.end()) continue;
-                auto& [Lbuf, Rbuf] = it->second;
-                const int32_t n = static_cast<int32_t>(Lbuf.size());
-                if (n == 0) continue;
-                double fp = 0.0;
-                for (int32_t i = 0; i < n; i++) {
-                    const double lv = static_cast<double>(Lbuf[i]);
-                    const double rv = static_cast<double>(Rbuf[i]);
-                    const double kl = kw.L(lv);
-                    const double kr = kw.R(rv);
-                    kw_sq.push_back(static_cast<float>((kl * kl + kr * kr) * 0.5));
-                    const double sp = (std::max)(std::abs(lv), std::abs(rv));
-                    if (sp > fp) fp = sp;
-                    if (sp > tp_peak) tp_peak = sp;
+static std::unique_ptr<AnalysisState> g_analysis;
 
-                    const double interp = (std::max)(tpL.push(lv), tpR.push(rv));
-                    if (interp > tp_peak) tp_peak = interp;
-                }
-                fstats.push_back({ f, fp });
-            }
-        }
-        g_prog.store(static_cast<int32_t>(100.0 * (be - f0 + 1) / total_frames));
-        PostMessage(hwnd, WM_PROGRESS, g_prog.load(), 0);
-    }
+static void analysis_finish(HWND hwnd) {
+    if (!g_analysis) return;
+    AnalysisState& s = *g_analysis;
 
-    if (!abort_flag) {
+    if (!s.abort_flag) {
         AnalyzeResult res;
-        res.f_start = f0;
-        res.f_end = f1;
-        res.snap = snap;
-        res.fps_rate = rate;
-        res.fps_scale = scale;
-        res.sample_rate = sr;
+        res.f_start = s.f0;
+        res.f_end = s.f1;
+        res.snap = s.snap;
+        res.fps_rate = s.rate;
+        res.fps_scale = s.scale;
+        res.sample_rate = s.sr;
+        res.is_object = (s.target_obj != nullptr);
+        res.obj_name = std::move(s.obj_name);
 
-        const int32_t N = static_cast<int32_t>(kw_sq.size());
+        const int32_t N = static_cast<int32_t>(s.kw_sq.size());
         if (N > 0) {
-            res.true_peak = tp_peak > 0.0 ? 20.0 * std::log10(tp_peak) : -100.0;
+            res.true_peak = s.tp_peak > 0.0 ? 20.0 * std::log10(s.tp_peak) : -100.0;
             std::vector<double> mom_ms, st_ms;
-            for (int32_t p = 0; p + mom_len <= N; p += step) {
+            for (int32_t p = 0; p + s.mom_len <= N; p += s.step) {
                 double ms = 0.0;
-                for (int32_t i = p; i < p + mom_len; i++) ms += kw_sq[i];
-                ms /= mom_len;
+                for (int32_t i = p; i < p + s.mom_len; i++) ms += s.kw_sq[i];
+                ms /= s.mom_len;
                 mom_ms.push_back(ms);
                 const double l = ms_to_lufs(ms);
                 res.mom_hist.push_back(l);
                 if (l > res.mom_max) res.mom_max = l;
             }
-            for (int32_t p = 0; p + st_len <= N; p += step) {
+            for (int32_t p = 0; p + s.st_len <= N; p += s.step) {
                 double ms = 0.0;
-                for (int32_t i = p; i < p + st_len; i++) ms += kw_sq[i];
-                ms /= st_len;
+                for (int32_t i = p; i < p + s.st_len; i++) ms += s.kw_sq[i];
+                ms /= s.st_len;
                 st_ms.push_back(ms);
                 const double l = ms_to_lufs(ms);
                 res.st_hist.push_back(l);
@@ -454,7 +452,7 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
             {
                 bool in_clip = false;
                 int32_t clip_s = 0;
-                for (auto& st : fstats) {
+                for (auto& st : s.fstats) {
                     if (st.peak >= 1.0) {
                         if (!in_clip) {
                             in_clip = true;
@@ -467,21 +465,21 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
                         }
                     }
                 }
-                if (!fstats.empty() && in_clip)
-                    res.issues.push_back({ Issue::CLIP, clip_s, f1 });
+                if (!s.fstats.empty() && in_clip)
+                    res.issues.push_back({ Issue::CLIP, clip_s, s.f1 });
             }
             {
-                const int32_t spf = (std::max)(1, sr * scale / (std::max)(1, rate));
-                const double sil_pow = std::pow(10.0, snap.sil_db / 10.0);
-                const int32_t win = step;
-                const int32_t sil_min_samp = (std::max)(1, static_cast<int32_t>(snap.sil_min_s * sr));
+                const int32_t spf = (std::max)(1, s.sr * s.scale / (std::max)(1, s.rate));
+                const double sil_pow = std::pow(10.0, s.snap.sil_db / 10.0);
+                const int32_t win = s.step;
+                const int32_t sil_min_samp = (std::max)(1, static_cast<int32_t>(s.snap.sil_min_s * s.sr));
 
                 bool in_sil = false;
                 int32_t sil_start_s = 0;
 
                 for (int32_t i = 0; i + win <= N; i += win) {
                     double ms = 0.0;
-                    for (int32_t j = i; j < i + win; j++) ms += kw_sq[j];
+                    for (int32_t j = i; j < i + win; j++) ms += s.kw_sq[j];
                     ms /= win;
 
                     if (ms < sil_pow) {
@@ -492,31 +490,117 @@ static void analyze_thread(int32_t f0, int32_t f1, int32_t rate, int32_t scale, 
                     } else {
                         if (in_sil) {
                             if (i - sil_start_s >= sil_min_samp)
-                                res.issues.push_back({ Issue::SILENCE, f0 + sil_start_s / spf, (std::min)(f1, f0 + (i - 1) / spf) });
+                                res.issues.push_back({ Issue::SILENCE, s.f0 + sil_start_s / spf, (std::min)(s.f1, s.f0 + (i - 1) / spf) });
                             in_sil = false;
                         }
                     }
                 }
                 if (in_sil && N - sil_start_s >= sil_min_samp)
-                    res.issues.push_back({ Issue::SILENCE, f0 + sil_start_s / spf, f1 });
+                    res.issues.push_back({ Issue::SILENCE, s.f0 + sil_start_s / spf, s.f1 });
             }
             res.valid = true;
         }
         std::lock_guard<std::mutex> lk(g_result_mtx);
         g_result = std::move(res);
     }
+    g_analysis.reset();
     g_busy.store(false);
+    KillTimer(hwnd, ANALYSIS_TIMER_ID);
     PostMessage(hwnd, WM_DONE, 0, 0);
 }
 
-static void start_analysis(int32_t f_start, int32_t f_end) {
+int32_t normalize_batch_size(const int32_t value) {
+    if (value <= 0) {
+        const int32_t default_value = 512;
+        DbgPrint(L"[Analyzer] BatchSize " + std::to_wstring(value) + L" -> " + std::to_wstring(default_value), LOG_VERBOSE);
+        return default_value;
+    }
+    const int32_t clamped_value = std::clamp(value, 64, 8192);
+    if ((clamped_value & (clamped_value - 1)) == 0) {
+        if (value != clamped_value)
+            DbgPrint(L"[Analyzer] BatchSize " + std::to_wstring(value) + L" -> " + std::to_wstring(clamped_value), LOG_VERBOSE);
+        return clamped_value;
+    }
+    int32_t upper = 1;
+    while (upper < clamped_value) upper <<= 1;
+    const int32_t lower = upper >> 1;
+    const int32_t result = (clamped_value - lower <= upper - clamped_value) ? lower : upper;
+    DbgPrint(L"[Analyzer] BatchSize " + std::to_wstring(value) + L" -> " + std::to_wstring(result), LOG_VERBOSE);
+    return result;
+}
+
+static void analysis_step(HWND hwnd) {
+    if (!g_analysis) return;
+    AnalysisState& s = *g_analysis;
+
+    if (g_abort.load()) {
+        s.abort_flag = true;
+        analysis_finish(hwnd);
+        return;
+    }
+    if (s.bs > s.f1) {
+        analysis_finish(hwnd);
+        return;
+    }
+
+    const int32_t batch_size = normalize_batch_size(settings.analyzer.batch_size);
+    const int32_t bs = s.bs;
+    const int32_t be = (std::min)(bs + batch_size - 1, s.f1);
+    {
+        std::lock_guard<std::mutex> lk(s.batch.mtx);
+        s.batch.frames.clear();
+    }
+    for (int32_t f = bs; f <= be; f++) {
+        const bool ok = s.target_obj ? g_edit_handle->rendering_object_audio(s.target_obj, f, s.aplly_effect, &s.batch, audio_cb) : g_edit_handle->rendering_scene_audio(f, &s.batch, audio_cb);
+        if (!ok) {
+            g_edit_handle->wait_rendering_task();
+            s.abort_flag = true;
+            analysis_finish(hwnd);
+            return;
+        }
+    }
+    g_edit_handle->wait_rendering_task();
+    {
+        std::lock_guard<std::mutex> lk(s.batch.mtx);
+        for (int32_t f = bs; f <= be; f++) {
+            auto it = s.batch.frames.find(f);
+            if (it == s.batch.frames.end()) continue;
+            auto& [Lbuf, Rbuf] = it->second;
+            const int32_t n = static_cast<int32_t>(Lbuf.size());
+            if (n == 0) continue;
+            double fp = 0.0;
+            for (int32_t i = 0; i < n; i++) {
+                const double lv = static_cast<double>(Lbuf[i]);
+                const double rv = static_cast<double>(Rbuf[i]);
+                const double kl = s.kw.L(lv);
+                const double kr = s.kw.R(rv);
+                s.kw_sq.push_back(static_cast<float>((kl * kl + kr * kr) * 0.5));
+                const double sp = (std::max)(std::abs(lv), std::abs(rv));
+                if (sp > fp) fp = sp;
+                if (sp > s.tp_peak) s.tp_peak = sp;
+
+                const double interp = (std::max)(s.tpL.push(lv), s.tpR.push(rv));
+                if (interp > s.tp_peak) s.tp_peak = interp;
+            }
+            s.fstats.push_back({ f, fp });
+        }
+    }
+    g_prog.store(static_cast<int32_t>(100.0 * (be - s.f0 + 1) / s.total_frames));
+    PostMessage(hwnd, WM_PROGRESS, g_prog.load(), 0);
+
+    s.bs = bs + batch_size;
+}
+
+static void start_analysis(int32_t f_start, int32_t f_end, OBJECT_HANDLE target_obj = nullptr, const std::wstring& obj_name = L"", const bool aplly_effect = false) {
     if (g_busy.exchange(true)) return;
     g_abort.store(false);
     g_prog.store(0);
     EnableWindow(s_btn_rng, FALSE);
     EnableWindow(s_btn_all, FALSE);
+    EnableWindow(s_btn_obj, FALSE);
     EnableWindow(s_btn_abort, TRUE);
     InvalidateRect(g_hwnd, nullptr, TRUE);
+    UpdateWindow(g_hwnd);
     EDIT_INFO info;
     g_edit_handle->get_edit_info(&info, sizeof(info));
     f_start = (std::max)(0, f_start);
@@ -525,12 +609,33 @@ static void start_analysis(int32_t f_start, int32_t f_end) {
         g_busy.store(false);
         EnableWindow(s_btn_rng, TRUE);
         EnableWindow(s_btn_all, TRUE);
+        EnableWindow(s_btn_obj, TRUE);
         EnableWindow(s_btn_abort, FALSE);
         return;
     }
-    const AnalyzerConfig snap = settings.analyzer;
-    const HWND hwnd = g_hwnd;
-    std::thread([=]() { analyze_thread(f_start, f_end, info.rate, info.scale, info.sample_rate, snap, hwnd); }).detach();
+
+    g_analysis = std::make_unique<AnalysisState>();
+    AnalysisState& s = *g_analysis;
+    s.f0 = f_start;
+    s.f1 = f_end;
+    s.rate = info.rate;
+    s.scale = info.scale;
+    s.sr = info.sample_rate;
+    s.snap = settings.analyzer;
+    s.hwnd = g_hwnd;
+    s.target_obj = target_obj;
+    s.obj_name = obj_name;
+    s.aplly_effect = aplly_effect;
+    s.mom_len = s.sr * 400 / 1000;
+    s.st_len = s.sr * 3;
+    s.step = s.sr * 100 / 1000;
+    s.total_frames = s.f1 - s.f0 + 1;
+    s.kw.init(s.sr);
+    s.kw_sq.reserve(s.total_frames * (static_cast<int64_t>(s.sr) / (std::max)(1, s.rate / s.scale) + 2));
+    s.fstats.reserve(s.total_frames);
+    s.bs = s.f0;
+
+    SetTimer(g_hwnd, ANALYSIS_TIMER_ID, 1, nullptr);
 }
 
 static void read_controls_to_settings() {
@@ -747,7 +852,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             s_br_ctrl = CreateSolidBrush(C_CTRL);
             s_btn_rng = CreateWindow(L"BUTTON", TrText(L"選択範囲を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
             s_btn_all = CreateWindow(L"BUTTON", TrText(L"シーン全体を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
-            s_btn_abort = CreateWindow(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 312, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
+            s_btn_obj = CreateWindow(L"BUTTON", TrText(L"選択オブジェクトを計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 312, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(4), g_hinstance, nullptr);
+            s_btn_obj_ae = CreateWindow(L"BUTTON", TrText(L"+ 追加のフィルタ効果"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 500, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(5), g_hinstance, nullptr);
+            s_btn_abort = CreateWindow(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 688, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
             s_combo = CreateWindow(L"COMBOBOX", nullptr, WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, 8, 42, 300, 200, hwnd, reinterpret_cast<HMENU>(10), g_hinstance, nullptr);
             for (auto& p : PRESETS) SendMessage(s_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(p.name));
             s_edit_l = CreateWindow(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
@@ -766,7 +873,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_COMMAND: {
             const int32_t id = LOWORD(wp);
             const int32_t notif = HIWORD(wp);
-            if ((id == 1 || id == 2) && !g_busy.load()) {
+            if ((id == 1 || id == 2 || id == 4 || id == 5) && !g_busy.load()) {
                 if (g_edit_handle->get_edit_state() != g_edit_handle->EDIT_STATE_EDIT) {
                     MessageBox(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), L"EAP2 Analyzer", MB_ICONWARNING);
                     break;
@@ -780,8 +887,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         break;
                     }
                     start_analysis(info.select_range_start, info.select_range_end);
-                } else {
+                } else if (id == 2) {
                     start_analysis(0, info.frame_max);
+                } else {
+                    ObjPickResult pick;
+                    g_edit_handle->call_read_section_param(&pick, pick_target_object_cb);
+                    if (!pick.found) {
+                        MessageBox(hwnd, TrText(L"計測するオブジェクトを選択してください"), L"EAP2 Analyzer", MB_ICONWARNING);
+                        break;
+                    }
+                    start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 5 ? true : false);
                 }
                 break;
             }
@@ -813,6 +928,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_FRAME_CHANGE:
             InvalidateRect(hwnd, nullptr, FALSE);
             return 0;
+
+        case WM_TIMER:
+            if (wp == ANALYSIS_TIMER_ID) {
+                analysis_step(hwnd);
+                return 0;
+            }
+            break;
 
         case WM_MOUSEWHEEL: {
             POINT pt;
@@ -985,7 +1107,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_PROGRESS:
             InvalidateRect(hwnd, nullptr, FALSE);
-            break;
+            UpdateWindow(hwnd);
+            return 0;
 
         case WM_DONE:
             s_issues_scroll = 0;
@@ -995,6 +1118,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_gv_max = 0.0;
             EnableWindow(s_btn_rng, TRUE);
             EnableWindow(s_btn_all, TRUE);
+            EnableWindow(s_btn_obj, TRUE);
             EnableWindow(s_btn_abort, FALSE);
             InvalidateRect(hwnd, nullptr, TRUE);
             break;
@@ -1130,8 +1254,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     }
                 }
                 {
-                    wchar_t rng_buf[96];
-                    swprintf_s(rng_buf, (std::wstring(TrText(L"解析範囲")) + L"  F%d 〜 F%d").c_str(), res.f_start + 1, res.f_end + 1);
+                    wchar_t rng_buf[192];
+                    if (res.is_object) {
+                        std::wstring nm = res.obj_name.empty() ? std::wstring(TrText(L"(名称未設定)")) : res.obj_name;
+                        if (nm.size() > 60) nm = nm.substr(0, 60) + L"...";
+                        swprintf_s(rng_buf, (L"[" + nm + L"]  F%d 〜 F%d").c_str(), res.f_start + 1, res.f_end + 1);
+                    } else {
+                        swprintf_s(rng_buf, (std::wstring(TrText(L"解析範囲")) + L"  F%d 〜 F%d").c_str(), res.f_start + 1, res.f_end + 1);
+                    }
                     dtw(mdc, rng_buf, { 14, y + 128, W - 14, y + 140 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
 
@@ -1303,6 +1433,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, nullptr, TRUE);
             return 0;
         case WM_DESTROY:
+            KillTimer(hwnd, ANALYSIS_TIMER_ID);
+            g_analysis.reset();
             if (s_br_ctrl) {
                 DeleteObject(s_br_ctrl);
                 s_br_ctrl = nullptr;

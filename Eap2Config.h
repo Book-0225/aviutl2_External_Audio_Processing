@@ -247,6 +247,7 @@ struct AnalyzerConfig {
     double lufs_fail = 2.0;     // LUFS FAIL判定条件(target + lufs_fail < lufs)
     double lufs_warn = 8.0;     // LUFS WARN判定条件(target - lufs_warn >= lufs)
     double peak_fail = 1.0;     // TP FAIL判定条件(target + peak_fail < peak)
+    int32_t batch_size = 512;   // 処理サイズ(大きいほど処理が高速だがUI反映が遅れる)
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"TargetLUFS", L"-14.0", &target_lufs, true),
@@ -256,7 +257,8 @@ struct AnalyzerConfig {
             ConfigEntry::Create(L"LUFSTolerance", L"1.0", &lufs_tol, true),
             ConfigEntry::Create(L"LUFSFAIL", L"2.0", &lufs_fail, false),
             ConfigEntry::Create(L"LUFSWARN", L"8.0", &lufs_warn, false),
-            ConfigEntry::Create(L"PEAKFAIL", L"1.0", &peak_fail, false)
+            ConfigEntry::Create(L"PEAKFAIL", L"1.0", &peak_fail, false),
+            ConfigEntry::Create(L"BatchSize", L"512", &batch_size, false)
         };
     }
 };
