@@ -139,7 +139,7 @@ inline ParsedWav ParseAllChannels(const std::wstring& path) {
         return out;
     }
     if (fmt_format_tag != 1 && fmt_format_tag != 3) {
-        out.error = "非対応のフォーマットです(PCM/IEEE Float以外。ADPCM等の圧縮WAVは非対応)";
+        out.error = "非対応のフォーマットです(PCM/IEEE Float以外のフォーマットです。ADPCM等の圧縮WAVは非対応です)";
         return out;
     }
     bool bits_ok = (fmt_format_tag == 1 && (fmt_bits == 8 || fmt_bits == 16 || fmt_bits == 24 || fmt_bits == 32)) || (fmt_format_tag == 3 && (fmt_bits == 32 || fmt_bits == 64));
