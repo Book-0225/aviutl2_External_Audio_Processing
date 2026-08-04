@@ -414,6 +414,10 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     g_host_hwnd = g_edit_handle->get_host_app_window();
     if (!settings.module.all_tool_disable && !settings.module.analyzer_disable)
         Register_Analyzer(host);
+    std::filesystem::path base_path = GetDllPath().parent_path();
+    std::filesystem::path file_path = std::filesystem::path("GCMZDrops/GCMZScript/midi2EAP2.lua");
+    if (!settings.compat.disable_compatibility_issue_notify && !settings.general.disable_dropin && (std::filesystem::is_regular_file(base_path / file_path) || std::filesystem::is_regular_file(base_path.parent_path() / file_path)))
+        DbgMessage(TrText(L"midi2EAP2はEAP2の標準投込機能と干渉する場合があります。\nmidi2EAP2を削除し、EAP2標準投込機能を利用することをお勧めします。\nこの表示はEAP2の設定で無効化出来ます。"), LOG_INFO);
 }
 
 EXTERN_C __declspec(dllexport) DWORD RequiredVersion() {

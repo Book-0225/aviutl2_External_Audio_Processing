@@ -218,11 +218,13 @@ struct CompatConfig {
     bool use_new_reverb = false;
     bool use_new_generator = false;
     bool check_save_scene = true;
+    bool disable_compatibility_issue_notify = false;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"UseNewReverb", L"0", &use_new_reverb, false),
             ConfigEntry::Create(L"UseNewGenerator", L"0", &use_new_generator, false),
-            ConfigEntry::Create(L"CheckSaveScene", L"1", &check_save_scene, true)
+            ConfigEntry::Create(L"CheckSaveScene", L"1", &check_save_scene, true),
+            ConfigEntry::Create(L"DisableCompatibilityIssueNotify", L"0", &disable_compatibility_issue_notify, false)
         };
     }
 };
