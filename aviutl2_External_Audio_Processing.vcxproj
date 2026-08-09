@@ -58,6 +58,7 @@
     <ClCompile Include="Wavloader.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AnalyzerColor.h" />
     <ClInclude Include="AudioPluginFactory.h" />
     <ClInclude Include="ChainManager.h" />
     <ClInclude Include="ClapHost.h" />

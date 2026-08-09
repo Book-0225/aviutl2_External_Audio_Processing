@@ -68,6 +68,8 @@
     <ClInclude Include="ConvolutionEngine.h" />
     <ClInclude Include="FftUtils.h" />
     <ClInclude Include="Reverb.h" />
+    <ClInclude Include="VolumeFix.h" />
+    <ClInclude Include="AnalyzerColor.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".clang-format" />
