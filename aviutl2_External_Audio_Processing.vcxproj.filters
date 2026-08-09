@@ -43,6 +43,7 @@
     <ClCompile Include="TempoUtils.h" />
     <ClCompile Include="ToolConvolutionReverb.cpp" />
     <ClCompile Include="Wavloader.h" />
+    <ClCompile Include="VolumeFix.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IAudioPluginHost.h" />

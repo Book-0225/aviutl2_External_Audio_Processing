@@ -203,6 +203,7 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_gen;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_reverb2;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_convolution_reverb;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_volume;
 extern SCRIPT_MODULE_FUNCTION module_funcs[];
 
 void LoadConfig();

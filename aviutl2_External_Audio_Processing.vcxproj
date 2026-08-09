@@ -37,6 +37,7 @@
     <ClCompile Include="ToolReverb2.cpp" />
     <ClCompile Include="ToolSpatial.cpp" />
     <ClCompile Include="ToolStereo.cpp" />
+    <ClCompile Include="VolumeFix.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\common\memorystream.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\vst\hosting\module_win32.cpp" />
     <ClCompile Include="vst3sdk\public.sdk\source\vst\hosting\plugprovider.cpp" />
@@ -75,6 +76,7 @@
     <ClInclude Include="PluginType.h" />
     <ClInclude Include="Reverb.h" />
     <ClInclude Include="SynthCommon.h" />
+    <ClInclude Include="VolumeFix.h" />
     <ClInclude Include="VstHost.h" />
     <ClInclude Include="Eap2Common.h" />
     <ClInclude Include="PluginManager.h" />

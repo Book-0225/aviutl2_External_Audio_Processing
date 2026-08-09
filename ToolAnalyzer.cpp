@@ -1,6 +1,7 @@
 ﻿#include "AnalyzerColor.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "VolumeFix.h"
 
 static constexpr UINT WM_PROGRESS = WM_USER + 1;
 static constexpr UINT WM_DONE = WM_USER + 2;
@@ -137,6 +138,10 @@ struct Issue {
     int32_t f_end;
 };
 
+static int64_t issue_seen_id(const Issue& iss) {
+    return (static_cast<int64_t>(iss.f_start) << 33) | (static_cast<int64_t>(iss.f_end) << 2) | static_cast<int64_t>(iss.type);
+}
+
 enum class JudgeStatus { NONE,
                          PASS,
                          WARN,
@@ -149,6 +154,8 @@ struct AnalyzeResult {
     double lra = 0.0;
     double st_max = -100.0;
     double mom_max = -100.0;
+    int32_t st_max_frame = -1;
+    int32_t mom_max_frame = -1;
     std::vector<double> st_hist;
     std::vector<double> mom_hist;
     std::vector<Issue> issues;
@@ -183,6 +190,8 @@ static int32_t g_issue_filter = 0;
 static int32_t s_issues_scroll = 0;
 
 static RECT s_flt_btn[3] = {};
+static RECT s_maxrow_hits[5] = {};
+static int32_t s_maxrow_frames[5] = { -1, -1, -1, -1, -1 };
 
 struct SbGeom {
     int32_t x = 0;
@@ -205,10 +214,21 @@ struct IssueHit {
     int32_t y0;
     int32_t y1;
     int32_t f_start;
+    int64_t id;
+};
+
+struct IssueCheckHit {
+    int32_t y0;
+    int32_t y1;
+    int64_t id;
 };
 
 static std::vector<IssueHit> s_issue_hits;
+static std::vector<IssueCheckHit> s_issue_check_hits;
 static int32_t s_hovered_issue = -1;
+
+static std::set<int64_t> g_seen_issues;
+static RECT s_next_unseen_btn = {};
 
 static HWND s_btn_rng = nullptr;
 static HWND s_btn_all = nullptr;
@@ -220,6 +240,8 @@ static HWND s_edit_l = nullptr;
 static HWND s_edit_p = nullptr;
 static HWND s_edit_sil = nullptr;
 static HBRUSH s_br_ctrl = nullptr;
+static bool g_keep_seen = true;
+static RECT s_keep_seen_hit = { 380, 74, 490, 94 };
 
 static HFONT g_fL = nullptr;
 static HFONT g_fS = nullptr;
@@ -374,6 +396,7 @@ static void analysis_finish(HWND hwnd) {
         const int32_t N = static_cast<int32_t>(s.kw_sq.size());
         if (N > 0) {
             res.true_peak = s.tp_peak > 0.0 ? 20.0 * std::log10(s.tp_peak) : -100.0;
+            const int32_t spf_hist = (std::max)(1, s.sr * s.scale / (std::max)(1, s.rate));
             std::vector<double> mom_ms, st_ms;
             for (int32_t p = 0; p + s.mom_len <= N; p += s.step) {
                 double ms = 0.0;
@@ -382,7 +405,10 @@ static void analysis_finish(HWND hwnd) {
                 mom_ms.push_back(ms);
                 const double l = ms_to_lufs(ms);
                 res.mom_hist.push_back(l);
-                if (l > res.mom_max) res.mom_max = l;
+                if (l > res.mom_max) {
+                    res.mom_max = l;
+                    res.mom_max_frame = s.f0 + p / spf_hist;
+                }
             }
             for (int32_t p = 0; p + s.st_len <= N; p += s.step) {
                 double ms = 0.0;
@@ -391,7 +417,10 @@ static void analysis_finish(HWND hwnd) {
                 st_ms.push_back(ms);
                 const double l = ms_to_lufs(ms);
                 res.st_hist.push_back(l);
-                if (l > res.st_max) res.st_max = l;
+                if (l > res.st_max) {
+                    res.st_max = l;
+                    res.st_max_frame = s.f0 + p / spf_hist;
+                }
             }
 
             {
@@ -623,6 +652,59 @@ static void start_analysis(int32_t f_start, int32_t f_end, OBJECT_HANDLE target_
     SetTimer(g_hwnd, ANALYSIS_TIMER_ID, 1, nullptr);
 }
 
+static VolumeFixPanel g_vol_fix_panel;
+
+static void refresh_volume_fix_proposal() {
+    AnalyzeResult res;
+    {
+        std::lock_guard<std::mutex> lk(g_result_mtx);
+        res = g_result;
+    }
+    if (res.valid && res.is_object && res.integrated > -99.0) {
+        VolumeFixProposal p = make_volume_fix_proposal(res.f_start, res.obj_name, res.integrated, res.true_peak, res.snap.target_lufs, res.snap.target_peak);
+        g_vol_fix_panel.set_proposal(p);
+    } else {
+        g_vol_fix_panel.set_proposal(VolumeFixProposal{});
+    }
+}
+
+static void apply_volume_fix_and_remeasure() {
+    if (g_busy.load()) return;
+    VolumeFixProposal prop = g_vol_fix_panel.current_proposal_with_edit();
+    if (!prop.valid) return;
+
+    if (prop.exceeds_ceiling()) {
+        wchar_t msg[256];
+        swprintf_s(msg, TrText(L"適用するとTrue Peakが約%.1f dBTPになり、上限(%.1f dBTP)を超える見込みです。\nこのまま適用しますか？"),
+                   prop.predicted_peak(), prop.peak_ceiling);
+        if (MessageBox(g_hwnd, msg, L"EAP2 Analyzer", MB_ICONWARNING | MB_YESNO) != IDYES)
+            return;
+    }
+    if (std::abs(prop.user_gain_db) <= 0.01)
+        if (MessageBox(g_hwnd, TrText(L"適用結果にほぼ変化が無い見込みです。\nこのまま適用しますか？"), L"EAP2 Analyzer", MB_ICONWARNING | MB_YESNO) != IDYES)
+            return;
+
+    bool ok = false;
+    struct Ctx {
+        const VolumeFixProposal* prop;
+        bool* ok;
+    } ctx{ &prop, &ok };
+    g_edit_handle->call_edit_section_param(&ctx, [](void* p, EDIT_SECTION* edit) {
+        auto* c = static_cast<Ctx*>(p);
+        *c->ok = apply_volume_fix(edit, *c->prop);
+    });
+
+    if (!ok) {
+        DbgMessage(TrText(L"音量の調整に失敗しました。対象オブジェクトの選択状態を確認してください。"), LOG_WARN);
+        return;
+    }
+
+    ObjPickResult pick;
+    g_edit_handle->call_read_section_param(&pick, pick_target_object_cb);
+    if (pick.found)
+        start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, true);
+}
+
 static void read_controls_to_settings() {
     wchar_t buf[32];
     double v;
@@ -670,6 +752,21 @@ static std::wstring fmtL(double v) {
 static std::wstring fmtDiff(double d) {
     wchar_t b[32];
     swprintf_s(b, d >= 0 ? L"+%.1f LU" : L"%.1f LU", d);
+    return b;
+}
+
+static std::wstring fmtTimecode(int32_t frame, int32_t rate, int32_t scale) {
+    if (frame < 0 || rate <= 0) return L"";
+    const double fps = static_cast<double>(rate) / (std::max)(1, scale);
+    const double total_sec = frame / fps;
+    const int32_t hh = static_cast<int32_t>(total_sec) / 3600;
+    const int32_t mm = (static_cast<int32_t>(total_sec) / 60) % 60;
+    const double ss = total_sec - hh * 3600 - mm * 60;
+    wchar_t b[48];
+    if (hh > 0)
+        swprintf_s(b, L"%d:%02d:%05.2f (F%d)", hh, mm, ss, frame + 1);
+    else
+        swprintf_s(b, L"%d:%05.2f (F%d)", mm, ss, frame + 1);
     return b;
 }
 
@@ -838,14 +935,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             s_btn_rng = CreateWindow(L"BUTTON", TrText(L"選択範囲を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
             s_btn_all = CreateWindow(L"BUTTON", TrText(L"シーン全体を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
             s_btn_obj = CreateWindow(L"BUTTON", TrText(L"選択オブジェクトを計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 312, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(4), g_hinstance, nullptr);
-            s_btn_obj_ae = CreateWindow(L"BUTTON", TrText(L"+ 追加のフィルタ効果"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 500, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(5), g_hinstance, nullptr);
-            s_btn_abort = CreateWindow(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 688, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
+            s_btn_abort = CreateWindow(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 500, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
             s_combo = CreateWindow(L"COMBOBOX", nullptr, WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, 8, 42, 300, 200, hwnd, reinterpret_cast<HMENU>(10), g_hinstance, nullptr);
             for (auto& p : PRESETS) SendMessage(s_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(p.name));
             s_edit_l = CreateWindow(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
             s_edit_p = CreateWindow(L"EDIT", L"-1.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 148, 74, 44, 20, hwnd, reinterpret_cast<HMENU>(12), g_hinstance, nullptr);
             s_edit_sil = CreateWindow(L"EDIT", L"-60.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 248, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(13), g_hinstance, nullptr);
             write_settings_to_controls();
+            g_vol_fix_panel.create(hwnd, g_hinstance, 200);
             return 0;
         }
         case WM_CTLCOLOREDIT:
@@ -858,7 +955,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_COMMAND: {
             const int32_t id = LOWORD(wp);
             const int32_t notif = HIWORD(wp);
-            if ((id == 1 || id == 2 || id == 4 || id == 5) && !g_busy.load()) {
+            if ((id == 1 || id == 2 || id == 4) && !g_busy.load()) {
                 if (g_edit_handle->get_edit_state() != g_edit_handle->EDIT_STATE_EDIT) {
                     MessageBox(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), L"EAP2 Analyzer", MB_ICONWARNING);
                     break;
@@ -881,7 +978,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         MessageBox(hwnd, TrText(L"計測するオブジェクトを選択してください"), L"EAP2 Analyzer", MB_ICONWARNING);
                         break;
                     }
-                    start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 5 ? true : false);
+                    start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 4 ? true : false);
                 }
                 break;
             }
@@ -904,6 +1001,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 read_controls_to_settings();
                 if (find_preset_index() == PRESET_CUSTOM) SendMessage(s_combo, CB_SETCURSEL, PRESET_CUSTOM, 0);
                 SaveConfig();
+                InvalidateRect(hwnd, nullptr, FALSE);
+                break;
+            }
+            if (id == 201) {
+                apply_volume_fix_and_remeasure();
+                InvalidateRect(hwnd, nullptr, FALSE);
+                break;
+            }
+            if (id == 202) {
+                g_vol_fix_panel.reset_to_suggested();
+                InvalidateRect(hwnd, nullptr, FALSE);
+                break;
+            }
+            if (id == 200 && notif == EN_CHANGE) {
                 InvalidateRect(hwnd, nullptr, FALSE);
                 break;
             }
@@ -967,6 +1078,44 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int32_t mx = static_cast<int32_t>(LOWORD(lp));
             const int32_t my = static_cast<int32_t>(HIWORD(lp));
 
+            if (mx >= s_keep_seen_hit.left && mx < s_keep_seen_hit.right && my >= s_keep_seen_hit.top && my < s_keep_seen_hit.bottom) {
+                g_keep_seen = !g_keep_seen;
+                InvalidateRect(hwnd, nullptr, FALSE);
+                return 0;
+            }
+
+            for (int32_t i = 0; i < 5; i++) {
+                RECT& r = s_maxrow_hits[i];
+                if (s_maxrow_frames[i] >= 0 && r.right > r.left && mx >= r.left && mx < r.right && my >= r.top && my < r.bottom) {
+                    jump_to_frame(s_maxrow_frames[i]);
+                    center_graph_on_frame(s_maxrow_frames[i]);
+                    InvalidateRect(hwnd, nullptr, FALSE);
+                    return 0;
+                }
+            }
+
+            if (s_next_unseen_btn.right > s_next_unseen_btn.left &&
+                mx >= s_next_unseen_btn.left && mx < s_next_unseen_btn.right && my >= s_next_unseen_btn.top && my < s_next_unseen_btn.bottom) {
+                AnalyzeResult r;
+                {
+                    std::lock_guard<std::mutex> lk(g_result_mtx);
+                    r = g_result;
+                }
+                int32_t idx_in_flt = 0;
+                for (Issue& iss : r.issues) {
+                    if (g_issue_filter == 1 && iss.type != Issue::CLIP) continue;
+                    if (g_issue_filter == 2 && iss.type != Issue::SILENCE) continue;
+                    if (!g_seen_issues.count(issue_seen_id(iss))) {
+                        jump_to_frame(iss.f_start);
+                        center_graph_on_frame(iss.f_start);
+                        s_issues_scroll = idx_in_flt;
+                        InvalidateRect(hwnd, nullptr, FALSE);
+                        break;
+                    }
+                    idx_in_flt++;
+                }
+                return 0;
+            }
             for (int32_t fi = 0; fi < 3; fi++) {
                 RECT& r = s_flt_btn[fi];
                 if (r.right > r.left && mx >= r.left && mx < r.right && my >= r.top && my < r.bottom) {
@@ -997,10 +1146,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 jump_from_mouse(mx);
                 return 0;
             }
-            for (auto& hit : s_issue_hits) {
+            for (IssueCheckHit& chit : s_issue_check_hits) {
+                if (mx >= 10 && mx < 28 && my >= chit.y0 && my < chit.y1) {
+                    if (g_seen_issues.count(chit.id)) g_seen_issues.erase(chit.id);
+                    else g_seen_issues.insert(chit.id);
+                    InvalidateRect(hwnd, nullptr, FALSE);
+                    return 0;
+                }
+            }
+            for (IssueHit& hit : s_issue_hits) {
                 if (my >= hit.y0 && my < hit.y1) {
                     jump_to_frame(hit.f_start);
                     center_graph_on_frame(hit.f_start);
+                    if (settings.analyzer.auto_check)
+                        g_seen_issues.insert(hit.id);
                     InvalidateRect(hwnd, nullptr, FALSE);
                     return 0;
                 }
@@ -1073,8 +1232,25 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             POINT pt;
             GetCursorPos(&pt);
             ScreenToClient(hwnd, &pt);
+
+            if (pt.x >= s_keep_seen_hit.left && pt.x < s_keep_seen_hit.right && pt.y >= s_keep_seen_hit.top && pt.y < s_keep_seen_hit.bottom) {
+                SetCursor(LoadCursor(nullptr, IDC_HAND));
+                return TRUE;
+            }
+
             if (s_gw > 0 && pt.x >= s_gx && pt.x < s_gx + s_gw && pt.y >= s_gy && pt.y < s_gy + s_gh) {
                 SetCursor(LoadCursor(nullptr, IDC_CROSS));
+                return TRUE;
+            }
+            for (int32_t i = 0; i < 5; i++) {
+                RECT& r = s_maxrow_hits[i];
+                if (s_maxrow_frames[i] >= 0 && r.right > r.left && pt.x >= r.left && pt.x < r.right && pt.y >= r.top && pt.y < r.bottom) {
+                    SetCursor(LoadCursor(nullptr, IDC_HAND));
+                    return TRUE;
+                }
+            }
+            if (s_next_unseen_btn.right > s_next_unseen_btn.left && pt.x >= s_next_unseen_btn.left && pt.x < s_next_unseen_btn.right && pt.y >= s_next_unseen_btn.top && pt.y < s_next_unseen_btn.bottom) {
+                SetCursor(LoadCursor(nullptr, IDC_HAND));
                 return TRUE;
             }
             for (auto& hit : s_issue_hits)
@@ -1101,6 +1277,63 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_gt_pan = 0.0;
             g_gv_min = -54.0;
             g_gv_max = 0.0;
+
+            if (g_keep_seen) {
+                AnalyzeResult res;
+                {
+                    std::lock_guard<std::mutex> lk(g_result_mtx);
+                    res = g_result;
+                }
+                std::set<int64_t> next_seen;
+                std::set<int64_t> used_old_issues;
+
+                for (const Issue& iss : res.issues) {
+                    int64_t new_id = issue_seen_id(iss);
+                    if (g_seen_issues.count(new_id)) {
+                        next_seen.insert(new_id);
+                        used_old_issues.insert(new_id);
+                    }
+                }
+                if (settings.analyzer.fuzzy_match_issues) {
+                    for (const Issue& iss : res.issues) {
+                        int64_t new_id = issue_seen_id(iss);
+                        if (next_seen.count(new_id)) continue;
+
+                        int64_t best_old_id = -1;
+                        int32_t best_score = 999999;
+
+                        for (int64_t old_id : g_seen_issues) {
+                            if (used_old_issues.count(old_id)) continue;
+
+                            Issue::Type old_type = static_cast<Issue::Type>(old_id & 0x3);
+                            if (iss.type != old_type) continue;
+
+                            int32_t old_end = static_cast<int32_t>((old_id >> 2) & 0x7FFFFFFF);
+                            int32_t old_start = static_cast<int32_t>((old_id >> 33) & 0x7FFFFFFF);
+
+                            bool overlap = (iss.f_start <= old_end && iss.f_end >= old_start);
+                            int32_t dist = std::abs(iss.f_start - old_start);
+                            int32_t fuzzy_dist = settings.analyzer.fuzzy_match_dist < 0 ? 30 : settings.analyzer.fuzzy_match_dist;
+                            if (overlap || dist < fuzzy_dist) {
+                                if (dist < best_score) {
+                                    best_score = dist;
+                                    best_old_id = old_id;
+                                }
+                            }
+                        }
+
+                        if (best_old_id != -1) {
+                            next_seen.insert(new_id);
+                            used_old_issues.insert(best_old_id);
+                        }
+                    }
+                }
+                g_seen_issues = std::move(next_seen);
+            } else {
+                g_seen_issues.clear();
+            }
+
+            refresh_volume_fix_proposal();
             EnableWindow(s_btn_rng, TRUE);
             EnableWindow(s_btn_all, TRUE);
             EnableWindow(s_btn_obj, TRUE);
@@ -1110,9 +1343,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_PAINT: {
             s_issue_hits.clear();
+            s_issue_check_hits.clear();
             s_gx = s_gy = s_gw = s_gh = 0;
             memset(s_flt_btn, 0, sizeof(s_flt_btn));
+            s_next_unseen_btn = {};
             s_sb.valid = false;
+            memset(s_maxrow_hits, 0, sizeof(s_maxrow_hits));
+            for (auto& f : s_maxrow_frames) f = -1;
 
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
@@ -1138,6 +1375,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             dtw(mdc, TrText(L"目標 LUFS"), { 64, 74, 128, 94 }, C_LABEL);
             dtw(mdc, TrText(L"TP Limit"), { 196, 74, 246, 94 }, C_LABEL);
             dtw(mdc, TrText(L"無音 dBFS"), { 304, 74, 370, 94 }, C_LABEL);
+
+            {
+                const int32_t cbx = s_keep_seen_hit.left + 4;
+                const int32_t cby = s_keep_seen_hit.top + 4;
+                const int32_t cbs = 12;
+                RECT br = { cbx, cby, cbx + cbs, cby + cbs };
+                HBRUSH bgbr = CreateSolidBrush(g_keep_seen ? C_GREEN : RGB(20, 20, 28));
+                FillRect(mdc, &br, bgbr);
+                DeleteObject(bgbr);
+                HBRUSH frbr = CreateSolidBrush(g_keep_seen ? C_GREEN : C_BORDER);
+                FrameRect(mdc, &br, frbr);
+                DeleteObject(frbr);
+                if (g_keep_seen) {
+                    HPEN pchk = CreatePen(PS_SOLID, 2, C_BG);
+                    HPEN ochk = static_cast<HPEN>(SelectObject(mdc, pchk));
+                    MoveToEx(mdc, cbx + 2, cby + 6, nullptr);
+                    LineTo(mdc, cbx + 5, cby + 9);
+                    LineTo(mdc, cbx + 10, cby + 2);
+                    SelectObject(mdc, ochk);
+                    DeleteObject(pchk);
+                }
+                dtw(mdc, TrText(L"確認済を維持"), { cbx + 18, s_keep_seen_hit.top, s_keep_seen_hit.right, s_keep_seen_hit.bottom }, C_LABEL);
+            }
 
             {
                 HPEN p = CreatePen(PS_SOLID, 1, C_BORDER);
@@ -1185,9 +1445,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
             if (!paint_end) {
                 const AnalyzerConfig& sn = res.snap;
+                const double ldiff = res.integrated - sn.target_lufs;
+                const int32_t panel_h = 140 + g_vol_fix_panel.height();
                 {
                     HBRUSH b = CreateSolidBrush(C_PANEL);
-                    RECT r = { 8, y, W - 8, y + 140 };
+                    RECT r = { 8, y, W - 8, y + panel_h };
                     FillRect(mdc, &r, b);
                     DeleteObject(b);
                 }
@@ -1199,17 +1461,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     JudgeStatus judge;
                     std::wstring badge;
                     double diff;
+                    int32_t jump_frame = -1;
                 };
                 JudgeStatus j_int = judge_lufs(res.integrated, sn);
                 JudgeStatus j_peak = judge_peak(res.true_peak, sn);
                 const wchar_t* bstr[] = { L"", L"PASS", L"WARN", L"FAIL" };
-                double ldiff = res.integrated - sn.target_lufs;
                 Row rows[] = {
-                    { L"Integrated LUFS", fmtL(res.integrated), L"LUFS", j_int, bstr[static_cast<int32_t>(j_int)], ldiff },
-                    { L"True Peak", fmtL(res.true_peak), L"dBTP", j_peak, bstr[static_cast<int32_t>(j_peak)], 0.0 },
-                    { L"Loudness Range", [&] {wchar_t b[16];swprintf_s(b,L"%.1f",res.lra);return std::wstring(b); }(), L"LU", JudgeStatus::NONE, L"", 0.0 },
-                    { L"Max Short-term", fmtL(res.st_max), L"LUFS", JudgeStatus::NONE, L"", 0.0 },
-                    { L"Max Momentary", fmtL(res.mom_max), L"LUFS", JudgeStatus::NONE, L"", 0.0 },
+                    { L"Integrated LUFS", fmtL(res.integrated), L"LUFS", j_int, bstr[static_cast<int32_t>(j_int)], ldiff, -1 },
+                    { L"True Peak", fmtL(res.true_peak), L"dBTP", j_peak, bstr[static_cast<int32_t>(j_peak)], 0.0, -1 },
+                    { L"Loudness Range", [&] {wchar_t b[16];swprintf_s(b,L"%.1f",res.lra);return std::wstring(b); }(), L"LU", JudgeStatus::NONE, L"", 0.0, -1 },
+                    { L"Max Short-term", fmtL(res.st_max), L"LUFS", JudgeStatus::NONE, L"", 0.0, res.st_max_frame },
+                    { L"Max Momentary", fmtL(res.mom_max), L"LUFS", JudgeStatus::NONE, L"", 0.0, res.mom_max_frame },
                 };
                 const int32_t rh = 25;
                 for (int32_t i = 0; i < 5; i++) {
@@ -1228,6 +1490,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         COLORREF dc2 = std::abs(ldiff) < sn.lufs_tol ? C_GREEN : ldiff > 0 ? C_RED
                                                                                            : C_LABEL;
                         dtw(mdc, fmtDiff(ldiff).c_str(), { 300, ry + 6, W - 10, ry + rh }, dc2, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    }
+                    if (row.jump_frame >= 0) {
+                        std::wstring tc = fmtTimecode(row.jump_frame, res.fps_rate, res.fps_scale);
+                        RECT tr = { 220, ry + 2, W - 10, ry + rh };
+                        dtw(mdc, tc.c_str(), tr, C_BLUE, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                        s_maxrow_hits[i] = { 8, ry, W - 8, ry + rh };
+                        s_maxrow_frames[i] = row.jump_frame;
                     }
                     if (i < 4) {
                         HPEN p = CreatePen(PS_SOLID, 1, RGB(32, 32, 44));
@@ -1250,7 +1519,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     dtw(mdc, rng_buf, { 14, y + 128, W - 14, y + 140 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
 
-                y += 144;
+                if (g_vol_fix_panel.visible()) {
+                    RECT vb = { 14, y + 140, W - 14, y + panel_h };
+                    g_vol_fix_panel.paint_and_layout(mdc, vb);
+                }
+                y += panel_h + 4;
             }
 
             if (!paint_end && (!res.st_hist.empty() || !res.mom_hist.empty())) {
@@ -1334,12 +1607,25 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         dtw(mdc, flt_lbl[fi], s_flt_btn[fi], sel ? bc : C_LABEL, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                         bx += 26;
                     }
+
+                    int32_t first_unseen = -1;
+                    for (int32_t i = 0; i < flt_cnt; i++)
+                        if (!g_seen_issues.count(issue_seen_id(res.issues[flt[i]]))) {
+                            first_unseen = i;
+                            break;
+                        }
+                    RECT nb = { bx + 6, y, bx + 6 + 92, y + 16 };
+                    s_next_unseen_btn = (first_unseen >= 0) ? nb : RECT{};
+                    dtw(mdc, TrText(L"▶ 次の未確認"), nb, first_unseen >= 0 ? C_BLUE : RGB(50, 50, 62), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
                 }
                 {
-                    wchar_t cnt[64];
-                    if (g_issue_filter != 0) swprintf_s(cnt, L"%d / %d issues", flt_cnt, total_iss);
-                    else swprintf_s(cnt, L"%d issues", total_iss);
-                    dtw(mdc, cnt, { W - 60, y, W - 8, y + 16 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    int32_t seen_cnt = 0;
+                    for (int32_t i = 0; i < flt_cnt; i++)
+                        if (g_seen_issues.count(issue_seen_id(res.issues[flt[i]]))) seen_cnt++;
+                    wchar_t cnt[80];
+                    if (g_issue_filter != 0) swprintf_s(cnt, L"%d / %d issues (✓%d)", flt_cnt, total_iss, seen_cnt);
+                    else swprintf_s(cnt, L"%d issues (✓%d)", total_iss, seen_cnt);
+                    dtw(mdc, cnt, { W - 130, y, W - 8, y + 16 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
                 y += 18;
 
@@ -1365,16 +1651,41 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         FillRect(mdc, &hr, bh);
                         DeleteObject(bh);
                     }
-                    s_issue_hits.push_back({ iy, iy + ITEM_H, iss.f_start });
+
+                    const int64_t sid = issue_seen_id(iss);
+                    const bool seen = g_seen_issues.count(sid) != 0;
+                    s_issue_hits.push_back({ iy, iy + ITEM_H, iss.f_start, sid });
+                    s_issue_check_hits.push_back({ iy, iy + ITEM_H, sid });
+
+                    {
+                        const int32_t cbs = 12;
+                        const int32_t cbx = 14, cby = iy + (ITEM_H - cbs) / 2;
+                        RECT br = { cbx, cby, cbx + cbs, cby + cbs };
+                        HBRUSH bgbr = CreateSolidBrush(seen ? C_GREEN : RGB(20, 20, 28));
+                        FillRect(mdc, &br, bgbr);
+                        DeleteObject(bgbr);
+                        HBRUSH frbr = CreateSolidBrush(seen ? C_GREEN : C_BORDER);
+                        FrameRect(mdc, &br, frbr);
+                        DeleteObject(frbr);
+                        if (seen) {
+                            HPEN pchk = CreatePen(PS_SOLID, 2, C_BG);
+                            HPEN ochk = static_cast<HPEN>(SelectObject(mdc, pchk));
+                            MoveToEx(mdc, cbx + 2, cby + 6, nullptr);
+                            LineTo(mdc, cbx + 5, cby + 9);
+                            LineTo(mdc, cbx + 10, cby + 2);
+                            SelectObject(mdc, ochk);
+                            DeleteObject(pchk);
+                        }
+                    }
 
                     wchar_t buf[128];
-                    if (iss.type == Issue::CLIP) {
+                    COLORREF base_col = (iss.type == Issue::CLIP) ? C_RED : C_LABEL;
+                    COLORREF col = seen ? RGB(GetRValue(base_col) / 2, GetGValue(base_col) / 2, GetBValue(base_col) / 2) : base_col;
+                    if (iss.type == Issue::CLIP)
                         swprintf_s(buf, (L"● " + std::wstring(TrText(L"クリッピング")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
-                        dtw(mdc, buf, { 14, iy, list_r, iy + ITEM_H }, C_RED);
-                    } else {
+                    else
                         swprintf_s(buf, (L"○ " + std::wstring(TrText(L"無音区間")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
-                        dtw(mdc, buf, { 14, iy, list_r, iy + ITEM_H }, C_LABEL);
-                    }
+                    dtw(mdc, buf, { 32, iy, list_r, iy + ITEM_H }, col);
                 }
 
                 if (need_sb && drawn > 0) {
@@ -1418,6 +1729,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(hwnd, nullptr, TRUE);
             return 0;
         case WM_DESTROY:
+            g_vol_fix_panel.destroy();
             KillTimer(hwnd, ANALYSIS_TIMER_ID);
             g_analysis.reset();
             if (s_br_ctrl) {
@@ -1449,6 +1761,7 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD | WS_CLIPCHILDREN, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
     host->register_window_client(L"EAP2 Analyzer", g_hwnd);
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
+    host->register_filter_plugin(&filter_plugin_table_volume);
 }
 
 void Uninitialize_Analyzer() {

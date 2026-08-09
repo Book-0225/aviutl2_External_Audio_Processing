@@ -241,15 +241,18 @@ struct VstConfig {
 
 struct AnalyzerConfig {
     std::wstring categoryName = L"Analyzer";
-    double target_lufs = -14.0; // 目標 Integrated LUFS
-    double target_peak = -1.0;  // 目標 True Peak [dBTP]
-    double sil_db = -60.0;      // 無音判定しきい値 [dBFS]
-    double sil_min_s = 0.5;     // 無音最短継続 [秒]
-    double lufs_tol = 1.0;      // PASS 判定の許容幅 [LU] (±)
-    double lufs_fail = 2.0;     // LUFS FAIL判定条件(target + lufs_fail < lufs)
-    double lufs_warn = 8.0;     // LUFS WARN判定条件(target - lufs_warn >= lufs)
-    double peak_fail = 1.0;     // TP FAIL判定条件(target + peak_fail < peak)
-    int32_t batch_size = 512;   // 処理サイズ(大きいほど処理が高速だがUI反映が遅れる)
+    double target_lufs = -14.0;     // 目標 Integrated LUFS
+    double target_peak = -1.0;      // 目標 True Peak [dBTP]
+    double sil_db = -60.0;          // 無音判定しきい値 [dBFS]
+    double sil_min_s = 0.5;         // 無音最短継続 [秒]
+    double lufs_tol = 1.0;          // PASS 判定の許容幅 [LU] (±)
+    double lufs_fail = 2.0;         // LUFS FAIL判定条件(target + lufs_fail < lufs)
+    double lufs_warn = 8.0;         // LUFS WARN判定条件(target - lufs_warn >= lufs)
+    double peak_fail = 1.0;         // TP FAIL判定条件(target + peak_fail < peak)
+    int32_t batch_size = 512;       // 処理サイズ(大きいほど処理が高速だがUI反映が遅れる)
+    bool auto_check = true;         // ジャンプした問題箇所に自動でチェックをつける
+    bool fuzzy_match_issues = true; // 問題箇所の再測定時に曖昧一致を利用する
+    int32_t fuzzy_match_dist = 30;  // 上記機能で利用する許容範囲を設定する
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"TargetLUFS", L"-14.0", &target_lufs, true),
@@ -260,7 +263,10 @@ struct AnalyzerConfig {
             ConfigEntry::Create(L"LUFSFAIL", L"2.0", &lufs_fail, false),
             ConfigEntry::Create(L"LUFSWARN", L"8.0", &lufs_warn, false),
             ConfigEntry::Create(L"PEAKFAIL", L"1.0", &peak_fail, false),
-            ConfigEntry::Create(L"BatchSize", L"512", &batch_size, false)
+            ConfigEntry::Create(L"BatchSize", L"512", &batch_size, false),
+            ConfigEntry::Create(L"AutoCheck", L"1", &auto_check, true),
+            ConfigEntry::Create(L"FuzzyMatchIssues", L"1", &fuzzy_match_issues, true),
+            ConfigEntry::Create(L"FuzzyMatchDist", L"30", &fuzzy_match_dist, true)
         };
     }
 };
