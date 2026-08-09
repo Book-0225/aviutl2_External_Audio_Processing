@@ -3,6 +3,9 @@
 #include "Eap2Config.h"
 #include "VolumeFix.h"
 
+static constexpr const wchar_t* APP_NAME = L"EAP2 Analyzer";
+static constexpr const wchar_t* APP_CLASS = L"EAP2_Analyzer";
+
 static constexpr UINT WM_PROGRESS = WM_USER + 1;
 static constexpr UINT WM_DONE = WM_USER + 2;
 static constexpr UINT WM_FRAME_CHANGE = WM_USER + 3;
@@ -677,11 +680,11 @@ static void apply_volume_fix_and_remeasure() {
         wchar_t msg[256];
         swprintf_s(msg, TrText(L"適用するとTrue Peakが約%.1f dBTPになり、上限(%.1f dBTP)を超える見込みです。\nこのまま適用しますか？"),
                    prop.predicted_peak(), prop.peak_ceiling);
-        if (MessageBox(g_hwnd, msg, L"EAP2 Analyzer", MB_ICONWARNING | MB_YESNO) != IDYES)
+        if (MessageBox(g_hwnd, msg, APP_NAME, MB_ICONWARNING | MB_YESNO) != IDYES)
             return;
     }
     if (std::abs(prop.user_gain_db) <= 0.01)
-        if (MessageBox(g_hwnd, TrText(L"適用結果にほぼ変化が無い見込みです。\nこのまま適用しますか？"), L"EAP2 Analyzer", MB_ICONWARNING | MB_YESNO) != IDYES)
+        if (MessageBox(g_hwnd, TrText(L"適用結果にほぼ変化が無い見込みです。\nこのまま適用しますか？"), APP_NAME, MB_ICONWARNING | MB_YESNO) != IDYES)
             return;
 
     bool ok = false;
@@ -957,7 +960,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int32_t notif = HIWORD(wp);
             if ((id == 1 || id == 2 || id == 4) && !g_busy.load()) {
                 if (g_edit_handle->get_edit_state() != g_edit_handle->EDIT_STATE_EDIT) {
-                    MessageBox(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), L"EAP2 Analyzer", MB_ICONWARNING);
+                    MessageBox(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), APP_NAME, MB_ICONWARNING);
                     break;
                 }
                 read_controls_to_settings();
@@ -965,7 +968,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 g_edit_handle->get_edit_info(&info, sizeof(info));
                 if (id == 1) {
                     if (info.select_range_start < 0 || info.select_range_end < 0) {
-                        MessageBox(hwnd, TrText(L"タイムラインでフレーム範囲を選択してから計測してください"), L"EAP2 Analyzer", MB_ICONWARNING);
+                        MessageBox(hwnd, TrText(L"タイムラインでフレーム範囲を選択してから計測してください"), APP_NAME, MB_ICONWARNING);
                         break;
                     }
                     start_analysis(info.select_range_start, info.select_range_end);
@@ -975,7 +978,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     ObjPickResult pick;
                     g_edit_handle->call_read_section_param(&pick, pick_target_object_cb);
                     if (!pick.found) {
-                        MessageBox(hwnd, TrText(L"計測するオブジェクトを選択してください"), L"EAP2 Analyzer", MB_ICONWARNING);
+                        MessageBox(hwnd, TrText(L"計測するオブジェクトを選択してください"), APP_NAME, MB_ICONWARNING);
                         break;
                     }
                     start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 4 ? true : false);
@@ -1749,6 +1752,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
+static void menu_measure_cb(void* param) {
+    if (g_hwnd) {
+        intptr_t id = reinterpret_cast<intptr_t>(param);
+        PostMessage(g_hwnd, WM_COMMAND, MAKEWPARAM(static_cast<WORD>(id), 0), 0);
+    }
+}
+
 void Register_Analyzer(HOST_APP_TABLE* host) {
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
@@ -1756,12 +1766,20 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     wc.hInstance = g_hinstance;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = nullptr;
-    wc.lpszClassName = L"EAP2_Analyzer";
+    wc.lpszClassName = APP_CLASS;
     RegisterClassEx(&wc);
-    g_hwnd = CreateWindowEx(0, L"EAP2_Analyzer", nullptr, WS_CHILD | WS_CLIPCHILDREN, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
-    host->register_window_client(L"EAP2 Analyzer", g_hwnd);
+    g_hwnd = CreateWindowEx(0, APP_CLASS, nullptr, WS_CHILD | WS_CLIPCHILDREN, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
+    host->register_window_client(APP_NAME, g_hwnd);
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
     host->register_filter_plugin(&filter_plugin_table_volume);
+
+    static std::wstring menu_range = std::wstring(APP_NAME) + L"\\" + TrText(L"選択範囲を計測");
+    static std::wstring menu_all = std::wstring(APP_NAME) + L"\\" + TrText(L"シーン全体を計測");
+    static std::wstring menu_obj = std::wstring(APP_NAME) + L"\\" + TrText(L"選択オブジェクトを計測");
+
+    host->register_edit_menu_param(menu_range.c_str(), reinterpret_cast<void*>(1), menu_measure_cb);
+    host->register_edit_menu_param(menu_all.c_str(), reinterpret_cast<void*>(2), menu_measure_cb);
+    host->register_edit_menu_param(menu_obj.c_str(), reinterpret_cast<void*>(4), menu_measure_cb);
 }
 
 void Uninitialize_Analyzer() {
