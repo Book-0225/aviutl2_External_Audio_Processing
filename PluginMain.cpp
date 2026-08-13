@@ -55,11 +55,6 @@ COMMON_PLUGIN_TABLE common_plugin_table = {
     plugin_info,
 };
 
-SCRIPT_MODULE_TABLE script_module_table = {
-    GEN_FILTER_INFO(L"Module"),
-    module_funcs
-};
-
 static constexpr std::array all_plugins{
     &filter_plugin_table_host,
     &filter_plugin_table_host_media,
@@ -406,7 +401,6 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     });
     host->register_config_menu(TrText(L"EAP2の設定を開く"), [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
     for (auto& plugin : GetModule(all_plugins, settings)) host->register_filter_plugin(plugin);
-    if (settings.exp.use_experimental_script_module) host->register_script_module_name(&script_module_table, L"EAP2_module");
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });

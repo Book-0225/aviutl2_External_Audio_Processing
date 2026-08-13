@@ -273,11 +273,8 @@ struct AnalyzerConfig {
 
 struct ExperimentalConfig {
     std::wstring categoryName = L"Experimental";
-    bool use_experimental_script_module = false;
     std::vector<ConfigEntry> getEntries() {
-        return {
-            ConfigEntry::Create(L"UseExperimentalScriptModule", L"0", &use_experimental_script_module, false)
-        };
+        return {};
     }
 };
 

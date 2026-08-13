@@ -316,8 +316,7 @@ FuzzyMatchIssues=1
 FuzzyMatchDist=30
 ; 実験的機能(EnableExperimental=1のときのみ反映)
 [Experimental]
-; 1にすると開発中のスクリプトモジュールを有効化する
-UseExperimentalScriptModule=0
+; 現状設定項目無し
 ```
 
 ---
