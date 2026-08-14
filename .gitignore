@@ -10,4 +10,5 @@ External*/
 /release
 rust
 *.md
+build/
 !README.md

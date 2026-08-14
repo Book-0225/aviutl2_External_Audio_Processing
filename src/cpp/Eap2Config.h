@@ -1,6 +1,7 @@
 ﻿#pragma once
-#include "Eap2Info.h"
+#include "Eap2Common.h"
 
+#include <cmath>
 #include <cwctype>
 #include <functional>
 #include <limits>

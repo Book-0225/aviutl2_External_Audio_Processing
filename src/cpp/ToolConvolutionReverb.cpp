@@ -2,7 +2,11 @@
 #include "ConvolutionEngine.h"
 #include "Eap2Common.h"
 #include "Reverb.h"
+#include "StringUtils.h"
 #include "WavLoader.h"
+
+#include <map>
+#include <thread>
 
 constexpr auto TOOL_NAME = L"Convolution Reverb";
 

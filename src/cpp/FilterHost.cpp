@@ -314,9 +314,17 @@ void func_project_save_log() {
 void func_project_save(PROJECT_FILE* pf) {
     if (!pf) return;
 
+#ifdef _MSC_VER
     __try {
+#else
+    try {
+#endif
         func_project_save_impl(pf);
+#ifdef _MSC_VER
     } __except (ProjectSaveExceptionFilter(GetExceptionCode(), GetExceptionInformation())) {
+#else
+    } catch (...) {
+#endif
         func_project_save_log();
         pf->set_param_string(AHS_DB, "");
     }

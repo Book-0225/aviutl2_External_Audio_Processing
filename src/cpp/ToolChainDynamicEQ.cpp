@@ -2,6 +2,7 @@
 #include "ChainManager.h"
 #include "Eap2Common.h"
 
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <map>
 

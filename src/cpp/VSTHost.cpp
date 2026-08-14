@@ -167,9 +167,17 @@ static tresult SafeProcessCall(IAudioProcessor* processor, ProcessData& data) {
 
     _mm256_zeroupper();
 
+#ifdef _MSC_VER
     __try {
+#else
+    try {
+#endif
         return processor->process(data);
+#ifdef _MSC_VER
     } __except (EXCEPTION_EXECUTE_HANDLER) {
+#else
+    } catch (...) {
+#endif
         SafeProcessCall_log();
         return kResultFalse;
     }
@@ -872,7 +880,7 @@ void VstHost::Impl::ShowGui() {
 
     // Check if plugin supports resizing (for logging purposes)
     bool canResize = (plugView->canResize() == kResultTrue);
-    DbgPrint(L"[VST3 GUI] Plugin canResize: " + canResize ? L"yes" : L"no", LOG_VERBOSE);
+    DbgPrint(std::wstring(L"[VST3 GUI] Plugin canResize: ") + std::wstring(canResize ? L"yes" : L"no"), LOG_VERBOSE);
 
     // Always allow window resizing regardless of plugin support
     DWORD windowStyle = settings.vst.forceResize ? WS_OVERLAPPEDWINDOW : WS_OVERLAPPED | WS_CAPTION;

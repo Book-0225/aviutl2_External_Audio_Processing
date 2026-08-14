@@ -1,5 +1,5 @@
 $tomlFile   = "aviutl2.toml"
-$headerFile = "Eap2Version.h"
+$headerFile = "src/cpp/Eap2Version.h"
 $textFile   = "package.txt"
 $utf8Bom   = New-Object System.Text.UTF8Encoding($True)
 $utf8NoBom = New-Object System.Text.UTF8Encoding($False)

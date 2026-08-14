@@ -41,23 +41,6 @@ jobs:
                     throw "Tag '$tag' already exists."
                   }
 
-            - name: Add msbuild to PATH
-              uses: microsoft/setup-msbuild@v3
-
-            - name: Get VST3 SDK commit
-              id: vst3sdk-sha
-              shell: pwsh
-              run: |
-                  $sha = git -C vst3sdk rev-parse HEAD
-                  "sha=$sha" >> $env:GITHUB_OUTPUT
-
-            - name: Cache VST3 SDK build
-              id: vst3sdk-cache
-              uses: actions/cache@v6
-              with:
-                  path: vst3sdk_build
-                  key: windows-2025-vs2026-vst3sdk-${{ steps.vst3sdk-sha.outputs.sha }}
-
             - name: Resolve latest aviutl2-cli version
               id: aviutl2-cli-version
               shell: pwsh
@@ -86,15 +69,8 @@ jobs:
               shell: pwsh
               run: ./scripts/setup_sdk.ps1
 
-            - name: Configure VST3 SDK
-              if: steps.vst3sdk-cache.outputs.cache-hit != 'true'
-              run: |
-                  cmake -S vst3sdk -B vst3sdk_build
-
-            - name: Build VST3 SDK
-              if: steps.vst3sdk-cache.outputs.cache-hit != 'true'
-              run: |
-                  cmake --build vst3sdk_build --config Release
+            - name: Prepare Build
+              run: cmake -S ./ -B ./build  -Wno-unused-cli -G "Visual Studio 18 2026"
 
             - name: Package
               run: au2 release

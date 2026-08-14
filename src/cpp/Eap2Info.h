@@ -2,20 +2,9 @@
 #include "Eap2Version.h"
 
 #include <Windows.h>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
-
-#if _MSC_VER >= 1950
-#define VS_VERSION 2026
-#elif _MSC_VER >= 1930
-#define VS_VERSION 2022
-#elif _MSC_VER >= 1920
-#define VS_VERSION 2019
-#elif _MSC_VER >= 1910
-#define VS_VERSION 2017
-#else
-#define VS_VERSION -1
-#endif
 
 struct Version {
     uint16_t major = 0;

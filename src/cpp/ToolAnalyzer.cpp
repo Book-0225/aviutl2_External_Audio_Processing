@@ -3,6 +3,12 @@
 #include "Eap2Config.h"
 #include "VolumeFix.h"
 
+#define _USE_MATH_DEFINES
+#include <atomic>
+#include <cmath>
+#include <map>
+#include <set>
+
 static constexpr const wchar_t* APP_NAME = L"EAP2 Analyzer";
 static constexpr const wchar_t* APP_CLASS = L"EAP2_Analyzer";
 
