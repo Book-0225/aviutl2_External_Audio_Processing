@@ -1662,7 +1662,7 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 - CMake 4.3以降
 - Git
 - aviutl2 CLI
-- pwsh
+- pwsh(リリースノートを生成する場合のみ)
 - 各ツールチェーン(どれか一つ以上)
   - GCC: MinGW-w64
   - Clang: llvm-mingw

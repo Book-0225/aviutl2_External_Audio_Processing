@@ -22,6 +22,9 @@ if(CLANG_FORMAT_EXE)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/*.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/*.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/cpp/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/cpp/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/cpp/*.hpp"
     )
     add_custom_target(format
         COMMAND ${CLANG_FORMAT_EXE} -i ${FORMAT_SOURCES} --verbose
@@ -32,6 +35,40 @@ if(CLANG_FORMAT_EXE)
 else()
     message(STATUS "clang-format not found; 'format' target is disabled")
 endif()
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/get_version.cmake")
+message(STATUS "EAP2 version: ${EAP2_VERSION}")
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/aviutl2.toml")
+
+set(_eap2_header "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/Eap2Version.h")
+if(EXISTS "${_eap2_header}")
+    file(READ "${_eap2_header}" _eap2_header_text ENCODING UTF-8)
+    string(REGEX REPLACE
+        "(#define[ \t]+PLUGIN_VERSION[ \t]+L\"v)[0-9a-zA-Z.-]+"
+        "\\1${EAP2_VERSION}"
+        _eap2_header_text "${_eap2_header_text}")
+    file(WRITE "${_eap2_header}" "${_eap2_header_text}")
+else()
+    message(WARNING "${_eap2_header} が見つかりませんでした。バージョン同期をスキップします。")
+endif()
+unset(_eap2_header_text)
+unset(_eap2_header)
+
+set(_eap2_pkg_txt "${CMAKE_CURRENT_SOURCE_DIR}/package.txt")
+if(EXISTS "${_eap2_pkg_txt}")
+    file(READ "${_eap2_pkg_txt}" _eap2_pkg_text ENCODING UTF-8)
+    string(REGEX REPLACE
+        "(\\[External Audio Processing 2 v)[0-9a-zA-Z.-]+([^]]*\\])"
+        "\\1${EAP2_VERSION}\\2"
+        _eap2_pkg_text "${_eap2_pkg_text}")
+    file(WRITE "${_eap2_pkg_txt}" "${_eap2_pkg_text}")
+else()
+    message(STATUS "${_eap2_pkg_txt} が見つかりませんでした。スキップします。")
+endif()
+unset(_eap2_pkg_text)
+unset(_eap2_pkg_txt)
 
 set(SOURCES
     src/cpp/AudioPluginFactory.cpp
@@ -114,7 +151,22 @@ if(TARGET validator)
     set_target_properties(validator PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 
+add_executable(cp932_to_utf8 tools/cpp/cp932_to_utf8.cpp)
+
+set(EAP2_SDK_STAMP "${CMAKE_BINARY_DIR}/aviutl2_sdk.stamp")
+add_custom_command(
+    OUTPUT "${EAP2_SDK_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch_sdk.cmake"
+    COMMAND $<TARGET_FILE:cp932_to_utf8> "${CMAKE_CURRENT_SOURCE_DIR}/aviutl2_sdk"
+    COMMAND ${CMAKE_COMMAND} -E touch "${EAP2_SDK_STAMP}"
+    DEPENDS cp932_to_utf8
+    COMMENT "Fetching AviUtl2 SDK"
+    VERBATIM
+)
+add_custom_target(fetch_sdk DEPENDS "${EAP2_SDK_STAMP}")
+
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
+add_dependencies(${PROJECT_NAME} fetch_sdk)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/aviutl2_sdk
