@@ -12,3 +12,4 @@ rust
 *.md
 build/
 !README.md
+out/
