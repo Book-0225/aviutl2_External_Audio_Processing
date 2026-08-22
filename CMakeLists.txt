@@ -165,6 +165,15 @@ add_custom_command(
 )
 add_custom_target(fetch_sdk DEPENDS "${EAP2_SDK_STAMP}")
 
+add_custom_target(fetch_sdk_force
+    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch_sdk.cmake"
+    COMMAND $<TARGET_FILE:cp932_to_utf8> "${CMAKE_CURRENT_SOURCE_DIR}/aviutl2_sdk"
+    COMMAND ${CMAKE_COMMAND} -E touch "${EAP2_SDK_STAMP}"
+    DEPENDS cp932_to_utf8
+    COMMENT "Force re-fetching AviUtl2 SDK"
+    VERBATIM
+)
+
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 add_dependencies(${PROJECT_NAME} fetch_sdk)
 
