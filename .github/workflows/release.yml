@@ -29,7 +29,7 @@ jobs:
               id: version
               shell: pwsh
               run: |
-                  $version = ./scripts/get_version.ps1
+                  $version = (cmake -P ./scripts/get_version.cmake | Out-String).Trim()
                   "version=$version" >> $env:GITHUB_OUTPUT
 
             - name: Check Tag
@@ -40,23 +40,6 @@ jobs:
                   if (git tag --list $tag) {
                     throw "Tag '$tag' already exists."
                   }
-
-            - name: Add msbuild to PATH
-              uses: microsoft/setup-msbuild@v3
-
-            - name: Get VST3 SDK commit
-              id: vst3sdk-sha
-              shell: pwsh
-              run: |
-                  $sha = git -C vst3sdk rev-parse HEAD
-                  "sha=$sha" >> $env:GITHUB_OUTPUT
-
-            - name: Cache VST3 SDK build
-              id: vst3sdk-cache
-              uses: actions/cache@v6
-              with:
-                  path: vst3sdk_build
-                  key: windows-2025-vs2026-vst3sdk-${{ steps.vst3sdk-sha.outputs.sha }}
 
             - name: Resolve latest aviutl2-cli version
               id: aviutl2-cli-version
@@ -82,19 +65,11 @@ jobs:
               shell: pwsh
               run: cargo install aviutl2-cli --version ${{ steps.aviutl2-cli-version.outputs.version }} --locked
 
-            - name: Setup SDK
-              shell: pwsh
-              run: ./scripts/setup_sdk.ps1
+            - name: Prepare Build
+              run: cmake -S ./ -B ./build -Wno-unused-cli -G "Visual Studio 18 2026"
 
-            - name: Configure VST3 SDK
-              if: steps.vst3sdk-cache.outputs.cache-hit != 'true'
-              run: |
-                  cmake -S vst3sdk -B vst3sdk_build
-
-            - name: Build VST3 SDK
-              if: steps.vst3sdk-cache.outputs.cache-hit != 'true'
-              run: |
-                  cmake --build vst3sdk_build --config Release
+            - name: Fetch SDK
+              run: cmake --build ./build --target fetch_sdk --config Release
 
             - name: Package
               run: au2 release

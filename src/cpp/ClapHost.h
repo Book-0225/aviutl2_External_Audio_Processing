@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "IAudioPluginHost.h"
 
+#include <atomic>
 #include <filesystem>
 #include <memory>
 #include <string>

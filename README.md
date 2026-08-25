@@ -316,8 +316,7 @@ FuzzyMatchIssues=1
 FuzzyMatchDist=30
 ; 実験的機能(EnableExperimental=1のときのみ反映)
 [Experimental]
-; 1にすると開発中のスクリプトモジュールを有効化する
-UseExperimentalScriptModule=0
+; 現状設定項目無し
 ```
 
 ---
@@ -1343,6 +1342,10 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 
 ## 改版履歴
 
+- **v0.0.37**
+  - ビルドをCmake経由に変更
+  - 実験的に追加していたスクリプトモジュールの削除
+
 - **v0.0.36**
   - IRファイルを用いたリバーブを追加
   - アナライザーにオブジェクト単位の測定機能を追加
@@ -1656,40 +1659,40 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
 
 ### 前提条件
 
-- Visual Studio 2026
-- CMake 4.3.x以降
+- CMake 4.3以降
 - Git
-- clang-format
 - aviutl2 CLI
-- pwsh
+- pwsh(リリースノートを生成する場合のみ)
+- 各ツールチェーン(どれか一つ以上)
+  - GCC: MinGW-w64
+  - Clang: llvm-mingw
+  - MSVC: Visual Studio 2026(C++によるデスクトップ開発)
 
-### 実際の手順 (aviutl2 CLIを使用しない場合)
+### ビルド手順(Ninja)
 
-1. `git clone --recursive https://github.com/Book-0225/aviutl2_External_Audio_Processing.git`
-2. `cd aviutl2_External_Audio_Processing`
-3. `aviutl2_External_Audio_Processing/aviutl2_sdk`になるようにaviutl2のSDKを配置
-4. `mkdir vst3sdk_build`
-5. `cd .\vst3sdk_build\`
-6. `cmake ..\vst3sdk\`
-7. `cmake --build . --config Release`
-8. `cd ..`
-9. `msbuild External_Audio_Processing2.slnx /p:Configuration=Release /p:Platform=x64`
-
-上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`が生成されるはずです。
-
-### 実際の手順 (aviutl2 CLIを使用する場合)
+- 上記前提条件に加えてNinjaが必要です
 
 1. `git clone --recursive https://github.com/Book-0225/aviutl2_External_Audio_Processing.git`
 2. `cd aviutl2_External_Audio_Processing`
-3. `aviutl2_External_Audio_Processing/aviutl2_sdk`になるようにaviutl2のSDKを配置
-4. `mkdir vst3sdk_build`
-5. `cd .\vst3sdk_build\`
-6. `cmake ..\vst3sdk\`
-7. `cmake --build . --config Release`
-8. `cd ..`
-9. `au2 release`
+3. `pwsh  -ExecutionPolicy Bypass -File ./scripts/setup_sdk.ps1`
+4. `cmake -S ./ -B ./build -DCMAKE_BUILD_TYPE:STRING=Release -Wno-unused-cli -G "Ninja`
+5. `au2 release`
 
-上記の通り実行すると`x64/Release/External_Audio_Processing2.aux2`と`release/External_Audio_Processing2.au2pkg.zip`が生成されるはずです。
+上記の通り実行すると`build/bin/External_Audio_Processing2.aux2`と`release/External_Audio_Processing2.au2pkg.zip`が生成されるはずです。
+
+コンパイラを指定する場合は手順4で`-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++`のように指定してください。
+
+### ビルド手順(Visual Studio 2026)
+
+- MSVC専用です
+
+1. `git clone --recursive https://github.com/Book-0225/aviutl2_External_Audio_Processing.git`
+2. `cd aviutl2_External_Audio_Processing`
+3. `pwsh  -ExecutionPolicy Bypass -File ./scripts/setup_sdk.ps1`
+4. `cmake -S ./ -B ./build -Wno-unused-cli -G "Visual Studio 18 2026`
+5. `au2 release`
+
+上記の通り実行すると`build/bin/External_Audio_Processing2.aux2`と`release/External_Audio_Processing2.au2pkg.zip`が生成されるはずです。
 
 ## Credits
 

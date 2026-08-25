@@ -1,6 +1,7 @@
 ﻿#include "VolumeFix.h"
 
 #include "AnalyzerColor.h"
+#include "Avx2Utils.h"
 
 constexpr auto TOOL_NAME = L"Volume";
 

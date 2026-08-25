@@ -249,7 +249,7 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     } else {
         needs_reset = true;
     }
-    DbgPrint(L"ShouldReset result: " + needs_reset ? L"True" : L"False", LOG_VERBOSE);
+    DbgPrint(std::wstring(L"ShouldReset result: ") + std::wstring(needs_reset ? L"True" : L"False"), LOG_VERBOSE);
     return needs_reset;
 }
 

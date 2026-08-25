@@ -1,5 +1,9 @@
 ﻿#pragma once
 #define _USE_MATH_DEFINES
+// clang-format off
+#include <windows.h>
+#include <cstdint>
+// clang-format on
 #include "Eap2Info.h"
 #include "cache2.h"
 #include "config2.h"
@@ -9,15 +13,16 @@
 #include "plugin2.h"
 
 #include <array>
+#include <filesystem>
 #include <functional>
 #include <mutex>
 #include <optional>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <tchar.h>
 #include <variant>
 #include <vector>
-#include <windows.h>
 
 #define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() {                          \
     static std::wstring s = std::regex_replace(SRC_STR, std::wregex(REGEX_PATTERN), REPLACEMENT); \
@@ -113,7 +118,7 @@ inline bool DbgMessage(const std::wstring& lpText, std::optional<LOG_TYPE> log_t
             break;
     }
     DbgPrint(lpText, type);
-    bool res = MessageBox(nullptr, lpText.c_str(), lpCaption.c_str(), uType);
+    bool res = MessageBoxW(nullptr, lpText.c_str(), lpCaption.c_str(), uType);
     return res;
 }
 
@@ -161,9 +166,9 @@ inline Version parseVersion(std::wstring_view v) {
 
 inline std::filesystem::path GetDllPath() {
     HMODULE hModule = nullptr;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&GetDllPath), &hModule);
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&GetDllPath), &hModule);
     wchar_t path[MAX_PATH];
-    GetModuleFileName(hModule, path, MAX_PATH);
+    GetModuleFileNameW(hModule, path, MAX_PATH);
     std::filesystem::path dllPath(path);
     return dllPath;
 }
@@ -204,7 +209,6 @@ extern FILTER_PLUGIN_TABLE filter_plugin_table_midi_gen;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_reverb2;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_convolution_reverb;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_volume;
-extern SCRIPT_MODULE_FUNCTION module_funcs[];
 
 void LoadConfig();
 void ReloadConfig();

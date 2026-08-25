@@ -1,7 +1,16 @@
 ﻿#pragma once
+
+// clang-format off
+#include <windows.h>
+#include <cstdint>
+// clang-format on
+#include "filter2.h"
+
+#define _USE_MATH_DEFINES
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <filesystem>
 #include <immintrin.h>
 #include <vector>
 

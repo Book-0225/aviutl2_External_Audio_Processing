@@ -1,5 +1,5 @@
 ﻿#pragma once
-
+#include <windows.h>
 static constexpr COLORREF C_BG = RGB(18, 18, 22);
 static constexpr COLORREF C_PANEL = RGB(26, 26, 34);
 static constexpr COLORREF C_CTRL = RGB(30, 30, 42);

@@ -116,7 +116,7 @@ inline bool CompressBlob(const BYTE* data, size_t len, std::vector<BYTE>& out) {
     if (!CreateCompressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &compressor)) return false;
 
     size_t compressedSize = 0;
-    BOOL ok = Compress(compressor, data, static_cast<size_t>(len), nullptr, 0, &compressedSize);
+    BOOL ok = Compress(compressor, const_cast<void*>(static_cast<const void*>(data)), static_cast<size_t>(len), nullptr, 0, &compressedSize);
     if (!ok && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
         CloseCompressor(compressor);
         return false;
@@ -129,7 +129,7 @@ inline bool CompressBlob(const BYTE* data, size_t len, std::vector<BYTE>& out) {
     std::memcpy(out.data(), &header, sizeof(header));
 
     size_t writtenSize = compressedSize;
-    ok = Compress(compressor, data, static_cast<size_t>(len), out.data() + sizeof(CompressedBlobHeader), compressedSize, &writtenSize);
+    ok = Compress(compressor, const_cast<void*>(static_cast<const void*>(data)), static_cast<size_t>(len), out.data() + sizeof(CompressedBlobHeader), compressedSize, &writtenSize);
     CloseCompressor(compressor);
     if (!ok) {
         out.clear();
@@ -156,7 +156,7 @@ inline bool DecompressBlob(const BYTE* data, size_t len, std::vector<BYTE>& out,
     size_t writtenSize = static_cast<size_t>(header.originalSize);
     BOOL ok = Decompress(
         decompressor,
-        data + sizeof(CompressedBlobHeader),
+        const_cast<void*>(static_cast<const void*>(data + sizeof(CompressedBlobHeader))),
         static_cast<size_t>(len - sizeof(CompressedBlobHeader)),
         out.data(),
         static_cast<size_t>(out.size()),

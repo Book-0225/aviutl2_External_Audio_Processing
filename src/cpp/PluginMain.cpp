@@ -1,6 +1,7 @@
 ﻿#include "AudioPluginFactory.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "StringUtils.h"
 
 #include <unordered_set>
 
@@ -18,29 +19,16 @@
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
 #define MINIMUM_VERSION 2010400
-#define RECOMMENDED_VS_VERSION 2026
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
 #define TOOL_NAME_FMT(name, regex) (name L" " regex)
-#if VS_VSERSION == -1
-#define FILTER_INFO_FMT(name, regex, ver, debug, vsver, author) (name L" " regex L" " ver debug L"-VSUnknown by " author)
-#elif VS_VERSION != RECOMMENDED_VS_VERSION
-#define FILTER_INFO_FMT(name, regex, ver, debug, vsver, author) (name L" " regex L" " ver debug L"-VS" STR2(vsver) L" by " author)
-#else
 #define FILTER_INFO_FMT(name, regex, ver, debug, author) (name L" " regex L" " ver debug L" by " author)
-#endif
 #define PLUGIN_INFO_FMT(name, attr) (name L" Info: " attr)
 
 constexpr wchar_t filter_name[] = FILTER_NAME;
 constexpr wchar_t filter_name_media[] = FILTER_NAME_MEDIA_FMT(FILTER_NAME);
 constexpr wchar_t tool_name[] = TOOL_NAME_FMT(FILTER_NAME, REGEX_TOOL_NAME);
-#if VS_VERSION == -1
 constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
-#elif VS_VERSION != RECOMMENDED_VS_VERSION
-constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, VS_VERSION, PLUGIN_AUTHOR);
-#else
-constexpr wchar_t filter_info[] = FILTER_INFO_FMT(FILTER_NAME, REGEX_FILTER_NAME, PLUGIN_VERSION, DEBUG_PREFIX, PLUGIN_AUTHOR);
-#endif
 constexpr wchar_t plugin_info[] = PLUGIN_INFO_FMT(FILTER_NAME_SHORT, VST_ATTRIBUTION);
 
 constexpr wchar_t regex_info_name[] = REGEX_FILTER_NAME;
@@ -53,11 +41,6 @@ constexpr wchar_t EAP2_MW_CLASS[] = L"EAP2_MessageWindowClass";
 COMMON_PLUGIN_TABLE common_plugin_table = {
     filter_name,
     plugin_info,
-};
-
-SCRIPT_MODULE_TABLE script_module_table = {
-    GEN_FILTER_INFO(L"Module"),
-    module_funcs
 };
 
 static constexpr std::array all_plugins{
@@ -253,7 +236,8 @@ void ToolCleanupResources() {
 
 void func_proc_file_drop_plugin(EDIT_SECTION* edit, LPCWSTR file) {
     std::filesystem::path path = file;
-    std::string utf8_path = path.u8string();
+    auto u8 = path.u8string();
+    std::string utf8_path(u8.begin(), u8.end());
     EDIT_INFO* info = edit->info;
     int32_t layer = info->layer;
     int32_t frame = info->frame;
@@ -294,7 +278,8 @@ void func_proc_file_drop_plugin(EDIT_SECTION* edit, LPCWSTR file) {
 
 void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
     std::filesystem::path path = file;
-    std::string utf8_path = path.u8string();
+    auto u8 = path.u8string();
+    std::string utf8_path(u8.begin(), u8.end());
     EDIT_INFO* info = edit->info;
     int32_t layer = info->layer;
     int32_t frame = info->frame;
@@ -319,7 +304,7 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     // RequiredVersion()実装前のバージョン用
     if (version < 2003300) {
         std::wstring message = std::wstring(L"AviUtl2のバージョンが古すぎます。\n最低バージョン: ") + std::to_wstring(MINIMUM_VERSION);
-        MessageBox(NULL, message.c_str(), L"EAP2 Error", MB_OK | MB_ICONERROR);
+        MessageBoxW(NULL, message.c_str(), L"EAP2 Error", MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -346,9 +331,9 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
         return false;
     }
 
-    g_hMessageWindow = CreateWindow(wc.lpszClassName, L"EAP2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
+    g_hMessageWindow = CreateWindowW(wc.lpszClassName, L"EAP2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, g_hinstance, nullptr);
     if (!g_hMessageWindow) {
-        UnregisterClass(EAP2_MW_CLASS, g_hinstance);
+        UnregisterClassW(EAP2_MW_CLASS, g_hinstance);
         AudioPluginFactory::Uninitialize();
         CoUninitialize();
         DbgMessage(TrText(L"メッセージウィンドウの作成に失敗しました。"), LOG_ERROR);
@@ -367,7 +352,7 @@ EXTERN_C __declspec(dllexport) void UninitializePlugin() {
         DestroyWindow(g_hMessageWindow);
         g_hMessageWindow = nullptr;
     }
-    UnregisterClass(EAP2_MW_CLASS, g_hinstance);
+    UnregisterClassW(EAP2_MW_CLASS, g_hinstance);
     CleanupMainFilterResources();
     AudioPluginFactory::Uninitialize();
     CoUninitialize();
@@ -399,14 +384,13 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
         host->register_file_drop_handler(TrText(L"EAP2でMIDIファイルを再生用オブジェクトとして追加(CtrlまたはShiftで表示用オブジェクト)"), L"MIDI File (*.mid)\0*.mid;*.midi\0", &func_proc_file_drop_midi);
     }
     host->register_config_menu(TrText(L"EAP2の設定を再読込"), [](HWND hwnd, HINSTANCE dllhinst) {
-        if (MessageBox(hwnd, TrText(L"EAP2の設定を再読込しますか？(一部は再起動後に反映)"), TrText(L"EAP2 設定再読込"), MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig();
+        if (MessageBoxW(hwnd, TrText(L"EAP2の設定を再読込しますか？(一部は再起動後に反映)"), TrText(L"EAP2 設定再読込"), MB_OKCANCEL | MB_ICONINFORMATION | MB_DEFBUTTON2) == IDOK) ReloadConfig();
     });
     host->register_config_menu(TrText(L"EAP2の設定をリセット"), [](HWND hwnd, HINSTANCE dllhinst) {
-        if (MessageBox(hwnd, TrText(L"EAP2の設定をリセットしますか？(再起動後に反映)"), TrText(L"EAP2 設定リセット"), MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig();
+        if (MessageBoxW(hwnd, TrText(L"EAP2の設定をリセットしますか？(再起動後に反映)"), TrText(L"EAP2 設定リセット"), MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK) ResetConfig();
     });
     host->register_config_menu(TrText(L"EAP2の設定を開く"), [](HWND hwnd, HINSTANCE dllhinst) { OpenConfig(); });
     for (auto& plugin : GetModule(all_plugins, settings)) host->register_filter_plugin(plugin);
-    if (settings.exp.use_experimental_script_module) host->register_script_module_name(&script_module_table, L"EAP2_module");
     host->register_project_save_handler(func_project_save);
     host->register_project_load_handler(func_project_load);
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });
