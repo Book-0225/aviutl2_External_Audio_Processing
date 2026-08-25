@@ -263,6 +263,7 @@ void collect_active_ids_proc(EDIT_SECTION* edit) {
 }
 
 void func_project_save_impl(PROJECT_FILE* pf) {
+    pf->set_param_string("EAP2Version", StringUtils::WideToUtf8(plugin_version).c_str());
     std::set<std::string> active_ids_in_project;
     g_active_ids_collector = &active_ids_in_project;
     if (g_edit_handle) {
