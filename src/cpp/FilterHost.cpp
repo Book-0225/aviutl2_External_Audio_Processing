@@ -8,6 +8,7 @@
 #include "PluginManager.h"
 #include "PluginType.h"
 #include "StringUtils.h"
+#include "SubPluginPicker.h"
 #include "TempoUtils.h"
 #include "ToolParamListWindow.h"
 
@@ -48,6 +49,8 @@ struct MidiState {
 };
 static std::map<std::string, MidiState> g_midi_state;
 static std::mutex g_midi_state_mutex;
+static std::set<std::string> g_force_reload_instances;
+static std::mutex g_force_reload_mutex;
 
 TCHAR filter_ext[] =
     L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0"
@@ -85,12 +88,21 @@ struct InstanceID {
     char uuid[40] = { 0 };
 };
 FILTER_ITEM_DATA<InstanceID> instance_data_param(L"INSTANCE_ID");
-FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
-    if (!edit) return;
+static std::vector<OBJECT_HANDLE> get_button_target_objects(EDIT_SECTION* edit) {
+    std::vector<OBJECT_HANDLE> targets;
+    OBJECT_HANDLE focus = edit->get_focus_object();
+    if (focus) targets.push_back(focus);
     int32_t select_count = edit->get_selected_object_num();
     for (int32_t s = 0; s < select_count; ++s) {
         OBJECT_HANDLE obj = edit->get_selected_object(s);
-        if (!obj) continue;
+        if (obj && std::find(targets.begin(), targets.end(), obj) == targets.end()) targets.push_back(obj);
+    }
+    return targets;
+}
+FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
+    if (!edit) return;
+    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
+    for (OBJECT_HANDLE obj : targets) {
         for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
             int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
             for (int32_t i = 0; i < effect_count; ++i) {
@@ -107,6 +119,50 @@ FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
             }
         }
     }
+});
+FILTER_ITEM_BUTTON button_change_subplugin(L"サブプラグインを再選択", [](EDIT_SECTION* edit) {
+    if (!edit) return;
+    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
+    if (targets.empty()) {
+        DbgMessage(TrText(L"対象のオブジェクトが見つかりません。\nオブジェクトを選択してから押してください。"), LOG_WARN);
+        return;
+    }
+    int32_t hit_count = 0;
+    for (OBJECT_HANDLE obj : targets) {
+        bool has_target_effect = false;
+        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
+            int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
+                std::wstring indexed_filter_name = std::wstring(current_filter_name);
+                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+                if (hex_id) {
+                    std::string uuid = StringUtils::HexToString(hex_id);
+                    if (!uuid.empty()) {
+                        std::lock_guard<std::mutex> lock(g_force_reload_mutex);
+                        g_force_reload_instances.insert(uuid);
+                        ++hit_count;
+                        has_target_effect = true;
+                        DbgPrint(L"Force reload (sub-plugin reselect) requested via button for " + StringUtils::Utf8ToWide(uuid), LOG_VERBOSE);
+                    }
+                }
+            }
+        }
+
+        if (has_target_effect) {
+            OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(obj);
+            int target_frame = (edit->info) ? edit->info->frame : lf.start;
+            if (target_frame < lf.start) target_frame = lf.start;
+            if (target_frame > lf.end) target_frame = lf.end;
+
+            bool queued = g_edit_handle->rendering_object_audio(obj, target_frame, true, nullptr, [](void*, int32_t, const float*, const float*, int32_t) {});
+            if (!queued)
+                DbgPrint(L"rendering_object_audio failed to queue for force reload", LOG_WARN);
+        }
+    }
+
+    if (hit_count == 0)
+        DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
 });
 FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
@@ -135,6 +191,7 @@ FILTER_ITEM_DATA<InstanceLastMidiData> last_midi_data(L"LAST_MIDI_DATA");
 void* filter_items_host[] = {
     &general_group,
     &plugin_path_param,
+    &button_change_subplugin,
     &track_wet,
     &track_volume,
     &track_bpm,
@@ -173,6 +230,7 @@ void* filter_items_host[] = {
 void* filter_items_host_media[] = {
     &general_group,
     &plugin_path_param,
+    &button_change_subplugin,
     &track_bpm,
     &track_ts_num,
     &track_ts_denom,
@@ -438,6 +496,14 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
     if (PluginManager::GetInstance().IsPendingReinitialization(effect_id)) return true;
 
+    bool force_reload = false;
+    {
+        std::lock_guard<std::mutex> lock(g_force_reload_mutex);
+        if (g_force_reload_instances.erase(instance_id)) {
+            force_reload = true;
+        }
+    }
+
     std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHost(effect_id);
     if (host && audio->scene->sample_rate > 0) {
         double currentRate = host->GetSampleRate();
@@ -450,7 +516,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (plugin_path.empty()) {
         if (host) needs_reinitialization = true;
     } else {
-        if (!host) {
+        if (!host || force_reload) {
             needs_reinitialization = true;
         } else {
             current_plugin_path = host->GetPluginPath();
@@ -491,13 +557,13 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             wcscpy_s(last_plugin_data.value->last_plugin_path, sizeof(last_plugin_data.value->last_plugin_path), plugin_path.c_str());
         }
 
-        if (path_changed) {
+        if (path_changed || force_reload) {
             PluginManager::GetInstance().ClearMapping(instance_id);
-            DbgPrint(L"Plugin path changed. Mappings cleared for " + StringUtils::Utf8ToWide(instance_id), LOG_VERBOSE);
+            DbgPrint(L"Plugin path or sub-plugin changed. Mappings cleared for " + StringUtils::Utf8ToWide(instance_id), LOG_VERBOSE);
         }
 
         std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-        g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path, sampleRate, path_changed]() {
+        g_main_thread_tasks.push_back([effect_id, instance_id, plugin_path, sampleRate, path_changed, force_reload]() {
             std::shared_ptr<IAudioPluginHost> new_host = nullptr;
 
             if (!plugin_path.empty()) {
@@ -506,12 +572,35 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     new_host = AudioPluginFactory::Create(plugin_type, g_hinstance);
                     if (new_host) {
                         if (sampleRate > 0) {
-                            if (new_host->LoadPlugin(plugin_path, sampleRate, MAX_BLOCK_SIZE)) {
-                                std::string state_to_restore;
-                                if (!path_changed) state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
-                                if (!state_to_restore.empty()) new_host->SetState(state_to_restore);
-                            } else {
-                                new_host = nullptr;
+                            std::string sub_plugin_id;
+                            std::vector<IAudioPluginHost::SubPluginInfo> candidates = new_host->EnumerateSubPlugins(plugin_path);
+                            if (candidates.size() == 1) {
+                                sub_plugin_id = candidates[0].id;
+                            } else if (candidates.size() > 1) {
+                                std::string saved_id = PluginManager::GetInstance().GetSubPluginId(instance_id);
+                                bool saved_is_valid = !saved_id.empty() && std::any_of(candidates.begin(), candidates.end(), [&](const auto& c) { return c.id == saved_id; });
+                                if (saved_is_valid && !path_changed && !force_reload) {
+                                    sub_plugin_id = saved_id;
+                                } else {
+                                    sub_plugin_id = ShowSubPluginPicker(g_hinstance, g_host_hwnd, L"サブプラグインの選択 (" + plugin_path.filename().wstring() + L")", candidates);
+                                    if (sub_plugin_id.empty()) {
+                                        DbgPrint(L"Sub-plugin selection cancelled for " + StringUtils::Utf8ToWide(instance_id), LOG_VERBOSE);
+                                        new_host = nullptr;
+                                    }
+                                    DbgPrint(std::wstring(L"SubPluginID: ") + StringUtils::Utf8ToWide(sub_plugin_id));
+                                }
+                            }
+
+                            if (new_host) {
+                                if (new_host->LoadPlugin(plugin_path, sampleRate, MAX_BLOCK_SIZE, sub_plugin_id)) {
+                                    PluginManager::GetInstance().SetSubPluginId(instance_id, sub_plugin_id);
+                                    std::string test_id = PluginManager::GetInstance().GetSubPluginId(instance_id);
+                                    std::string state_to_restore;
+                                    if (!path_changed && !force_reload) state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
+                                    if (!state_to_restore.empty()) new_host->SetState(state_to_restore);
+                                } else {
+                                    new_host = nullptr;
+                                }
                             }
                         }
                     }

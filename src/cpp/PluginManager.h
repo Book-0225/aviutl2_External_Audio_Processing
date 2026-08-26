@@ -30,6 +30,9 @@ class PluginManager {
     int32_t GetMappedParamID(const std::string& instance_id, int32_t sliderInfoIndex);
     void ClearMapping(const std::string& instance_id);
 
+    std::string GetSubPluginId(const std::string& instance_id);
+    void SetSubPluginId(const std::string& instance_id, const std::string& sub_plugin_id);
+
   private:
     PluginManager() = default;
     ~PluginManager() = default;
@@ -44,6 +47,7 @@ class PluginManager {
     std::map<int64_t, std::shared_ptr<IAudioPluginHost>> m_hosts;
     std::map<std::string, std::string> m_plugin_state_database;
     std::map<int64_t, bool> m_pending_reinitialization;
+    std::map<std::string, std::string> m_sub_plugin_ids;
 
     std::mutex m_last_audio_state_mutex;
     std::map<int64_t, LastAudioState> m_last_audio_states;

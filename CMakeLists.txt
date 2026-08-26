@@ -79,6 +79,7 @@ set(SOURCES
     src/cpp/MidiParser.cpp
     src/cpp/PluginMain.cpp
     src/cpp/PluginManager.cpp
+    src/cpp/SubPluginPicker.cpp
     src/cpp/ToolAnalyzer.cpp
     src/cpp/ToolAutoWah.cpp
     src/cpp/ToolChainComp.cpp

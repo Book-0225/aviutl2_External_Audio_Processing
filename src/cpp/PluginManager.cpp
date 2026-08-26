@@ -52,6 +52,7 @@ void PluginManager::CleanupResources() {
         m_hosts.clear();
         m_plugin_state_database.clear();
         m_pending_reinitialization.clear();
+        m_sub_plugin_ids.clear();
     }
     {
         std::lock_guard<std::mutex> lock(m_instance_ownership_mutex);
@@ -69,6 +70,10 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
         if (active_ids.find(it->first) == active_ids.end()) it = m_plugin_state_database.erase(it);
         else ++it;
     }
+    for (auto it = m_sub_plugin_ids.begin(); it != m_sub_plugin_ids.end();) {
+        if (active_ids.find(it->first) == active_ids.end()) it = m_sub_plugin_ids.erase(it);
+        else ++it;
+    }
     for (auto it = m_instance_id_to_effect_id_map.begin(); it != m_instance_id_to_effect_id_map.end();) {
         if (active_ids.find(it->first) == active_ids.end()) it = m_instance_id_to_effect_id_map.erase(it);
         else ++it;
@@ -82,9 +87,11 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
         if (!host_it->second) continue;
         try {
             std::string live_state = host_it->second->GetState();
-            if (!live_state.empty()) {
+            if (!live_state.empty())
                 m_plugin_state_database[instance_id] = live_state;
-            }
+            std::string live_sub_id = host_it->second->GetLoadedSubPluginId();
+            if (!live_sub_id.empty())
+                m_sub_plugin_ids[instance_id] = live_sub_id;
         } catch (...) {
             DbgPrint(std::wstring(TrText(L"インスタンスの状態の保存に失敗しました。")) + L": " + StringUtils::Utf8ToWide(instance_id), LOG_WARN);
         }
@@ -94,15 +101,18 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
     for (const auto& [id, state] : m_plugin_state_database) {
         all_data_str += id + ":" + state;
 
+        std::string extra_segment;
         if (m_param_mappings.count(id)) {
-            all_data_str += "|";
             const auto& mapping = m_param_mappings[id];
-            for (int32_t i = 0; i < 4; ++i) {
-                if (mapping[i] != -1) {
-                    all_data_str += std::to_string(i) + "=" + std::to_string(mapping[i]) + ",";
-                }
-            }
+            for (int32_t i = 0; i < 4; ++i)
+                if (mapping[i] != -1)
+                    extra_segment += std::to_string(i) + "=" + std::to_string(mapping[i]) + ",";
         }
+        auto sub_id_it = m_sub_plugin_ids.find(id);
+        if (sub_id_it != m_sub_plugin_ids.end() && !sub_id_it->second.empty())
+            extra_segment += "S=" + sub_id_it->second + ",";
+        if (!extra_segment.empty())
+            all_data_str += "|" + extra_segment;
         all_data_str += ";";
     }
     return all_data_str;
@@ -112,6 +122,7 @@ void PluginManager::LoadProjectState(const std::string& data) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     m_plugin_state_database.clear();
     m_param_mappings.clear();
+    m_sub_plugin_ids.clear();
     if (data.empty()) return;
     std::string_view sv(data);
     size_t start = 0;
@@ -144,11 +155,17 @@ void PluginManager::LoadProjectState(const std::string& data) {
                         std::string_view kv = map_part.substr(map_start, map_end - map_start);
                         size_t eq = kv.find('=');
                         if (eq != std::string_view::npos) {
-                            try {
-                                int32_t idx = std::stoi(std::string(kv.substr(0, eq)));
-                                int32_t pid = std::stol(std::string(kv.substr(eq + 1)));
-                                if (idx >= 0 && idx < 4) mapping[idx] = pid;
-                            } catch (...) {}
+                            std::string_view k = kv.substr(0, eq);
+                            std::string_view v = kv.substr(eq + 1);
+                            if (k == "S") {
+                                if (!v.empty()) m_sub_plugin_ids[key] = std::string(v);
+                            } else {
+                                try {
+                                    int32_t idx = std::stoi(std::string(k));
+                                    int32_t pid = std::stol(std::string(v));
+                                    if (idx >= 0 && idx < 4) mapping[idx] = pid;
+                                } catch (...) {}
+                            }
                         }
                         if (map_end == map_part.length()) break;
                         map_start = map_end + 1;
@@ -178,9 +195,10 @@ void PluginManager::RegisterOrUpdateInstance(std::string& instance_id, int64_t e
 
         {
             std::lock_guard<std::mutex> state_lock(m_states_mutex);
-            if (m_plugin_state_database.count(old_instance_id)) {
+            if (m_plugin_state_database.count(old_instance_id))
                 m_plugin_state_database[new_instance_id] = m_plugin_state_database[old_instance_id];
-            }
+            if (m_sub_plugin_ids.count(old_instance_id))
+                m_sub_plugin_ids[new_instance_id] = m_sub_plugin_ids[old_instance_id];
         }
 
         m_instance_id_to_effect_id_map[new_instance_id] = effect_id;
@@ -191,19 +209,17 @@ void PluginManager::RegisterOrUpdateInstance(std::string& instance_id, int64_t e
 std::shared_ptr<IAudioPluginHost> PluginManager::GetHost(int64_t effect_id) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     auto it = m_hosts.find(effect_id);
-    if (it != m_hosts.end()) {
+    if (it != m_hosts.end())
         return it->second;
-    }
     return nullptr;
 }
 
 void PluginManager::SetHost(int64_t effect_id, std::shared_ptr<IAudioPluginHost> host) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
-    if (host) {
+    if (host)
         m_hosts[effect_id] = host;
-    } else {
+    else
         m_hosts.erase(effect_id);
-    }
 }
 
 void PluginManager::RemoveHost(int64_t effect_id) {
@@ -214,9 +230,8 @@ void PluginManager::RemoveHost(int64_t effect_id) {
 std::string PluginManager::GetSavedState(const std::string& instance_id) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     auto it = m_plugin_state_database.find(instance_id);
-    if (it != m_plugin_state_database.end()) {
+    if (it != m_plugin_state_database.end())
         return it->second;
-    }
     return "";
 }
 
@@ -227,9 +242,8 @@ void PluginManager::SaveState(const std::string& instance_id, const std::string&
 
 bool PluginManager::IsPendingReinitialization(int64_t effect_id) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
-    if (m_pending_reinitialization.count(effect_id)) {
+    if (m_pending_reinitialization.count(effect_id))
         return m_pending_reinitialization[effect_id];
-    }
     return false;
 }
 
@@ -260,27 +274,38 @@ void PluginManager::UpdateLastAudioState(int64_t effect_id, int64_t current_samp
 
 void PluginManager::UpdateMapping(const std::string& instance_id, int32_t sliderInfoIndex, int32_t vstParamID) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
-    if (m_param_mappings.find(instance_id) == m_param_mappings.end()) {
+    if (m_param_mappings.find(instance_id) == m_param_mappings.end())
         m_param_mappings[instance_id] = { -1, -1, -1, -1 };
-    }
-    if (sliderInfoIndex >= 0 && sliderInfoIndex < 4) {
+    if (sliderInfoIndex >= 0 && sliderInfoIndex < 4)
         m_param_mappings[instance_id][sliderInfoIndex] = vstParamID;
-    }
 }
 
 int32_t PluginManager::GetMappedParamID(const std::string& instance_id, int32_t sliderInfoIndex) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
-    if (m_param_mappings.count(instance_id)) {
-        if (sliderInfoIndex >= 0 && sliderInfoIndex < 4) {
+    if (m_param_mappings.count(instance_id))
+        if (sliderInfoIndex >= 0 && sliderInfoIndex < 4)
             return m_param_mappings[instance_id][sliderInfoIndex];
-        }
-    }
     return -1;
 }
 
 void PluginManager::ClearMapping(const std::string& instance_id) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
-    if (m_param_mappings.count(instance_id)) {
+    if (m_param_mappings.count(instance_id))
         m_param_mappings[instance_id] = { -1, -1, -1, -1 };
-    }
+}
+
+std::string PluginManager::GetSubPluginId(const std::string& instance_id) {
+    std::lock_guard<std::mutex> lock(m_states_mutex);
+    auto it = m_sub_plugin_ids.find(instance_id);
+    if (it != m_sub_plugin_ids.end())
+        return it->second;
+    return "";
+}
+
+void PluginManager::SetSubPluginId(const std::string& instance_id, const std::string& sub_plugin_id) {
+    std::lock_guard<std::mutex> lock(m_states_mutex);
+    if (sub_plugin_id.empty())
+        m_sub_plugin_ids.erase(instance_id);
+    else
+        m_sub_plugin_ids[instance_id] = sub_plugin_id;
 }

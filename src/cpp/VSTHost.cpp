@@ -225,7 +225,12 @@ struct VstHost::Impl {
     }
     ~Impl() { ReleasePlugin(); }
 
-    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize);
+    static std::vector<IAudioPluginHost::SubPluginInfo> EnumerateSubPlugins(const std::filesystem::path& path);
+    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize, const std::string& subPluginId);
+    std::string GetLoadedSubPluginId() const {
+        std::lock_guard<std::recursive_mutex> lock(lifecycleMutex);
+        return currentSubPluginId;
+    }
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents);
     void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom);
     void ShowGui();
@@ -369,6 +374,7 @@ struct VstHost::Impl {
     FUnknownPtr<IPlugView> plugView;
     WindowController* windowController = nullptr;
     std::filesystem::path currentPluginPath;
+    std::string currentSubPluginId;
     double currentSampleRate = 44100.0;
     double currentBpm = 120.0;
     int32_t currentTsNum = 4;
@@ -408,7 +414,59 @@ struct VstHost::Impl {
     }
 };
 
-bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
+namespace {
+std::string ClassIdToString(const ClassInfo& ci) {
+    TUID tuid;
+    ci.ID().toString(tuid);
+    static const char* hex = "0123456789ABCDEF";
+    std::string s;
+    s.reserve(32);
+    for (unsigned char b : tuid) {
+        s.push_back(hex[(b >> 4) & 0xF]);
+        s.push_back(hex[b & 0xF]);
+    }
+    return s;
+}
+
+bool IsHostablePluginClass(const ClassInfo& ci) {
+    return ci.category() == "Audio Module Class" ||
+           ci.category() == "Instrument Module Class" ||
+           ci.category() == "MIDI Module Class";
+}
+} // namespace
+
+std::vector<IAudioPluginHost::SubPluginInfo> VstHost::Impl::EnumerateSubPlugins(const std::filesystem::path& path) {
+    std::vector<IAudioPluginHost::SubPluginInfo> candidates;
+    std::string error;
+    auto temp_module = Module::create(path.string(), error);
+    if (!temp_module) return candidates;
+
+    auto& factory = temp_module->getFactory();
+    auto rawFactory = factory.get(); // 生のCポインタを使用
+
+    int32_t numClasses = rawFactory->countClasses();
+    for (int32_t i = 0; i < numClasses; ++i) {
+        Steinberg::PClassInfo ci;
+        memset(&ci, 0, sizeof(Steinberg::PClassInfo));
+        if (rawFactory->getClassInfo(i, &ci) != Steinberg::kResultOk) continue;
+
+        std::string cid_str;
+        cid_str.reserve(32);
+        static const char* hex = "0123456789ABCDEF";
+        for (int j = 0; j < 16; ++j) {
+            unsigned char b = ci.cid[j];
+            cid_str.push_back(hex[(b >> 4) & 0xF]);
+            cid_str.push_back(hex[b & 0xF]);
+        }
+
+        VST3::Hosting::ClassInfo hostClassInfo(ci);
+        if (IsHostablePluginClass(hostClassInfo))
+            candidates.push_back({ cid_str, hostClassInfo.name() });
+    }
+    return candidates;
+}
+
+bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize, const std::string& subPluginId) {
     std::lock_guard<std::recursive_mutex> lifecycleLock(lifecycleMutex);
     ReleasePlugin();
     componentHandler = owned(new HostComponentHandler());
@@ -418,13 +476,30 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     if (!module) return false;
 
     auto& factory = module->getFactory();
+    auto rawFactory = factory.get();
     ClassInfo target;
+    std::string safeFoundId = "";
     bool found = false;
-    for (const auto& ci : factory.classInfos()) {
-        if (ci.category() == "Audio Module Class" ||
-            ci.category() == "Instrument Module Class" ||
-            ci.category() == "MIDI Module Class") {
-            target = ci;
+
+    int32_t numClasses = rawFactory->countClasses();
+    for (int32_t i = 0; i < numClasses; ++i) {
+        Steinberg::PClassInfo ci;
+        memset(&ci, 0, sizeof(Steinberg::PClassInfo));
+        if (rawFactory->getClassInfo(i, &ci) != Steinberg::kResultOk) continue;
+        std::string cid_str;
+        cid_str.reserve(32);
+        static const char* hex = "0123456789ABCDEF";
+        for (int j = 0; j < 16; ++j) {
+            unsigned char b = ci.cid[j];
+            cid_str.push_back(hex[(b >> 4) & 0xF]);
+            cid_str.push_back(hex[b & 0xF]);
+        }
+        VST3::Hosting::ClassInfo hostClassInfo(ci);
+        bool hostable = IsHostablePluginClass(hostClassInfo);
+        if (!hostable) continue;
+        if (subPluginId.empty() || cid_str == subPluginId) {
+            target = hostClassInfo;
+            safeFoundId = cid_str;
             found = true;
             break;
         }
@@ -434,8 +509,10 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         return false;
     }
 
+    currentSubPluginId = safeFoundId;
     provider = new PlugProvider(factory, target, true);
     if (!provider) {
+        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: PlugProvider creation failed."), LOG_VERBOSE);
         module.reset();
         return false;
     }
@@ -443,6 +520,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     component = provider->getComponent();
     controller = provider->getController();
     if (!component) {
+        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: getComponent() returned null."), LOG_VERBOSE);
         ReleasePlugin();
         return false;
     }
@@ -451,6 +529,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         controller->setComponentHandler(componentHandler);
     }
     if (component->queryInterface(IAudioProcessor::iid, reinterpret_cast<void**>(&processor)) != kResultOk) {
+        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: Failed to query IAudioProcessor interface."), LOG_VERBOSE);
         ReleasePlugin();
         return false;
     }
@@ -464,6 +543,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     for (int32_t i = 0; i < numEventIn; ++i) component->activateBus(kEvent, kInput, i, true);
 
     if (!ApplyProcessingSetup(sampleRate, blockSize, false)) {
+        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: ApplyProcessingSetup failed."), LOG_VERBOSE);
         ReleasePlugin();
         return false;
     }
@@ -477,6 +557,7 @@ void VstHost::Impl::ReleasePlugin() {
     HideGui();
 
     isReady = false;
+    currentSubPluginId.clear();
     if (processor) {
         processor->setProcessing(false);
         processor->release();
@@ -1075,8 +1156,16 @@ VstHost::VstHost(HINSTANCE hInstance)
     : m_impl(std::make_unique<Impl>(hInstance)) {}
 VstHost::~VstHost() = default;
 
-bool VstHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
-    return m_impl->LoadPlugin(path, sampleRate, blockSize);
+bool VstHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize, const std::string& subPluginId) {
+    return m_impl->LoadPlugin(path, sampleRate, blockSize, subPluginId);
+}
+
+std::vector<IAudioPluginHost::SubPluginInfo> VstHost::EnumerateSubPlugins(const std::filesystem::path& path) {
+    return Impl::EnumerateSubPlugins(path);
+}
+
+std::string VstHost::GetLoadedSubPluginId() const {
+    return m_impl->GetLoadedSubPluginId();
 }
 
 void VstHost::SetSampleRate(double sampleRate) {

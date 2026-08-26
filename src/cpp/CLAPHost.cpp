@@ -482,8 +482,14 @@ ClapHost::Impl::~Impl() {
 ClapHost::ClapHost(HINSTANCE hInstance)
     : m_impl(std::make_unique<Impl>(hInstance)) {}
 ClapHost::~ClapHost() = default;
-bool ClapHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) {
+std::vector<IAudioPluginHost::SubPluginInfo> ClapHost::EnumerateSubPlugins(const std::filesystem::path& path) {
+    return {};
+}
+bool ClapHost::LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize, const std::string& subPluginId) {
     return m_impl->LoadPlugin(path, sampleRate, blockSize);
+}
+std::string ClapHost::GetLoadedSubPluginId() const {
+    return "";
 }
 void ClapHost::SetSampleRate(double sampleRate) {
     m_impl->SetSampleRate(sampleRate);

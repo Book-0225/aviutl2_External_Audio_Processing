@@ -14,7 +14,15 @@ class IAudioPluginHost {
 
     virtual ~IAudioPluginHost() = default;
 
-    virtual bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) = 0;
+    struct SubPluginInfo {
+        std::string id;
+        std::string name;
+        std::string category;
+    };
+
+    virtual std::vector<SubPluginInfo> EnumerateSubPlugins(const std::filesystem::path& path) = 0;
+    virtual bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize, const std::string& subPluginId = "") = 0;
+    virtual std::string GetLoadedSubPluginId() const = 0;
 
     virtual void ProcessAudio(
         const float* inL, const float* inR,

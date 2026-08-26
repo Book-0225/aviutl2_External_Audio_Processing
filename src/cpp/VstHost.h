@@ -9,7 +9,9 @@ class VstHost : public IAudioPluginHost {
   public:
     VstHost(HINSTANCE hInstance);
     ~VstHost() override;
-    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize) override;
+    std::vector<SubPluginInfo> EnumerateSubPlugins(const std::filesystem::path& path) override;
+    bool LoadPlugin(const std::filesystem::path& path, double sampleRate, int32_t blockSize, const std::string& subPluginId = "") override;
+    std::string GetLoadedSubPluginId() const override;
     void ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) override;
     void Reset(int64_t currentSampleIndex, double bpm, int32_t timeSigNum, int32_t timeSigDenom) override;
     void ShowGui() override;
