@@ -77,6 +77,7 @@ set(SOURCES
     src/cpp/Config.cpp
     src/cpp/FilterHost.cpp
     src/cpp/MidiParser.cpp
+    src/cpp/ParamAssignPicker.cpp
     src/cpp/PluginMain.cpp
     src/cpp/PluginManager.cpp
     src/cpp/SubPluginPicker.cpp

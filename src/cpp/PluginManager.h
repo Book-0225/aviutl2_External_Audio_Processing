@@ -18,6 +18,7 @@ class PluginManager {
     void LoadProjectState(const std::string& data);
     void RegisterOrUpdateInstance(std::string& instance_id, int64_t effect_id, bool& is_copy);
     std::shared_ptr<IAudioPluginHost> GetHost(int64_t effect_id);
+    std::shared_ptr<IAudioPluginHost> GetHostByInstanceId(const std::string& instance_id);
     void SetHost(int64_t effect_id, std::shared_ptr<IAudioPluginHost> host);
     void RemoveHost(int64_t effect_id);
     std::string GetSavedState(const std::string& instance_id);

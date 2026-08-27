@@ -245,3 +245,4 @@ void func_project_save(PROJECT_FILE* pf);
 void func_project_load(PROJECT_FILE* pf);
 
 void Register_Analyzer(HOST_APP_TABLE* host);
+void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR item);

@@ -214,6 +214,18 @@ std::shared_ptr<IAudioPluginHost> PluginManager::GetHost(int64_t effect_id) {
     return nullptr;
 }
 
+std::shared_ptr<IAudioPluginHost> PluginManager::GetHostByInstanceId(const std::string& instance_id) {
+    int64_t effect_id = -1;
+    {
+        std::lock_guard<std::mutex> lock(m_instance_ownership_mutex);
+        auto it = m_instance_id_to_effect_id_map.find(instance_id);
+        if (it == m_instance_id_to_effect_id_map.end())
+            return nullptr;
+        effect_id = it->second;
+    }
+    return GetHost(effect_id);
+}
+
 void PluginManager::SetHost(int64_t effect_id, std::shared_ptr<IAudioPluginHost> host) {
     std::lock_guard<std::mutex> lock(m_states_mutex);
     if (host)

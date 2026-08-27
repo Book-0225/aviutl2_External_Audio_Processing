@@ -5,12 +5,12 @@
 #include "IAudioPluginHost.h"
 #include "MidiParser.h"
 #include "NotesManager.h"
+#include "ParamAssignPicker.h"
 #include "PluginManager.h"
 #include "PluginType.h"
 #include "StringUtils.h"
 #include "SubPluginPicker.h"
 #include "TempoUtils.h"
-#include "ToolParamListWindow.h"
 
 #include <algorithm>
 #include <cmath>
@@ -18,6 +18,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <utility>
 
 constexpr auto FILTER_NAME = L"Host";
 constexpr auto FILTER_NAME_MEDIA = L"Host (Media)";
@@ -27,12 +28,6 @@ static const wchar_t* TARGET_FILTER_NAMES[] = { filter_name, filter_name_media }
 static std::mutex g_cleanup_mutex;
 static std::string g_legacy_id_to_clear;
 static std::string g_plugin_path_for_clear;
-struct ParamCache {
-    double prev_val[4] = { -1.0, -1.0, -1.0, -1.0 };
-    bool prev_show_list = false;
-};
-static std::map<std::string, ParamCache> g_param_cache;
-static std::mutex g_param_cache_mutex;
 
 struct DelayBuffer {
     std::vector<float> bufferL;
@@ -82,8 +77,6 @@ FILTER_ITEM_SEPARATOR sep_sec_lr(L"Apply Each section");
 FILTER_ITEM_CHECK_SECTION checks_apply_l(L"Apply to L (Each section)", false, false);
 FILTER_ITEM_CHECK_SECTION checks_apply_r(L"Apply to R (Each section)", false, false);
 FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
-FILTER_ITEM_CHECK check_show_param_list(L"Show Param List", false);
-FILTER_ITEM_CHECK check_param_learn(L"Learn Param", false);
 struct InstanceID {
     char uuid[40] = { 0 };
 };
@@ -99,27 +92,6 @@ static std::vector<OBJECT_HANDLE> get_button_target_objects(EDIT_SECTION* edit) 
     }
     return targets;
 }
-FILTER_ITEM_BUTTON button_map_reset(L"Reset Mapping", [](EDIT_SECTION* edit) {
-    if (!edit) return;
-    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
-    for (OBJECT_HANDLE obj : targets) {
-        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
-            int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
-            for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(current_filter_name);
-                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
-                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
-                if (hex_id) {
-                    std::string uuid = StringUtils::HexToString(hex_id);
-                    if (!uuid.empty()) {
-                        PluginManager::GetInstance().ClearMapping(uuid);
-                        DbgPrint(L"Mappings cleared via button for " + StringUtils::Utf8ToWide(uuid), LOG_VERBOSE);
-                    }
-                }
-            }
-        }
-    }
-});
 FILTER_ITEM_BUTTON button_change_subplugin(L"サブプラグインを再選択", [](EDIT_SECTION* edit) {
     if (!edit) return;
     std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
@@ -164,14 +136,70 @@ FILTER_ITEM_BUTTON button_change_subplugin(L"サブプラグインを再選択",
     if (hit_count == 0)
         DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
 });
-FILTER_ITEM_TRACK track_map1(L"Map 1", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map1(L"割り当て 1");
+FILTER_ITEM_TRACK track_map1(L"Map 1", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_TRACK track_map2(L"Map 2", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map2(L"割り当て 2");
+FILTER_ITEM_TRACK track_map2(L"Map 2", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
 FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_TRACK track_map3(L"Map 3", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map3(L"割り当て 3");
+FILTER_ITEM_TRACK track_map3(L"Map 3", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
 FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_TRACK track_map4(L"Map 4", -1.0, -1.0, 1000, 1.0, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map4(L"割り当て 4");
+FILTER_ITEM_TRACK track_map4(L"Map 4", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR item) {
+    if (!edit || !object || !item) return;
+
+    static const std::pair<LPCWSTR, int32_t> kSlotNames[] = {
+        { track_map1.name, 0 },
+        { track_map2.name, 1 },
+        { track_map3.name, 2 },
+        { track_map4.name, 3 },
+    };
+    int32_t slot = -1;
+    for (auto& [name, idx] : kSlotNames) {
+        if (wcscmp(item, name) == 0) {
+            slot = idx;
+            break;
+        }
+    }
+    if (slot < 0) return;
+
+    LPCSTR hex_id = edit->get_object_item_value(object, effect, instance_data_param.name);
+    if (!hex_id) return;
+    std::string uuid = StringUtils::HexToString(hex_id);
+    if (uuid.empty()) return;
+
+    std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
+    if (!host) {
+        DbgMessage(TrText(L"プラグインが読み込まれていません。\n一度再生してから選択してください。"), LOG_WARN);
+        return;
+    }
+
+    int32_t count = host->GetParameterCount();
+    std::vector<ParamAssignCandidate> candidates;
+    candidates.reserve(count);
+    for (int32_t i = 0; i < count; ++i) {
+        IAudioPluginHost::ParameterInfo info{};
+        if (host->GetParameterInfo(i, info)) {
+            candidates.push_back({ i, StringUtils::Utf8ToWide(info.name) });
+        }
+    }
+    if (candidates.empty()) {
+        DbgMessage(TrText(L"割り当て可能なパラメータがありません。"), LOG_WARN);
+        return;
+    }
+
+    std::wstring title = L"パラメータの選択 (" + std::wstring(item) + L")";
+    int32_t selectedIndex = ShowParamAssignPicker(g_hinstance, g_host_hwnd, title, candidates);
+    if (selectedIndex < 0) return;
+    std::string value = std::to_string(selectedIndex + 1);
+    if (!edit->set_object_item_value(object, effect, item, value.c_str())) {
+        DbgPrint(L"set_object_item_value failed for " + std::wstring(item), LOG_WARN);
+    }
+}
+
 FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
 FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0, L"無効", 1.0);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
@@ -206,15 +234,16 @@ void* filter_items_host[] = {
     &checks_apply_l,
     &checks_apply_r,
     &param_group,
-    &check_show_param_list,
-    &check_param_learn,
-    &button_map_reset,
+    &sep_map1,
     &track_map1,
     &track_param1,
+    &sep_map2,
     &track_map2,
     &track_param2,
+    &sep_map3,
     &track_map3,
     &track_param3,
+    &sep_map4,
     &track_map4,
     &track_param4,
     &midi_group,
@@ -237,15 +266,16 @@ void* filter_items_host_media[] = {
     &select_bpm_sync,
     &toggle_gui_check,
     &param_group,
-    &check_show_param_list,
-    &check_param_learn,
-    &button_map_reset,
+    &sep_map1,
     &track_map1,
     &track_param1,
+    &sep_map2,
     &track_map2,
     &track_param2,
+    &sep_map3,
     &track_map3,
     &track_param3,
+    &sep_map4,
     &track_map4,
     &track_param4,
     &midi_group,
@@ -283,14 +313,9 @@ void CleanupMainFilterResources() {
         g_midi_state.clear();
     }
     {
-        std::lock_guard<std::mutex> lock(g_param_cache_mutex);
-        g_param_cache.clear();
-    }
-    {
         std::lock_guard<std::mutex> lock(g_delay_buffers_mutex);
         g_delay_buffers.clear();
     }
-    ToolParamListWindow::GetInstance().Close();
     ToolCleanupResources();
 }
 
@@ -632,32 +657,12 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             static_cast<float>(track_map4.value)
         };
 
-        bool is_learning = check_param_learn.value;
-        int32_t lastTouched = host->GetLastTouchedParamID();
-
-        ParamCache* pCache = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(g_param_cache_mutex);
-            pCache = &g_param_cache[instance_id];
-        }
-        ParamCache& cache = *pCache;
-
+        int32_t maxParam = host->GetParameterCount();
         for (int32_t i = 0; i < 4; ++i) {
-            int32_t mapIndex = static_cast<int32_t>(map_vals[i]);
-            int32_t maxParam = host->GetParameterCount();
+            int32_t mapIndex = static_cast<int32_t>(map_vals[i]) - 1;
             if (mapIndex >= 0 && mapIndex < maxParam) {
                 uint32_t paramID = host->GetParameterID(mapIndex);
                 PluginManager::GetInstance().UpdateMapping(instance_id, i, paramID);
-            }
-        }
-
-        if (is_learning && lastTouched != -1) {
-            for (int32_t i = 0; i < 4; ++i) {
-                if (map_vals[i] < 0 && cache.prev_val[i] != -1.0 && std::abs(cache.prev_val[i] - slider_vals[i]) > 0.01) {
-                    PluginManager::GetInstance().UpdateMapping(instance_id, i, lastTouched);
-                    DbgPrint(L"Mapped Slider " + std::to_wstring(i + 1) + L" to ParamID " + std::to_wstring(lastTouched), LOG_VERBOSE);
-                    break;
-                }
             }
         }
 
@@ -670,7 +675,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
                 host->SetParameter(mapID, normalized);
             }
-            cache.prev_val[i] = slider_vals[i];
         }
     }
 
@@ -710,34 +714,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                         if (!state.empty()) PluginManager::GetInstance().SaveState(instance_id, state);
                     }
                 }
-            });
-        }
-    }
-
-    bool show_list_current = check_show_param_list.value;
-    bool show_list_prev = false;
-    {
-        std::lock_guard<std::mutex> lock(g_param_cache_mutex);
-        show_list_prev = g_param_cache[instance_id].prev_show_list;
-        g_param_cache[instance_id].prev_show_list = show_list_current;
-    }
-
-    if (show_list_current && !show_list_prev) {
-        ToolParamListWindow::GetInstance().SetOwner(instance_id);
-        ToolParamListWindow::GetInstance().SetTargetVisible(true);
-        std::string name = plugin_path.filename().string();
-        std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-        g_main_thread_tasks.push_back([effect_id, name]() {
-            auto host = PluginManager::GetInstance().GetHost(effect_id);
-            if (host)
-                ToolParamListWindow::GetInstance().Show(host, name);
-        });
-    } else if (!show_list_current && show_list_prev) {
-        if (ToolParamListWindow::GetInstance().IsOwner(instance_id)) {
-            ToolParamListWindow::GetInstance().SetTargetVisible(false);
-            std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-            g_main_thread_tasks.push_back([]() {
-                ToolParamListWindow::GetInstance().Close();
             });
         }
     }

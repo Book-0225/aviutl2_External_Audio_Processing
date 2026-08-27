@@ -396,6 +396,7 @@ EXTERN_C __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
     host->register_clear_cache_handler([](EDIT_SECTION* edit) { CleanupMainFilterResources(); });
     g_edit_handle = host->create_edit_handle();
     g_host_hwnd = g_edit_handle->get_host_app_window();
+    host->register_object_item_menu(L"EAP2\\パラメータを選択して割り当て", false, HandleAssignParamMenu);
     if (!settings.module.all_tool_disable && !settings.module.analyzer_disable)
         Register_Analyzer(host);
     std::filesystem::path base_path = GetDllPath().parent_path();
