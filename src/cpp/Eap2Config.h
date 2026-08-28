@@ -233,9 +233,11 @@ struct CompatConfig {
 struct VstConfig {
     std::wstring categoryName = L"VST";
     bool forceResize = false;
+    bool host_param_ex = false;
     std::vector<ConfigEntry> getEntries() {
         return {
-            ConfigEntry::Create(L"ForceResize", L"0", &forceResize, true)
+            ConfigEntry::Create(L"ForceResize", L"0", &forceResize, true),
+            ConfigEntry::Create(L"HostAdditionalParameters", L"0", &host_param_ex, false)
         };
     }
 };

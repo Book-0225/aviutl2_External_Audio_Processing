@@ -69,14 +69,12 @@ FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
-FILTER_ITEM_CHECK toggle_gui_check(L"プラグインGUIを表示", false);
 FILTER_ITEM_SEPARATOR sep_all_lr(L"Apply All section (Deprecated)");
 FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
 FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
 FILTER_ITEM_SEPARATOR sep_sec_lr(L"Apply Each section");
 FILTER_ITEM_CHECK_SECTION checks_apply_l(L"Apply to L (Each section)", false, false);
 FILTER_ITEM_CHECK_SECTION checks_apply_r(L"Apply to R (Each section)", false, false);
-FILTER_ITEM_GROUP param_group(L"Parameter Settings", false);
 struct InstanceID {
     char uuid[40] = { 0 };
 };
@@ -136,6 +134,84 @@ FILTER_ITEM_BUTTON button_change_subplugin(L"サブプラグインを再選択",
     if (hit_count == 0)
         DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
 });
+FILTER_ITEM_BUTTON button_load_plugin(L"プラグインを読み込む", [](EDIT_SECTION* edit) {
+    if (!edit) return;
+    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
+    if (targets.empty()) {
+        DbgMessage(TrText(L"対象のオブジェクトが見つかりません。\nオブジェクトを選択してから押してください。"), LOG_WARN);
+        return;
+    }
+
+    int32_t hit_count = 0;
+    for (OBJECT_HANDLE obj : targets) {
+        bool has_target_effect = false;
+        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
+            if (edit->count_object_effect(obj, current_filter_name) > 0) {
+                has_target_effect = true;
+                break;
+            }
+        }
+        if (!has_target_effect) continue;
+        ++hit_count;
+
+        OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(obj);
+        int target_frame = (edit->info) ? edit->info->frame : lf.start;
+        if (target_frame < lf.start) target_frame = lf.start;
+        if (target_frame > lf.end) target_frame = lf.end;
+
+        bool queued = g_edit_handle->rendering_object_audio(obj, target_frame, true, nullptr, [](void*, int32_t, const float*, const float*, int32_t) {});
+        if (!queued)
+            DbgPrint(L"rendering_object_audio failed to queue for plugin load", LOG_WARN);
+    }
+
+    if (hit_count == 0)
+        DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
+});
+FILTER_ITEM_BUTTON toggle_gui_button(L"プラグインGUIを表示/非表示", [](EDIT_SECTION* edit) {
+    if (!edit) return;
+    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
+    if (targets.empty()) {
+        DbgMessage(TrText(L"対象のオブジェクトが見つかりません。\nオブジェクトを選択してから押してください。"), LOG_WARN);
+        return;
+    }
+
+    int32_t hit_count = 0;
+    for (OBJECT_HANDLE obj : targets) {
+        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
+            int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
+            for (int32_t i = 0; i < effect_count; ++i) {
+                std::wstring indexed_filter_name = std::wstring(current_filter_name);
+                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
+                if (!hex_id) continue;
+                std::string uuid = StringUtils::HexToString(hex_id);
+                if (uuid.empty()) continue;
+
+                ++hit_count;
+                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+                g_main_thread_tasks.push_back([uuid]() {
+                    auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
+                    if (!host) {
+                        DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから再試行してください。"), LOG_WARN);
+                        return;
+                    }
+                    if (host->IsGuiVisible()) {
+                        host->HideGui();
+                        std::string state = host->GetState();
+                        DbgPrint(L"Plugin GUI hidden via button, saving state for " + StringUtils::Utf8ToWide(uuid) + L", (Size: " + std::to_wstring(state.size()) + L")", LOG_VERBOSE);
+                        if (!state.empty()) PluginManager::GetInstance().SaveState(uuid, state);
+                    } else {
+                        host->ShowGui();
+                    }
+                });
+            }
+        }
+    }
+
+    if (hit_count == 0)
+        DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
+});
+FILTER_ITEM_GROUP param_group(L"パラメータ紐づけ設定", false);
 FILTER_ITEM_SEPARATOR sep_map1(L"割り当て 1");
 FILTER_ITEM_TRACK track_map1(L"Map 1", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
 FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
@@ -148,6 +224,19 @@ FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_SEPARATOR sep_map4(L"割り当て 4");
 FILTER_ITEM_TRACK track_map4(L"Map 4", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
 FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_GROUP param_ex_group(L"パラメータ紐づけ設定(追加)", false);
+FILTER_ITEM_SEPARATOR sep_map5(L"割り当て 5");
+FILTER_ITEM_TRACK track_map5(L"Map 5", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_param5(L"Param 5", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map6(L"割り当て 6");
+FILTER_ITEM_TRACK track_map6(L"Map 6", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_param6(L"Param 6", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map7(L"割り当て 7");
+FILTER_ITEM_TRACK track_map7(L"Map 7", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_param7(L"Param 7", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+FILTER_ITEM_SEPARATOR sep_map8(L"割り当て 8");
+FILTER_ITEM_TRACK track_map8(L"Map 8", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
+FILTER_ITEM_TRACK track_param8(L"Param 8", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR item) {
     if (!edit || !object || !item) return;
 
@@ -156,6 +245,10 @@ void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR eff
         { track_map2.name, 1 },
         { track_map3.name, 2 },
         { track_map4.name, 3 },
+        { track_map5.name, 4 },
+        { track_map6.name, 5 },
+        { track_map7.name, 6 },
+        { track_map8.name, 7 },
     };
     int32_t slot = -1;
     for (auto& [name, idx] : kSlotNames) {
@@ -173,7 +266,7 @@ void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR eff
 
     std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
     if (!host) {
-        DbgMessage(TrText(L"プラグインが読み込まれていません。\n一度再生してから選択してください。"), LOG_WARN);
+        DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから選択してください。"), LOG_WARN);
         return;
     }
 
@@ -226,7 +319,8 @@ void* filter_items_host[] = {
     &track_ts_num,
     &track_ts_denom,
     &select_bpm_sync,
-    &toggle_gui_check,
+    &button_load_plugin,
+    &toggle_gui_button,
     &sep_all_lr,
     &check_apply_l,
     &check_apply_r,
@@ -264,7 +358,8 @@ void* filter_items_host_media[] = {
     &track_ts_num,
     &track_ts_denom,
     &select_bpm_sync,
-    &toggle_gui_check,
+    &button_load_plugin,
+    &toggle_gui_button,
     &param_group,
     &sep_map1,
     &track_map1,
@@ -278,6 +373,106 @@ void* filter_items_host_media[] = {
     &sep_map4,
     &track_map4,
     &track_param4,
+    &midi_group,
+    &track_recv_id,
+    &midi_path_param,
+    &instance_data_param,
+    &last_recv_data,
+    &last_plugin_data,
+    &last_midi_data,
+    nullptr
+};
+
+void* filter_items_host_param_ex[] = {
+    &general_group,
+    &plugin_path_param,
+    &button_change_subplugin,
+    &track_wet,
+    &track_volume,
+    &track_bpm,
+    &track_ts_num,
+    &track_ts_denom,
+    &select_bpm_sync,
+    &button_load_plugin,
+    &toggle_gui_button,
+    &sep_all_lr,
+    &check_apply_l,
+    &check_apply_r,
+    &sep_sec_lr,
+    &checks_apply_l,
+    &checks_apply_r,
+    &param_group,
+    &sep_map1,
+    &track_map1,
+    &track_param1,
+    &sep_map2,
+    &track_map2,
+    &track_param2,
+    &sep_map3,
+    &track_map3,
+    &track_param3,
+    &sep_map4,
+    &track_map4,
+    &track_param4,
+    &param_ex_group,
+    &sep_map5,
+    &track_map5,
+    &track_param5,
+    &sep_map6,
+    &track_map6,
+    &track_param6,
+    &sep_map7,
+    &track_map7,
+    &track_param7,
+    &sep_map8,
+    &track_map8,
+    &track_param8,
+    &midi_group,
+    &track_recv_id,
+    &midi_path_param,
+    &instance_data_param,
+    &last_recv_data,
+    &last_plugin_data,
+    &last_midi_data,
+    nullptr
+};
+
+void* filter_items_host_media_param_ex[] = {
+    &general_group,
+    &plugin_path_param,
+    &button_change_subplugin,
+    &track_bpm,
+    &track_ts_num,
+    &track_ts_denom,
+    &select_bpm_sync,
+    &button_load_plugin,
+    &toggle_gui_button,
+    &param_group,
+    &sep_map1,
+    &track_map1,
+    &track_param1,
+    &sep_map2,
+    &track_map2,
+    &track_param2,
+    &sep_map3,
+    &track_map3,
+    &track_param3,
+    &sep_map4,
+    &track_map4,
+    &track_param4,
+    &param_ex_group,
+    &sep_map5,
+    &track_map5,
+    &track_param5,
+    &sep_map6,
+    &track_map6,
+    &track_param6,
+    &sep_map7,
+    &track_map7,
+    &track_param7,
+    &sep_map8,
+    &track_map8,
+    &track_param8,
     &midi_group,
     &track_recv_id,
     &midi_path_param,
@@ -697,26 +892,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
 
     std::shared_ptr<IAudioPluginHost> host_for_audio = host;
-
-    if (host_for_audio) {
-        bool gui_should_show = toggle_gui_check.value;
-        if (host_for_audio->IsGuiVisible() != gui_should_show) {
-            std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-            g_main_thread_tasks.push_back([effect_id, instance_id, gui_should_show]() {
-                auto host = PluginManager::GetInstance().GetHost(effect_id);
-                if (host) {
-                    if (gui_should_show) {
-                        host->ShowGui();
-                    } else {
-                        host->HideGui();
-                        std::string state = host->GetState();
-                        DbgPrint(L"Plugin GUI hidden, saving state for " + StringUtils::Utf8ToWide(instance_id) + L", (Size: " + std::to_wstring(state.size()) + L", Data: " + StringUtils::Utf8ToWide(state) + L"...)", LOG_VERBOSE);
-                        if (!state.empty()) PluginManager::GetInstance().SaveState(instance_id, state);
-                    }
-                }
-            });
-        }
-    }
 
     if (effective_bypass) {
         float vol_ratio = vol_val / 100.0f;
@@ -1163,6 +1338,30 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
     label,
     GEN_FILTER_INFO(FILTER_NAME_MEDIA),
     filter_items_host_media,
+    nullptr,
+    func_proc_audio_host_media,
+    nullptr,
+    nullptr
+};
+
+FILTER_PLUGIN_TABLE filter_plugin_table_host_param_ex = {
+    TYPE_AUDIO_FILTER_OBJECT,
+    filter_name,
+    label,
+    GEN_FILTER_INFO(FILTER_NAME),
+    filter_items_host_param_ex,
+    nullptr,
+    func_proc_audio_host,
+    nullptr,
+    nullptr
+};
+
+FILTER_PLUGIN_TABLE filter_plugin_table_host_media_param_ex = {
+    TYPE_AUDIO_MEDIA,
+    filter_name_media,
+    label,
+    GEN_FILTER_INFO(FILTER_NAME_MEDIA),
+    filter_items_host_media_param_ex,
     nullptr,
     func_proc_audio_host_media,
     nullptr,

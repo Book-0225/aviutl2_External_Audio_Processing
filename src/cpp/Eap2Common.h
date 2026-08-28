@@ -182,6 +182,8 @@ extern std::vector<std::function<void()>> g_main_thread_tasks;
 
 extern FILTER_PLUGIN_TABLE filter_plugin_table_host;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_host_media;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_host_param_ex;
+extern FILTER_PLUGIN_TABLE filter_plugin_table_host_media_param_ex;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_utility;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_eq;
 extern FILTER_PLUGIN_TABLE filter_plugin_table_stereo;

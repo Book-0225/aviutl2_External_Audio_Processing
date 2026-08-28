@@ -195,6 +195,10 @@ std::vector<T> GetModule(const std::array<T, N>& plugins, AppSettings setting) {
         if (disable_set.find(p) == disable_set.end()) registry.push_back(p);
     if (setting.compat.use_new_generator) std::replace(registry.begin(), registry.end(), &filter_plugin_table_generator, &filter_plugin_table_generator2);
     if (setting.compat.use_new_reverb) std::replace(registry.begin(), registry.end(), &filter_plugin_table_reverb, &filter_plugin_table_reverb2);
+    if (setting.vst.host_param_ex) {
+        std::replace(registry.begin(), registry.end(), &filter_plugin_table_host, &filter_plugin_table_host_param_ex);
+        std::replace(registry.begin(), registry.end(), &filter_plugin_table_host_media, &filter_plugin_table_host_media_param_ex);
+    }
     if (setting.general.enable_experimental) {
         // expのやつをここで置き換え反映する
     }
