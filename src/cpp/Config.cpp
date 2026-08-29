@@ -21,6 +21,33 @@ struct ConfigLoadReport {
     }
 };
 
+std::wstring FormatVersionLabel(const Version& v) {
+    std::wstring s = L"v" + std::to_wstring(v.major) + L"." + std::to_wstring(v.minor) + L"." + std::to_wstring(v.patch);
+    if (v.letter != 0)
+        s += static_cast<wchar_t>(v.letter);
+    return s;
+}
+
+void ShowBreakingChangeNotices() {
+    std::vector<const BreakingChangeEntry*> pending;
+    for (const auto& change : GetBreakingChanges())
+        if (change.version > settings.info.acked_breaking_version)
+            pending.push_back(&change);
+    if (pending.empty())
+        return;
+    std::sort(pending.begin(), pending.end(), [](auto* a, auto* b) { return a->version < b->version; });
+    std::wstring message = std::wstring(TrText(L"EAP2は以下のバージョンで破壊的変更が行われました:")) + L"\n\n";
+    for (auto* change : pending)
+        message += L"[" + FormatVersionLabel(change->version) + L"]\n" + change->message + L"\n\n";
+    DbgMessage(message, LOG_WARN);
+    Version current = parseVersion(plugin_version);
+    Version newest_breaking = pending.back()->version;
+    Version ack_to = current > newest_breaking ? current : newest_breaking;
+    settings.info.acked_breaking_version = ack_to;
+    new_settings.info.acked_breaking_version = ack_to;
+    SaveConfig();
+}
+
 std::filesystem::path GetConfigPath() {
     return GetDllPath().replace_extension(L".ini");
 }
@@ -107,7 +134,8 @@ void LoadCategory(const std::wstring& categoryName, const std::vector<ConfigEntr
 
 void LoadConfig() {
     std::filesystem::path path = GetConfigPath();
-    if (!std::filesystem::exists(path))
+    bool is_new_install = !std::filesystem::exists(path);
+    if (is_new_install)
         CreateConfig(path);
 
     if (!MigrateConfig(path)) {
@@ -129,6 +157,13 @@ void LoadConfig() {
     if (parseVersion(settings.info.version) > parseVersion(plugin_version))
         DbgMessage(L"設定ファイルが現在のプラグインより新しいバージョンで作成されています", LOG_WARN);
     new_settings = settings;
+    if (is_new_install) {
+        settings.info.acked_breaking_version = parseVersion(plugin_version);
+        new_settings.info.acked_breaking_version = settings.info.acked_breaking_version;
+        SaveConfig();
+    } else {
+        ShowBreakingChangeNotices();
+    }
     ShowConfigLoadWarning(report);
 }
 

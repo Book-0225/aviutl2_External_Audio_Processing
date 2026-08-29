@@ -58,6 +58,43 @@ struct Version {
     }
 };
 
+namespace version_detail {
+constexpr uint16_t ReadDigits(std::wstring_view s, size_t& pos, wchar_t stop_char) {
+    uint16_t value = 0;
+    bool any_digit = false;
+    while (pos < s.size() && s[pos] >= L'0' && s[pos] <= L'9') {
+        value = static_cast<uint16_t>(value * 10 + (s[pos] - L'0'));
+        ++pos;
+        any_digit = true;
+    }
+    if (!any_digit)
+        throw std::invalid_argument("Version: expected digit");
+    if (stop_char != L'\0') {
+        if (pos >= s.size() || s[pos] != stop_char)
+            throw std::invalid_argument("Version: expected separator");
+        ++pos;
+    }
+    return value;
+}
+} // namespace version_detail
+
+constexpr Version ParseVersionStrict(std::wstring_view v) {
+    if (size_t dash = v.find(L'-'); dash != std::wstring_view::npos)
+        v.remove_prefix(dash + 1);
+    else if (!v.empty() && v.front() == L'v')
+        v.remove_prefix(1);
+    Version res{};
+    size_t pos = 0;
+    res.major = version_detail::ReadDigits(v, pos, L'.');
+    res.minor = version_detail::ReadDigits(v, pos, L'.');
+    res.patch = version_detail::ReadDigits(v, pos, L'\0');
+    if (pos < v.size())
+        res.letter = static_cast<uint16_t>(v[pos++]);
+    if (pos != v.size())
+        throw std::invalid_argument("Version: trailing characters");
+    return res;
+}
+
 extern const wchar_t regex_info_name[];
 extern const wchar_t regex_tool_name[];
 extern const wchar_t filter_name[];

@@ -113,21 +113,34 @@ struct ConfigEntry {
                 else if constexpr (std::is_same_v<T, Version>) return target->to_hex_wstring();
             }
         };
-        entry.load(def);
         return entry;
     }
 };
+
+struct BreakingChangeEntry {
+    Version version;
+    std::wstring message;
+};
+
+inline const std::vector<BreakingChangeEntry>& GetBreakingChanges() {
+    static const std::vector<BreakingChangeEntry> changes = {
+        { ParseVersionStrict(L"0.0.37"), L"VST関連の機能を多数変更\nパラメータリストの廃止\nGUIの表示非表示をボタンに変更\nパラメータ紐づけ設定の大幅変更\n全体適用チェックボックスの廃止" }
+    };
+    return changes;
+}
 
 struct ConfigInfo {
     std::wstring categoryName = L"Info";
     std::wstring version;
     std::wstring version_data;
     int32_t config_version = -1;
+    Version acked_breaking_version;
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"Version", plugin_version, &version, false),
             ConfigEntry::Create(L"VersionData", parseVersion(plugin_version).to_hex_wstring(), &version_data, false),
-            ConfigEntry::Create(L"ConfigVersion", CONFIG_VERSION, &config_version, false)
+            ConfigEntry::Create(L"ConfigVersion", CONFIG_VERSION, &config_version, false),
+            ConfigEntry::Create(L"AckedBreakingVersion", L"0000000000000000", &acked_breaking_version, false)
         };
     }
 };
