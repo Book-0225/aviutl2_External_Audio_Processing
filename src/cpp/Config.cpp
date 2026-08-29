@@ -162,7 +162,8 @@ void LoadConfig() {
         new_settings.info.acked_breaking_version = settings.info.acked_breaking_version;
         SaveConfig();
     } else {
-        ShowBreakingChangeNotices();
+        if (!settings.general.disable_breaking_change_notices)
+            ShowBreakingChangeNotices();
     }
     ShowConfigLoadWarning(report);
 }
