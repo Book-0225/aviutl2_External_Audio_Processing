@@ -47,7 +47,7 @@ static std::mutex g_midi_state_mutex;
 static std::set<std::string> g_force_reload_instances;
 static std::mutex g_force_reload_mutex;
 
-TCHAR filter_ext[] =
+wchar_t filter_ext[] =
     L"Audio Plugins (*.vst3;*.clap)\0*.vst3;*.clap\0"
     L"VST3 Plugins (*.vst3)\0*.vst3\0"
     L"CLAP Plugins (*.clap)\0*.clap\0"
