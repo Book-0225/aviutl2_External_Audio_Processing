@@ -38,7 +38,11 @@ jobs:
                   $tag = "v${{ steps.version.outputs.version }}"
                   git fetch --tags
                   if (git tag --list $tag) {
-                    throw "Tag '$tag' already exists."
+                    if ('${{ inputs.dry_run }}' -eq 'true') {
+                      Write-Warning "Tag '$tag' already exists (dry run, continuing)."
+                    } else {
+                      throw "Tag '$tag' already exists."
+                    }
                   }
 
             - name: Resolve latest aviutl2-cli version
