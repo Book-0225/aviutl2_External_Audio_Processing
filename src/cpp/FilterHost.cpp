@@ -69,12 +69,8 @@ FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
-FILTER_ITEM_SEPARATOR sep_all_lr(L"Apply All section (Deprecated)");
-FILTER_ITEM_CHECK check_apply_l(L"Apply to L", true);
-FILTER_ITEM_CHECK check_apply_r(L"Apply to R", true);
-FILTER_ITEM_SEPARATOR sep_sec_lr(L"Apply Each section");
-FILTER_ITEM_CHECK_SECTION checks_apply_l(L"Apply to L (Each section)", false, false);
-FILTER_ITEM_CHECK_SECTION checks_apply_r(L"Apply to R (Each section)", false, false);
+FILTER_ITEM_CHECK_SECTION checks_apply_l(L"Apply to L (Each section)", true, false);
+FILTER_ITEM_CHECK_SECTION checks_apply_r(L"Apply to R (Each section)", true, false);
 struct InstanceID {
     char uuid[40] = { 0 };
 };
@@ -321,10 +317,6 @@ void* filter_items_host[] = {
     &select_bpm_sync,
     &button_load_plugin,
     &toggle_gui_button,
-    &sep_all_lr,
-    &check_apply_l,
-    &check_apply_r,
-    &sep_sec_lr,
     &checks_apply_l,
     &checks_apply_r,
     &param_group,
@@ -395,10 +387,6 @@ void* filter_items_host_param_ex[] = {
     &select_bpm_sync,
     &button_load_plugin,
     &toggle_gui_button,
-    &sep_all_lr,
-    &check_apply_l,
-    &check_apply_r,
-    &sep_sec_lr,
     &checks_apply_l,
     &checks_apply_r,
     &param_group,
@@ -703,8 +691,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     if (!is_object) {
         wet_val = static_cast<float>(track_wet.value);
         vol_val = static_cast<float>(track_volume.value);
-        apply_l = check_apply_l.value || checks_apply_l.value;
-        apply_r = check_apply_r.value || checks_apply_r.value;
+        apply_l = checks_apply_l.value;
+        apply_r = checks_apply_r.value;
     }
 
     bool effective_bypass = (!apply_l && !apply_r) || (wet_val == 0.0f);

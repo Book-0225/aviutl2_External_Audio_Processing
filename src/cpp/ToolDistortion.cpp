@@ -9,11 +9,6 @@
 
 constexpr auto TOOL_NAME = L"Distortion";
 
-FILTER_ITEM_SEPARATOR dist_all_sep(L"All section (Deprecated)");
-FILTER_ITEM_CHECK dist_overdrive(L"Overdrive", true);
-FILTER_ITEM_CHECK dist_fuzz(L"Fuzz", false);
-FILTER_ITEM_CHECK dist_bitcrush(L"Bitcrush", false);
-FILTER_ITEM_SEPARATOR dist_sec_sep(L"Each section");
 FILTER_ITEM_CHECK_SECTION dist_overdrive_s(L"Overdrive (Each section)", false, false);
 FILTER_ITEM_CHECK_SECTION dist_fuzz_s(L"Fuzz (Each section)", false, false);
 FILTER_ITEM_CHECK_SECTION dist_bitcrush_s(L"Bitcrush (Each section)", false, false);
@@ -25,11 +20,6 @@ FILTER_ITEM_TRACK dist_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK dist_output(L"Output", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
 
 void* filter_items_distortion[] = {
-    &dist_all_sep,
-    &dist_overdrive,
-    &dist_fuzz,
-    &dist_bitcrush,
-    &dist_sec_sep,
     &dist_overdrive_s,
     &dist_fuzz_s,
     &dist_bitcrush_s,
@@ -73,9 +63,9 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     if (total_samples <= 0) return true;
     int32_t channels = (std::min)(2, audio->object->channel_num);
 
-    bool is_overdrive = dist_overdrive.value || dist_overdrive_s.value;
-    bool is_fuzz = dist_fuzz.value || dist_fuzz_s.value;
-    bool is_bitcrush = dist_bitcrush.value || dist_bitcrush_s.value;
+    bool is_overdrive = dist_overdrive_s.value;
+    bool is_fuzz = dist_fuzz_s.value;
+    bool is_bitcrush = dist_bitcrush_s.value;
 
     float drive = static_cast<float>(dist_drive.value);
     float tone_freq = static_cast<float>(dist_tone.value);
