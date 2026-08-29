@@ -696,8 +696,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
 
     bool effective_bypass = (!apply_l && !apply_r) || (wet_val == 0.0f);
-    if (effective_bypass && vol_val == 100.0f) return true;
-
     bool needs_reinitialization = false;
     bool path_changed = false;
     std::filesystem::path current_plugin_path;
@@ -734,6 +732,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             }
         }
     }
+
+    if (effective_bypass && vol_val == 100.0f && !needs_reinitialization) return true;
 
     if (needs_reinitialization) {
         PluginManager::GetInstance().SetPendingReinitialization(effect_id, true);
