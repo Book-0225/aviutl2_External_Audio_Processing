@@ -29,7 +29,8 @@ jobs:
               id: version
               shell: pwsh
               run: |
-                  $version = (cmake -P ./scripts/get_version.cmake | Out-String).Trim()
+                  cmake -P ./scripts/get_version.cmake
+                  $version = (Get-Content ./build/version.txt -Raw).Trim()
                   "version=$version" >> $env:GITHUB_OUTPUT
 
             - name: Check Tag

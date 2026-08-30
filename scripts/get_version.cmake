@@ -22,5 +22,5 @@ unset(_eap2_ver_lines)
 unset(_eap2_ver_line)
 
 if(CMAKE_SCRIPT_MODE_FILE)
-    message(STATUS "${EAP2_VERSION}")
+    file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${VERSION}")
 endif()
