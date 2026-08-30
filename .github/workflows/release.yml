@@ -30,7 +30,7 @@ jobs:
               shell: pwsh
               run: |
                   cmake -P ./scripts/get_version.cmake
-                  $version = (Get-Content ./build/version.txt -Raw).Trim()
+                  $version = (Get-Content ./version.txt -Raw).Trim()
                   "version=$version" >> $env:GITHUB_OUTPUT
 
             - name: Check Tag
@@ -72,9 +72,6 @@ jobs:
 
             - name: Prepare Build
               run: cmake -S ./ -B ./build -Wno-unused-cli -G "Visual Studio 18 2026"
-
-            - name: Fetch SDK
-              run: cmake --build ./build --target fetch_sdk --config Release
 
             - name: Package
               run: au2 release

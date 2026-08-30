@@ -13,3 +13,4 @@ rust
 build/
 !README.md
 out/
+version.txt
