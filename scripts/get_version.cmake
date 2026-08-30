@@ -22,5 +22,5 @@ unset(_eap2_ver_lines)
 unset(_eap2_ver_line)
 
 if(CMAKE_SCRIPT_MODE_FILE)
-    message("${EAP2_VERSION}")
+    message(STATUS "${EAP2_VERSION}")
 endif()
