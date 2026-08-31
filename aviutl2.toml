@@ -3,7 +3,7 @@
 [project]
 id = "Book-0225.EAP2"
 name = "External_Audio_Processing2"
-version = "0.0.37"
+version = "0.0.37a"
 
 [build_group]
 debug_group = "cmake --build ./build --config Debug"
