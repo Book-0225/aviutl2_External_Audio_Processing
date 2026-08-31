@@ -10,6 +10,7 @@
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/ivstprocesscontext.h"
+#include "pluginterfaces/vst/vstspeaker.h"
 #include "pluginterfaces/vst/vsttypes.h"
 #include "public.sdk/source/common/memorystream.h"
 #include "public.sdk/source/vst/hosting/module.h"
@@ -271,7 +272,7 @@ struct VstHost::Impl {
         if (component->setActive(true) != kResultOk)
             return false;
         if (processor->setProcessing(true) != kResultOk)
-            return false;
+            DbgPrint(L"VST3 setProcessing(true) returned non-OK; continuing anyway", LOG_VERBOSE);
 
         currentSampleRate = sampleRate;
         currentBlockSize = blockSize;
@@ -541,6 +542,27 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
 
     int32_t numEventIn = component->getBusCount(kEvent, kInput);
     for (int32_t i = 0; i < numEventIn; ++i) component->activateBus(kEvent, kInput, i, true);
+
+    if (numIn > 0 || numOut > 0) {
+        std::vector<SpeakerArrangement> inArr(numIn);
+        std::vector<SpeakerArrangement> outArr(numOut);
+        for (int32_t i = 0; i < numIn; ++i) {
+            if (processor->getBusArrangement(kInput, i, inArr[i]) != kResultOk) {
+                BusInfo info{};
+                component->getBusInfo(kAudio, kInput, i, info);
+                inArr[i] = (info.channelCount == 1) ? SpeakerArr::kMono : SpeakerArr::kStereo;
+            }
+        }
+        for (int32_t i = 0; i < numOut; ++i) {
+            if (processor->getBusArrangement(kOutput, i, outArr[i]) != kResultOk) {
+                BusInfo info{};
+                component->getBusInfo(kAudio, kOutput, i, info);
+                outArr[i] = (info.channelCount == 1) ? SpeakerArr::kMono : SpeakerArr::kStereo;
+            }
+        }
+        if (processor->setBusArrangements(inArr.empty() ? nullptr : inArr.data(), numIn, outArr.empty() ? nullptr : outArr.data(), numOut) != kResultOk)
+            DbgPrint(L"VST3 setBusArrangements rejected by plugin; continuing with its own defaults", LOG_VERBOSE);
+    }
 
     if (!ApplyProcessingSetup(sampleRate, blockSize, false)) {
         DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: ApplyProcessingSetup failed."), LOG_VERBOSE);
