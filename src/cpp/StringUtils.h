@@ -5,6 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>

@@ -2,6 +2,7 @@
 #include "Eap2Config.h"
 #include "MigrateConfig.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <set>
