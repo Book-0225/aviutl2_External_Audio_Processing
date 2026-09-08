@@ -391,6 +391,46 @@ struct VstHost::Impl {
     std::mutex activeNotesMutex;
     EventList eventList;
     std::atomic<bool> pendingStopNotes{ false };
+    std::vector<int32_t> inBusChannelCounts;
+    std::vector<int32_t> outBusChannelCounts;
+    std::vector<AudioBusBuffers> inBufsCache;
+    std::vector<AudioBusBuffers> outBufsCache;
+    std::vector<std::vector<float*>> inPtrsCache;
+    std::vector<std::vector<float*>> outPtrsCache;
+
+    void CacheBusLayout() {
+        int32_t numIn = component ? component->getBusCount(kAudio, kInput) : 0;
+        int32_t numOut = component ? component->getBusCount(kAudio, kOutput) : 0;
+
+        inBusChannelCounts.resize(numIn);
+        outBusChannelCounts.resize(numOut);
+        for (int32_t i = 0; i < numIn; ++i) {
+            BusInfo info{};
+            component->getBusInfo(kAudio, kInput, i, info);
+            inBusChannelCounts[i] = info.channelCount;
+        }
+        for (int32_t i = 0; i < numOut; ++i) {
+            BusInfo info{};
+            component->getBusInfo(kAudio, kOutput, i, info);
+            outBusChannelCounts[i] = info.channelCount;
+        }
+
+        inBufsCache.assign(numIn, AudioBusBuffers{});
+        outBufsCache.assign(numOut, AudioBusBuffers{});
+        inPtrsCache.resize(numIn);
+        outPtrsCache.resize(numOut);
+        for (int32_t i = 0; i < numIn; ++i) inPtrsCache[i].resize(inBusChannelCounts[i] > 0 ? inBusChannelCounts[i] : 0);
+        for (int32_t i = 0; i < numOut; ++i) outPtrsCache[i].resize(outBusChannelCounts[i] > 0 ? outBusChannelCounts[i] : 0);
+    }
+
+    void ClearBusLayoutCache() {
+        inBusChannelCounts.clear();
+        outBusChannelCounts.clear();
+        inBufsCache.clear();
+        outBufsCache.clear();
+        inPtrsCache.clear();
+        outPtrsCache.clear();
+    }
     void RequestStopAllNotes() {
         pendingStopNotes = true;
     }
@@ -557,6 +597,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         return false;
     }
 
+    CacheBusLayout();
     isReady = true;
     return true;
 }
@@ -593,6 +634,7 @@ void VstHost::Impl::ReleasePlugin() {
     module.reset();
     currentPluginPath.clear();
     componentHandler.reset();
+    ClearBusLayoutCache();
 }
 
 void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL, float* outR, int32_t numSamples, int32_t numChannels, int64_t currentSampleIndex, double bpm, int32_t tsNum, int32_t tsDenom, const std::vector<MidiEvent>& midiEvents) {
@@ -622,26 +664,25 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
 
     eventList.clear();
 
-    if (pendingStopNotes.exchange(false)) {
-        std::lock_guard<std::mutex> lock(activeNotesMutex);
-        for (int32_t noteKey : activeNotes) {
-            int32_t channel = (noteKey >> 8) & 0xFF;
-            int32_t pitch = noteKey & 0xFF;
-
-            Event e = {};
-            e.type = Event::kNoteOffEvent;
-            e.noteOff.channel = static_cast<int16_t>(channel);
-            e.noteOff.pitch = static_cast<int16_t>(pitch);
-            e.noteOff.velocity = 0.0f;
-            e.noteOff.noteId = -1;
-            e.sampleOffset = 0;
-            eventList.addEvent(e);
-        }
-        activeNotes.clear();
-    }
-
     {
         std::lock_guard<std::mutex> lock(activeNotesMutex);
+        if (pendingStopNotes.exchange(false)) {
+            for (int32_t noteKey : activeNotes) {
+                int32_t channel = (noteKey >> 8) & 0xFF;
+                int32_t pitch = noteKey & 0xFF;
+
+                Event e = {};
+                e.type = Event::kNoteOffEvent;
+                e.noteOff.channel = static_cast<int16_t>(channel);
+                e.noteOff.pitch = static_cast<int16_t>(pitch);
+                e.noteOff.velocity = 0.0f;
+                e.noteOff.noteId = -1;
+                e.sampleOffset = 0;
+                eventList.addEvent(e);
+            }
+            activeNotes.clear();
+        }
+
         for (const auto& me : midiEvents) {
             Event e = {};
             e.busIndex = 0;
@@ -682,75 +723,57 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     data.inputEvents = &eventList;
     data.outputParameterChanges = &outParamChanges;
 
-    std::vector<AudioBusBuffers> inBufs;
-    std::vector<std::vector<float*>> inPtrs;
-    int32_t numInputs = component->getBusCount(kAudio, kInput);
+    int32_t numInputs = static_cast<int32_t>(inBusChannelCounts.size());
     if (numInputs > 0) {
-        inBufs.resize(numInputs);
-        inPtrs.resize(numInputs);
         for (int32_t i = 0; i < numInputs; ++i) {
-            BusInfo info;
-            component->getBusInfo(kAudio, kInput, i, info);
+            int32_t chCount = inBusChannelCounts[i];
+            inBufsCache[i].numChannels = chCount;
+            inBufsCache[i].silenceFlags = 0;
 
-            inBufs[i].numChannels = info.channelCount;
-            inBufs[i].silenceFlags = 0;
-
-            if (info.channelCount > 0) {
-                inPtrs[i].resize(info.channelCount);
+            if (chCount > 0) {
+                std::vector<float*>& ptrs = inPtrsCache[i];
                 if (i == 0) {
-                    inPtrs[i][0] = const_cast<float*>(inL);
-                    if (info.channelCount > 1) {
-                        inPtrs[i][1] = const_cast<float*>(numChannels > 1 ? inR : inL);
-                    }
-                    for (int32_t ch = 2; ch < info.channelCount; ++ch) {
-                        inPtrs[i][ch] = silence;
-                    }
+                    ptrs[0] = const_cast<float*>(inL);
+                    if (chCount > 1)
+                        ptrs[1] = const_cast<float*>(numChannels > 1 ? inR : inL);
+                    for (int32_t ch = 2; ch < chCount; ++ch)
+                        ptrs[ch] = silence;
                 } else {
-                    for (int32_t ch = 0; ch < info.channelCount; ++ch) {
-                        inPtrs[i][ch] = silence;
-                    }
-                    inBufs[i].silenceFlags = MakeSilenceFlags(info.channelCount);
+                    for (int32_t ch = 0; ch < chCount; ++ch)
+                        ptrs[ch] = silence;
+                    inBufsCache[i].silenceFlags = MakeSilenceFlags(chCount);
                 }
-                inBufs[i].channelBuffers32 = inPtrs[i].data();
+                inBufsCache[i].channelBuffers32 = ptrs.data();
             }
         }
         data.numInputs = numInputs;
-        data.inputs = inBufs.data();
+        data.inputs = inBufsCache.data();
     }
 
-    std::vector<AudioBusBuffers> outBufs;
-    std::vector<std::vector<float*>> outPtrs;
-    int32_t numOutputs = component->getBusCount(kAudio, kOutput);
+    int32_t numOutputs = static_cast<int32_t>(outBusChannelCounts.size());
     if (numOutputs > 0) {
-        outBufs.resize(numOutputs);
-        outPtrs.resize(numOutputs);
         for (int32_t i = 0; i < numOutputs; ++i) {
-            BusInfo info;
-            component->getBusInfo(kAudio, kOutput, i, info);
+            int32_t chCount = outBusChannelCounts[i];
+            outBufsCache[i].numChannels = chCount;
+            outBufsCache[i].silenceFlags = 0;
 
-            outBufs[i].numChannels = info.channelCount;
-            outBufs[i].silenceFlags = 0;
-
-            if (info.channelCount > 0) {
-                outPtrs[i].resize(info.channelCount);
+            if (chCount > 0) {
+                std::vector<float*>& ptrs = outPtrsCache[i];
                 if (i == 0) {
-                    outPtrs[i][0] = outL;
-                    if (info.channelCount > 1) {
-                        outPtrs[i][1] = (numChannels > 1) ? outR : silence;
-                    }
-                    for (int32_t ch = 2; ch < info.channelCount; ++ch) {
-                        outPtrs[i][ch] = silence;
-                    }
+                    ptrs[0] = outL;
+                    if (chCount > 1)
+                        ptrs[1] = (numChannels > 1) ? outR : silence;
+                    for (int32_t ch = 2; ch < chCount; ++ch)
+                        ptrs[ch] = silence;
                 } else {
-                    for (int32_t ch = 0; ch < info.channelCount; ++ch) {
-                        outPtrs[i][ch] = silence;
-                    }
+                    for (int32_t ch = 0; ch < chCount; ++ch)
+                        ptrs[ch] = silence;
                 }
-                outBufs[i].channelBuffers32 = outPtrs[i].data();
+                outBufsCache[i].channelBuffers32 = ptrs.data();
             }
         }
         data.numOutputs = numOutputs;
-        data.outputs = outBufs.data();
+        data.outputs = outBufsCache.data();
     }
 
     ProcessContext ctx{};
@@ -865,6 +888,28 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
     float* silence = GetDummyBuffer(blockSize);
     Avx2Utils::FillBufferAVX2(silence, blockSize, 0.0f);
 
+    int32_t numInputs = static_cast<int32_t>(inBusChannelCounts.size());
+    for (int32_t i = 0; i < numInputs; ++i) {
+        int32_t chCount = inBusChannelCounts[i];
+        inBufsCache[i].numChannels = chCount;
+        inBufsCache[i].silenceFlags = MakeSilenceFlags(chCount);
+        if (chCount > 0) {
+            for (int32_t ch = 0; ch < chCount; ++ch) inPtrsCache[i][ch] = silence;
+            inBufsCache[i].channelBuffers32 = inPtrsCache[i].data();
+        }
+    }
+
+    int32_t numOutputs = static_cast<int32_t>(outBusChannelCounts.size());
+    for (int32_t i = 0; i < numOutputs; ++i) {
+        int32_t chCount = outBusChannelCounts[i];
+        outBufsCache[i].numChannels = chCount;
+        outBufsCache[i].silenceFlags = 0;
+        if (chCount > 0) {
+            for (int32_t ch = 0; ch < chCount; ++ch) outPtrsCache[i][ch] = silence;
+            outBufsCache[i].channelBuffers32 = outPtrsCache[i].data();
+        }
+    }
+
     for (int32_t iterations = 0; iterations < flushBlocks; ++iterations) {
         ParameterChanges emptyParamChanges;
         ParameterChanges emptyOutParamChanges;
@@ -874,46 +919,13 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
         data.inputParameterChanges = &emptyParamChanges;
         data.inputEvents = &resetEventList;
         data.outputParameterChanges = &emptyOutParamChanges;
-        std::vector<AudioBusBuffers> inBufs;
-        std::vector<std::vector<float*>> inPtrs;
-        int32_t numInputs = component->getBusCount(kAudio, kInput);
         if (numInputs > 0) {
-            inBufs.resize(numInputs);
-            inPtrs.resize(numInputs);
-            for (int32_t i = 0; i < numInputs; ++i) {
-                BusInfo info;
-                component->getBusInfo(kAudio, kInput, i, info);
-                inBufs[i].numChannels = info.channelCount;
-                inBufs[i].silenceFlags = MakeSilenceFlags(info.channelCount);
-                if (info.channelCount > 0) {
-                    inPtrs[i].resize(info.channelCount);
-                    for (int32_t ch = 0; ch < info.channelCount; ++ch) inPtrs[i][ch] = silence;
-                    inBufs[i].channelBuffers32 = inPtrs[i].data();
-                }
-            }
             data.numInputs = numInputs;
-            data.inputs = inBufs.data();
+            data.inputs = inBufsCache.data();
         }
-
-        std::vector<AudioBusBuffers> outBufs;
-        std::vector<std::vector<float*>> outPtrs;
-        int32_t numOutputs = component->getBusCount(kAudio, kOutput);
         if (numOutputs > 0) {
-            outBufs.resize(numOutputs);
-            outPtrs.resize(numOutputs);
-            for (int32_t i = 0; i < numOutputs; ++i) {
-                BusInfo info;
-                component->getBusInfo(kAudio, kOutput, i, info);
-                outBufs[i].numChannels = info.channelCount;
-                outBufs[i].silenceFlags = 0;
-                if (info.channelCount > 0) {
-                    outPtrs[i].resize(info.channelCount);
-                    for (int32_t ch = 0; ch < info.channelCount; ++ch) outPtrs[i][ch] = silence;
-                    outBufs[i].channelBuffers32 = outPtrs[i].data();
-                }
-            }
             data.numOutputs = numOutputs;
-            data.outputs = outBufs.data();
+            data.outputs = outBufsCache.data();
         }
 
         ProcessContext ctx{};
@@ -1062,7 +1074,7 @@ void VstHost::Impl::ShowGui() {
         if (lastSlash != std::wstring::npos) {
             pluginName = wPath.substr(lastSlash + 1);
             // Remove extension
-            size_t lastDot = pluginName.find_last_of(L".");
+            size_t lastDot = pluginName.find_last_of(L'.');
             if (lastDot != std::wstring::npos) pluginName = pluginName.substr(0, lastDot);
         }
     }

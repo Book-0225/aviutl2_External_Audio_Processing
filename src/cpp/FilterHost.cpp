@@ -14,10 +14,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 constexpr auto FILTER_NAME = L"Host";
@@ -34,7 +36,33 @@ struct DelayBuffer {
     std::vector<float> bufferR;
     int32_t writePos = 0;
 };
-static std::map<std::string, DelayBuffer> g_delay_buffers;
+static std::unordered_map<std::string, DelayBuffer> g_delay_buffers;
+
+static inline void CircularBufferWrite(std::vector<float>& buf, int32_t& pos, const float* src, int32_t count) {
+    const int32_t bufSize = static_cast<int32_t>(buf.size());
+    if (bufSize <= 0 || count <= 0) return;
+    while (count > 0) {
+        int32_t chunk = (std::min)(count, bufSize - pos);
+        std::memcpy(buf.data() + pos, src, static_cast<size_t>(chunk) * sizeof(float));
+        pos += chunk;
+        if (pos >= bufSize) pos = 0;
+        src += chunk;
+        count -= chunk;
+    }
+}
+
+static inline void CircularBufferRead(const std::vector<float>& buf, int32_t& pos, float* dst, int32_t count) {
+    const int32_t bufSize = static_cast<int32_t>(buf.size());
+    if (bufSize <= 0 || count <= 0) return;
+    while (count > 0) {
+        int32_t chunk = (std::min)(count, bufSize - pos);
+        std::memcpy(dst, buf.data() + pos, static_cast<size_t>(chunk) * sizeof(float));
+        pos += chunk;
+        if (pos >= bufSize) pos = 0;
+        dst += chunk;
+        count -= chunk;
+    }
+}
 static std::mutex g_delay_buffers_mutex;
 
 struct MidiState {
@@ -42,7 +70,7 @@ struct MidiState {
     MidiParser parser;
     std::map<uint8_t, int64_t> last_active_note_owners;
 };
-static std::map<std::string, MidiState> g_midi_state;
+static std::unordered_map<std::string, MidiState> g_midi_state;
 static std::mutex g_midi_state_mutex;
 static std::set<std::string> g_force_reload_instances;
 static std::mutex g_force_reload_mutex;
@@ -483,7 +511,7 @@ struct NotesState {
 
 static std::set<std::string>* g_active_ids_collector = nullptr;
 static std::mutex g_notes_state_mutex;
-static std::map<int64_t, NotesState> g_notes_states;
+static std::unordered_map<int64_t, NotesState> g_notes_states;
 
 void CleanupMainFilterResources() {
     PluginManager::GetInstance().CleanupResources();
@@ -1153,6 +1181,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
         int32_t processed = 0;
         bool realtime_events_sent = false;
+        thread_local std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
 
         while (processed < total_samples) {
             int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
@@ -1165,7 +1194,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             double time_start = static_cast<double>(current_block_pos) / audio->scene->sample_rate;
             double time_end = static_cast<double>(current_block_pos + block_size) / audio->scene->sample_rate;
 
-            std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
+            midi_events_for_block.clear();
             if (!realtime_events_sent && !realtime_midi_events.empty()) {
                 for (auto& evt : realtime_midi_events) midi_events_for_block.push_back(evt);
                 realtime_events_sent = true;
@@ -1246,11 +1275,10 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         int32_t writeP = db->writePos;
         int32_t bufSize = static_cast<int32_t>(db->bufferL.size());
 
-        for (int32_t i = 0; i < total_samples; ++i) {
-            db->bufferL[writeP] = inL[i];
-            if (channels >= 2) db->bufferR[writeP] = inR[i];
-            writeP++;
-            if (writeP >= bufSize) writeP = 0;
+        CircularBufferWrite(db->bufferL, writeP, inL.data(), total_samples);
+        if (channels >= 2) {
+            int32_t writeP_R = db->writePos;
+            CircularBufferWrite(db->bufferR, writeP_R, inR.data(), total_samples);
         }
         db->writePos = writeP;
 
@@ -1260,11 +1288,11 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         delayedL.resize(total_samples);
         if (channels >= 2) delayedR.resize(total_samples);
 
-        for (int32_t i = 0; i < total_samples; ++i) {
-            delayedL[i] = db->bufferL[readP];
-            if (channels >= 2) delayedR[i] = db->bufferR[readP];
-            readP++;
-            if (readP >= bufSize) readP = 0;
+        CircularBufferRead(db->bufferL, readP, delayedL.data(), total_samples);
+        if (channels >= 2) {
+            int32_t readP_R = db->writePos - total_samples - latency;
+            while (readP_R < 0) readP_R += bufSize;
+            CircularBufferRead(db->bufferR, readP_R, delayedR.data(), total_samples);
         }
 
         dryL = delayedL.data();
