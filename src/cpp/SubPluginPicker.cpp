@@ -104,15 +104,15 @@ std::string ShowSubPluginPicker(HINSTANCE hInstance, HWND parentWindow, const st
     if (candidates.empty()) return "";
     if (candidates.size() == 1) return candidates[0].id;
 
-    WNDCLASS existingClass;
+    WNDCLASSW existingClass;
     if (!GetClassInfoW(hInstance, APP_CLASS, &existingClass)) {
-        WNDCLASS wc = {};
+        WNDCLASSW wc = {};
         wc.lpfnWndProc = PickerWndProc;
         wc.hInstance = hInstance;
         wc.lpszClassName = APP_CLASS;
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
-        if (!RegisterClass(&wc)) return "";
+        if (!RegisterClassW(&wc)) return "";
     }
 
     PickerState state;

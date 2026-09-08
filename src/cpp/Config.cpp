@@ -63,7 +63,7 @@ void ShowConfigLoadWarning(const ConfigLoadReport& report) {
         message += report.messages[i] + L"\n";
     if (report.messages.size() > max_lines)
         message += L"...";
-    MessageBox(nullptr, message.c_str(), L"EAP2 Config Warning", MB_OK | MB_ICONWARNING);
+    MessageBoxW(nullptr, message.c_str(), L"EAP2 Config Warning", MB_OK | MB_ICONWARNING);
 }
 
 void LoadEntryWithFallback(const std::wstring& categoryName, const ConfigEntry& item, const std::wstring& rawValue, ConfigLoadReport& report) {
@@ -81,7 +81,7 @@ std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const s
 
     for (;;) {
         std::vector<wchar_t> buffer(buffer_size, L'\0');
-        DWORD copied = GetPrivateProfileSection(categoryName.c_str(), buffer.data(), buffer_size, path.c_str());
+        DWORD copied = GetPrivateProfileSectionW(categoryName.c_str(), buffer.data(), buffer_size, path.c_str());
         if (copied == 0) return keys;
         if (copied < buffer_size - 2) {
             const wchar_t* current = buffer.data();
@@ -102,7 +102,7 @@ void EnsureCategoryDefaults(const std::wstring& categoryName, const std::vector<
     std::set<std::wstring> existing_keys = GetExistingKeys(categoryName, path);
     for (const auto& item : entries) {
         if (existing_keys.find(item.key) != existing_keys.end()) continue;
-        WritePrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
+        WritePrivateProfileStringW(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
         DbgPrint(L"[Config] Added missing key. category=" + categoryName + L" key=" + item.key + L" default=" + item.defaultValue, LOG_INFO);
     }
 }
@@ -120,7 +120,7 @@ void CreateConfig(const std::filesystem::path& path) {
     std::ofstream{ path };
     ApplyToAllCategories([](const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
         for (auto& item : entries)
-            WritePrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
+            WritePrivateProfileStringW(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
     },
                          settings, path);
 }
@@ -128,7 +128,7 @@ void CreateConfig(const std::filesystem::path& path) {
 void LoadCategory(const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path, ConfigLoadReport& report) {
     for (auto& item : entries) {
         wchar_t buffer[MAX_PATH];
-        GetPrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), buffer, MAX_PATH, path.c_str());
+        GetPrivateProfileStringW(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), buffer, MAX_PATH, path.c_str());
         LoadEntryWithFallback(categoryName, item, buffer, report);
     }
 }
@@ -173,7 +173,7 @@ void ReloadCategory(const std::wstring& categoryName, const std::vector<ConfigEn
     for (auto& item : entries) {
         if (item.reload) {
             wchar_t buffer[MAX_PATH];
-            GetPrivateProfileString(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), buffer, MAX_PATH, path.c_str());
+            GetPrivateProfileStringW(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), buffer, MAX_PATH, path.c_str());
             LoadEntryWithFallback(categoryName, item, buffer, report);
         }
     }
@@ -200,7 +200,7 @@ void SaveConfig() {
         CreateConfig(path);
     ApplyToAllCategories([](const std::wstring& categoryName, const std::vector<ConfigEntry>& entries, const std::filesystem::path& path) {
         for (auto& item : entries)
-            WritePrivateProfileString(categoryName.c_str(), item.key.c_str(), item.save().c_str(), path.c_str());
+            WritePrivateProfileStringW(categoryName.c_str(), item.key.c_str(), item.save().c_str(), path.c_str());
     },
                          new_settings, path);
 }
@@ -219,5 +219,5 @@ void OpenConfig() {
     std::filesystem::path path = GetConfigPath();
     if (!std::filesystem::exists(path))
         CreateConfig(path);
-    ShellExecute(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }

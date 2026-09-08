@@ -978,7 +978,7 @@ void VstHost::Impl::ShowGui() {
     RECT rc = { 0, 0, vr.right - vr.left, vr.bottom - vr.top };
     AdjustWindowRectEx(&rc, windowStyle, FALSE, 0);
 
-    WNDCLASS wc{};
+    WNDCLASSW wc{};
     wc.lpfnWndProc = [](HWND hWnd, uint32_t msg, WPARAM wp, LPARAM lp) -> LRESULT {
         VstHost::Impl* self = nullptr;
         if (msg == WM_CREATE) {
@@ -1044,9 +1044,9 @@ void VstHost::Impl::ShowGui() {
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
 
     // Register window class only if not already registered
-    WNDCLASS existingClass;
-    if (!GetClassInfo(hInstance, wc.lpszClassName, &existingClass)) {
-        if (!RegisterClass(&wc)) {
+    WNDCLASSW existingClass;
+    if (!GetClassInfoW(hInstance, wc.lpszClassName, &existingClass)) {
+        if (!RegisterClassW(&wc)) {
             VSTLog(LOG_WARN);
             DbgPrint(L"[VST3 GUI] Failed to register window class", LOG_VERBOSE);
             plugView.reset();
@@ -1067,9 +1067,9 @@ void VstHost::Impl::ShowGui() {
         }
     }
 
-    guiWindow = CreateWindowEx(0, wc.lpszClassName, pluginName.c_str(), windowStyle,
-                               CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
-                               nullptr, nullptr, hInstance, this);
+    guiWindow = CreateWindowExW(0, wc.lpszClassName, pluginName.c_str(), windowStyle,
+                                CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
+                                nullptr, nullptr, hInstance, this);
     if (!guiWindow) {
         VSTLog(LOG_WARN);
         DbgPrint(L"[VST3 GUI] Failed to create window (Error: " + std::to_wstring(GetLastError()) + L")", LOG_VERBOSE);

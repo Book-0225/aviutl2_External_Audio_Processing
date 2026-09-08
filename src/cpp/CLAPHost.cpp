@@ -188,7 +188,7 @@ bool ClapHost::Impl::LoadPlugin(const std::filesystem::path& path, double sample
 
     std::wstring wpath = path.wstring();
 
-    hModule = LoadLibrary(wpath.c_str());
+    hModule = LoadLibraryW(wpath.c_str());
     if (!hModule) return false;
 
     clap_plugin_entry_t* entry_proc = reinterpret_cast<clap_plugin_entry_t*>(GetProcAddress(hModule, "clap_plugin_entry"));
@@ -321,10 +321,10 @@ void ClapHost::Impl::ShowGui() {
     wc.lpfnWndProc = ClapHostGuiProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"ClapHostGuiWindowClass";
-    RegisterClass(&wc);
+    RegisterClassW(&wc);
 
-    guiWindow = CreateWindowEx(0, wc.lpszClassName, L"CLAP Plugin", WS_OVERLAPPED | WS_CAPTION,
-                               CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, hInstance, this);
+    guiWindow = CreateWindowExW(0, wc.lpszClassName, L"CLAP Plugin", WS_OVERLAPPED | WS_CAPTION,
+                                CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, nullptr, nullptr, hInstance, this);
     if (!guiWindow) return;
 
     if (!extGui->create(plugin, CLAP_WINDOW_API_WIN32, false)) {

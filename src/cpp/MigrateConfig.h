@@ -5,7 +5,7 @@
 
 int32_t GetConfigVersion(const std::filesystem::path& path) {
     wchar_t buf[32];
-    GetPrivateProfileString(L"Info", L"ConfigVersion", L"0", buf, _countof(buf), path.c_str());
+    GetPrivateProfileStringW(L"Info", L"ConfigVersion", L"0", buf, _countof(buf), path.c_str());
 
     int32_t version;
     if (!TryParseInt32(buf, version, 0, INT32_MAX))
@@ -38,6 +38,6 @@ inline bool MigrateConfig(const std::filesystem::path& path) {
         }
     }
 
-    WritePrivateProfileString(L"Info", L"ConfigVersion", CONFIG_VERSION, path.c_str());
+    WritePrivateProfileStringW(L"Info", L"ConfigVersion", CONFIG_VERSION, path.c_str());
     return true;
 }

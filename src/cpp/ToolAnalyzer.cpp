@@ -691,11 +691,11 @@ static void apply_volume_fix_and_remeasure() {
         wchar_t msg[256];
         swprintf_s(msg, TrText(L"適用するとTrue Peakが約%.1f dBTPになり、上限(%.1f dBTP)を超える見込みです。\nこのまま適用しますか？"),
                    prop.predicted_peak(), prop.peak_ceiling);
-        if (MessageBox(g_hwnd, msg, APP_NAME, MB_ICONWARNING | MB_YESNO) != IDYES)
+        if (MessageBoxW(g_hwnd, msg, APP_NAME, MB_ICONWARNING | MB_YESNO) != IDYES)
             return;
     }
     if (std::abs(prop.user_gain_db) <= 0.01)
-        if (MessageBox(g_hwnd, TrText(L"適用結果にほぼ変化が無い見込みです。\nこのまま適用しますか？"), APP_NAME, MB_ICONWARNING | MB_YESNO) != IDYES)
+        if (MessageBoxW(g_hwnd, TrText(L"適用結果にほぼ変化が無い見込みです。\nこのまま適用しますか？"), APP_NAME, MB_ICONWARNING | MB_YESNO) != IDYES)
             return;
 
     bool ok = false;
@@ -722,13 +722,13 @@ static void apply_volume_fix_and_remeasure() {
 static void read_controls_to_settings() {
     wchar_t buf[32];
     double v;
-    GetWindowText(s_edit_l, buf, 32);
+    GetWindowTextW(s_edit_l, buf, 32);
     v = wcstod(buf, nullptr);
     if (v < 0.0 && v >= -60.0) settings.analyzer.target_lufs = v;
-    GetWindowText(s_edit_p, buf, 32);
+    GetWindowTextW(s_edit_p, buf, 32);
     v = wcstod(buf, nullptr);
     if (v < 0.0 && v >= -20.0) settings.analyzer.target_peak = v;
-    GetWindowText(s_edit_sil, buf, 32);
+    GetWindowTextW(s_edit_sil, buf, 32);
     v = wcstod(buf, nullptr);
     if (v < 0.0 && v >= -90.0) settings.analyzer.sil_db = v;
 }
@@ -736,11 +736,11 @@ static void read_controls_to_settings() {
 static void write_settings_to_controls() {
     wchar_t buf[32];
     swprintf_s(buf, L"%.1f", settings.analyzer.target_lufs);
-    SetWindowText(s_edit_l, buf);
+    SetWindowTextW(s_edit_l, buf);
     swprintf_s(buf, L"%.1f", settings.analyzer.target_peak);
-    SetWindowText(s_edit_p, buf);
+    SetWindowTextW(s_edit_p, buf);
     swprintf_s(buf, L"%.1f", settings.analyzer.sil_db);
-    SetWindowText(s_edit_sil, buf);
+    SetWindowTextW(s_edit_sil, buf);
     SendMessage(s_combo, CB_SETCURSEL, find_preset_index(), 0);
 }
 
@@ -753,7 +753,7 @@ static void frame_change_cb(void*) {
 
 static void dtw(HDC hdc, const wchar_t* s, RECT r, COLORREF c, UINT fmt = DT_LEFT | DT_VCENTER | DT_SINGLELINE) {
     SetTextColor(hdc, c);
-    DrawText(hdc, s, -1, &r, fmt);
+    DrawTextW(hdc, s, -1, &r, fmt);
 }
 
 static std::wstring fmtL(double v) {
@@ -877,7 +877,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         swprintf_s(lb, L"%d", db);
         RECT lr = { gx + gw + 2, yy - 7, gx + gw + 30, yy + 7 };
         SetTextColor(hdc, C_GRIDLBL);
-        DrawText(hdc, lb, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        DrawTextW(hdc, lb, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (target_lufs > v_min && target_lufs < v_max) {
         int32_t ty = yx(target_lufs);
@@ -885,7 +885,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         swprintf_s(tl, L"%.0f", target_lufs);
         RECT tlr = { gx + gw + 2, ty - 7, gx + gw + 30, ty + 7 };
         SetTextColor(hdc, RGB(80, 160, 80));
-        DrawText(hdc, tl, -1, &tlr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        DrawTextW(hdc, tl, -1, &tlr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
     const double t_end = t_pan + 1.0 / t_zoom;
@@ -938,7 +938,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         else swprintf_s(zi, TrText(L"右クリックでリセット"));
         RECT zr = { lx, gy, gx + gw, gy + 14 };
         SetTextColor(hdc, C_GRIDLBL);
-        DrawText(hdc, zi, -1, &zr, DT_RIGHT | DT_TOP | DT_SINGLELINE);
+        DrawTextW(hdc, zi, -1, &zr, DT_RIGHT | DT_TOP | DT_SINGLELINE);
     }
 }
 
@@ -946,15 +946,15 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CREATE: {
             s_br_ctrl = CreateSolidBrush(C_CTRL);
-            s_btn_rng = CreateWindow(L"BUTTON", TrText(L"選択範囲を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
-            s_btn_all = CreateWindow(L"BUTTON", TrText(L"シーン全体を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
-            s_btn_obj = CreateWindow(L"BUTTON", TrText(L"選択オブジェクトを計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 312, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(4), g_hinstance, nullptr);
-            s_btn_abort = CreateWindow(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 500, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
-            s_combo = CreateWindow(L"COMBOBOX", nullptr, WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, 8, 42, 300, 200, hwnd, reinterpret_cast<HMENU>(10), g_hinstance, nullptr);
+            s_btn_rng = CreateWindowW(L"BUTTON", TrText(L"選択範囲を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
+            s_btn_all = CreateWindowW(L"BUTTON", TrText(L"シーン全体を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
+            s_btn_obj = CreateWindowW(L"BUTTON", TrText(L"選択オブジェクトを計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 312, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(4), g_hinstance, nullptr);
+            s_btn_abort = CreateWindowW(L"BUTTON", TrText(L"中止"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED, 500, 8, 76, 26, hwnd, reinterpret_cast<HMENU>(3), g_hinstance, nullptr);
+            s_combo = CreateWindowW(L"COMBOBOX", nullptr, WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL, 8, 42, 300, 200, hwnd, reinterpret_cast<HMENU>(10), g_hinstance, nullptr);
             for (auto& p : PRESETS) SendMessage(s_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(p.name));
-            s_edit_l = CreateWindow(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
-            s_edit_p = CreateWindow(L"EDIT", L"-1.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 148, 74, 44, 20, hwnd, reinterpret_cast<HMENU>(12), g_hinstance, nullptr);
-            s_edit_sil = CreateWindow(L"EDIT", L"-60.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 248, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(13), g_hinstance, nullptr);
+            s_edit_l = CreateWindowW(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
+            s_edit_p = CreateWindowW(L"EDIT", L"-1.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 148, 74, 44, 20, hwnd, reinterpret_cast<HMENU>(12), g_hinstance, nullptr);
+            s_edit_sil = CreateWindowW(L"EDIT", L"-60.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 248, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(13), g_hinstance, nullptr);
             write_settings_to_controls();
             g_vol_fix_panel.create(hwnd, g_hinstance, 200);
             return 0;
@@ -971,7 +971,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int32_t notif = HIWORD(wp);
             if ((id == 1 || id == 2 || id == 4) && !g_busy.load()) {
                 if (g_edit_handle->get_edit_state() != g_edit_handle->EDIT_STATE_EDIT) {
-                    MessageBox(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), APP_NAME, MB_ICONWARNING);
+                    MessageBoxW(hwnd, TrText(L"プレビュー中や書き出し中は計測できません。"), APP_NAME, MB_ICONWARNING);
                     break;
                 }
                 read_controls_to_settings();
@@ -979,7 +979,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 g_edit_handle->get_edit_info(&info, sizeof(info));
                 if (id == 1) {
                     if (info.select_range_start < 0 || info.select_range_end < 0) {
-                        MessageBox(hwnd, TrText(L"タイムラインでフレーム範囲を選択してから計測してください"), APP_NAME, MB_ICONWARNING);
+                        MessageBoxW(hwnd, TrText(L"タイムラインでフレーム範囲を選択してから計測してください"), APP_NAME, MB_ICONWARNING);
                         break;
                     }
                     start_analysis(info.select_range_start, info.select_range_end);
@@ -989,7 +989,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     ObjPickResult pick;
                     g_edit_handle->call_read_section_param(&pick, pick_target_object_cb);
                     if (!pick.found) {
-                        MessageBox(hwnd, TrText(L"計測するオブジェクトを選択してください"), APP_NAME, MB_ICONWARNING);
+                        MessageBoxW(hwnd, TrText(L"計測するオブジェクトを選択してください"), APP_NAME, MB_ICONWARNING);
                         break;
                     }
                     start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 4 ? true : false);
@@ -1382,8 +1382,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
 
             FONT_INFO* font = g_config_handle->get_font_info(g_config_handle, "DefaultFamily");
-            if (!g_fL) g_fL = CreateFont(24, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
-            if (!g_fS) g_fS = CreateFont(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
+            if (!g_fL) g_fL = CreateFontW(24, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
+            if (!g_fS) g_fS = CreateFontW(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
             SelectObject(mdc, g_fS);
 
             dtw(mdc, TrText(L"目標 LUFS"), { 64, 74, 128, 94 }, C_LABEL);
@@ -1778,8 +1778,8 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = nullptr;
     wc.lpszClassName = APP_CLASS;
-    RegisterClassEx(&wc);
-    g_hwnd = CreateWindowEx(0, APP_CLASS, nullptr, WS_CHILD | WS_CLIPCHILDREN, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
+    RegisterClassExW(&wc);
+    g_hwnd = CreateWindowExW(0, APP_CLASS, nullptr, WS_CHILD | WS_CLIPCHILDREN, 0, 0, 640, 600, g_host_hwnd, nullptr, g_hinstance, nullptr);
     host->register_window_client(APP_NAME, g_hwnd);
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
     host->register_filter_plugin(&filter_plugin_table_volume);

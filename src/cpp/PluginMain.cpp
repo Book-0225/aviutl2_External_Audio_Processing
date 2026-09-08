@@ -327,11 +327,11 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
         return false;
     }
 
-    WNDCLASS wc = {};
+    WNDCLASSW wc = {};
     wc.lpfnWndProc = MessageWndProc;
     wc.hInstance = g_hinstance;
     wc.lpszClassName = EAP2_MW_CLASS;
-    if (!RegisterClass(&wc)) {
+    if (!RegisterClassW(&wc)) {
         AudioPluginFactory::Uninitialize();
         CoUninitialize();
         return false;

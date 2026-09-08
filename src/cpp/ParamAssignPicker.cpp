@@ -100,15 +100,15 @@ int32_t ShowParamAssignPicker(HINSTANCE hInstance, HWND parentWindow, const std:
     if (candidates.empty()) return -1;
     if (candidates.size() == 1) return candidates[0].index;
 
-    WNDCLASS existingClass;
+    WNDCLASSW existingClass;
     if (!GetClassInfoW(hInstance, APP_CLASS, &existingClass)) {
-        WNDCLASS wc = {};
+        WNDCLASSW wc = {};
         wc.lpfnWndProc = PickerWndProc;
         wc.hInstance = hInstance;
         wc.lpszClassName = APP_CLASS;
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
-        if (!RegisterClass(&wc)) return -1;
+        if (!RegisterClassW(&wc)) return -1;
     }
 
     PickerState state;

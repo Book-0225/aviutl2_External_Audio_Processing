@@ -16,7 +16,7 @@ namespace {
 
 void dtw(HDC hdc, const wchar_t* s, RECT r, COLORREF c, UINT fmt = DT_LEFT | DT_VCENTER | DT_SINGLELINE) {
     SetTextColor(hdc, c);
-    DrawText(hdc, s, -1, &r, fmt);
+    DrawTextW(hdc, s, -1, &r, fmt);
 }
 } // namespace
 
@@ -52,9 +52,9 @@ bool apply_volume_fix(EDIT_SECTION* edit, const VolumeFixProposal& prop) {
 
 void VolumeFixPanel::create(HWND parent, HINSTANCE hinst, int32_t base_ctrl_id) {
     m_parent = parent;
-    m_edit_gain = CreateWindow(L"EDIT", L"0.00", WS_CHILD | ES_RIGHT | ES_AUTOHSCROLL, 0, 0, 70, 20, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 0)), hinst, nullptr);
-    m_btn_apply = CreateWindow(L"BUTTON", TrText(L"適用"), WS_CHILD | BS_PUSHBUTTON, 0, 0, 60, 24, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 1)), hinst, nullptr);
-    m_btn_reset = CreateWindow(L"BUTTON", TrText(L"提案値に戻す"), WS_CHILD | BS_PUSHBUTTON, 0, 0, 100, 24, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 2)), hinst, nullptr);
+    m_edit_gain = CreateWindowW(L"EDIT", L"0.00", WS_CHILD | ES_RIGHT | ES_AUTOHSCROLL, 0, 0, 70, 20, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 0)), hinst, nullptr);
+    m_btn_apply = CreateWindowW(L"BUTTON", TrText(L"適用"), WS_CHILD | BS_PUSHBUTTON, 0, 0, 60, 24, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 1)), hinst, nullptr);
+    m_btn_reset = CreateWindowW(L"BUTTON", TrText(L"提案値に戻す"), WS_CHILD | BS_PUSHBUTTON, 0, 0, 100, 24, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 2)), hinst, nullptr);
 }
 
 void VolumeFixPanel::destroy() {
@@ -68,13 +68,13 @@ void VolumeFixPanel::refresh_edit_text() {
     if (!m_edit_gain) return;
     wchar_t buf[32];
     swprintf_s(buf, L"%.2f", m_prop.user_gain_db);
-    SetWindowText(m_edit_gain, buf);
+    SetWindowTextW(m_edit_gain, buf);
 }
 
 double VolumeFixPanel::read_edit_gain() const {
     if (!m_edit_gain) return m_prop.user_gain_db;
     wchar_t buf[32];
-    GetWindowText(m_edit_gain, buf, 32);
+    GetWindowTextW(m_edit_gain, buf, 32);
     wchar_t* endp = nullptr;
     double v = wcstod(buf, &endp);
     if (endp == buf) return m_prop.user_gain_db;
