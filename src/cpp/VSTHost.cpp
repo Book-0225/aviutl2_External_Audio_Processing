@@ -416,19 +416,6 @@ struct VstHost::Impl {
 };
 
 namespace {
-std::string ClassIdToString(const ClassInfo& ci) {
-    TUID tuid;
-    ci.ID().toString(tuid);
-    static const char* hex = "0123456789ABCDEF";
-    std::string s;
-    s.reserve(32);
-    for (unsigned char b : tuid) {
-        s.push_back(hex[(b >> 4) & 0xF]);
-        s.push_back(hex[b & 0xF]);
-    }
-    return s;
-}
-
 bool IsHostablePluginClass(const ClassInfo& ci) {
     return ci.category() == "Audio Module Class" ||
            ci.category() == "Instrument Module Class" ||
