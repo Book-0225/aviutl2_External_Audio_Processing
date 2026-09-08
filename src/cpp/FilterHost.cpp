@@ -199,7 +199,7 @@ FILTER_ITEM_BUTTON toggle_gui_button(L"プラグインGUIを表示/非表示", [
         return;
     }
 
-    int32_t hit_count = 0;
+    std::vector<std::string> target_uuids;
     for (OBJECT_HANDLE obj : targets) {
         for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
             int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
@@ -209,31 +209,55 @@ FILTER_ITEM_BUTTON toggle_gui_button(L"プラグインGUIを表示/非表示", [
                 LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
                 if (!hex_id) continue;
                 std::string uuid = StringUtils::HexToString(hex_id);
-                if (uuid.empty()) continue;
-
-                ++hit_count;
-                std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-                g_main_thread_tasks.push_back([uuid]() {
-                    auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
-                    if (!host) {
-                        DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから再試行してください。"), LOG_WARN);
-                        return;
-                    }
-                    if (host->IsGuiVisible()) {
-                        host->HideGui();
-                        std::string state = host->GetState();
-                        DbgPrint(L"Plugin GUI hidden via button, saving state for " + StringUtils::Utf8ToWide(uuid) + L", (Size: " + std::to_wstring(state.size()) + L")", LOG_VERBOSE);
-                        if (!state.empty()) PluginManager::GetInstance().SaveState(uuid, state);
-                    } else {
-                        host->ShowGui();
-                    }
-                });
+                if (!uuid.empty()) {
+                    target_uuids.push_back(uuid);
+                }
             }
         }
     }
 
-    if (hit_count == 0)
+    if (target_uuids.empty()) {
         DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
+        return;
+    }
+
+    std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
+    g_main_thread_tasks.push_back([target_uuids]() {
+        bool any_visible = false;
+        int loaded_count = 0;
+
+        for (const auto& uuid : target_uuids) {
+            auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
+            if (host) {
+                loaded_count++;
+                if (host->IsGuiVisible()) {
+                    any_visible = true;
+                    break;
+                }
+            }
+        }
+
+        if (loaded_count == 0) {
+            DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから再試行してください。"), LOG_WARN);
+            return;
+        }
+
+        for (const auto& uuid : target_uuids) {
+            auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
+            if (!host) continue;
+
+            if (any_visible) {
+                if (host->IsGuiVisible()) {
+                    host->HideGui();
+                    std::string state = host->GetState();
+                    DbgPrint(L"Plugin GUI hidden via button, saving state for " + StringUtils::Utf8ToWide(uuid) + L", (Size: " + std::to_wstring(state.size()) + L")", LOG_VERBOSE);
+                    if (!state.empty()) PluginManager::GetInstance().SaveState(uuid, state);
+                }
+            } else {
+                host->ShowGui();
+            }
+        }
+    });
 });
 FILTER_ITEM_GROUP param_group(L"パラメータ紐づけ設定", false);
 FILTER_ITEM_SEPARATOR sep_map1(L"割り当て 1");
