@@ -142,8 +142,12 @@ struct TruePeakDetector {
 };
 
 struct Issue {
-    enum Type { CLIP,
-                SILENCE } type;
+    enum class Type : std::uint8_t {
+        CLIP,
+        SILENCE
+    };
+
+    Type type;
     int32_t f_start;
     int32_t f_end;
 };
@@ -152,10 +156,10 @@ static int64_t issue_seen_id(const Issue& iss) {
     return (static_cast<int64_t>(iss.f_start) << 33) | (static_cast<int64_t>(iss.f_end) << 2) | static_cast<int64_t>(iss.type);
 }
 
-enum class JudgeStatus { NONE,
-                         PASS,
-                         WARN,
-                         FAIL };
+enum class JudgeStatus : std::uint8_t { NONE,
+                                        PASS,
+                                        WARN,
+                                        FAIL };
 
 struct AnalyzeResult {
     bool valid = false;
@@ -484,13 +488,13 @@ static void analysis_finish(HWND hwnd) {
                         }
                     } else {
                         if (in_clip) {
-                            res.issues.push_back({ Issue::CLIP, clip_s, st.frame - 1 });
+                            res.issues.push_back({ Issue::Type::CLIP, clip_s, st.frame - 1 });
                             in_clip = false;
                         }
                     }
                 }
                 if (!s.fstats.empty() && in_clip)
-                    res.issues.push_back({ Issue::CLIP, clip_s, s.f1 });
+                    res.issues.push_back({ Issue::Type::CLIP, clip_s, s.f1 });
             }
             {
                 const int32_t spf = (std::max)(1, s.sr * s.scale / (std::max)(1, s.rate));
@@ -514,13 +518,13 @@ static void analysis_finish(HWND hwnd) {
                     } else {
                         if (in_sil) {
                             if (i - sil_start_s >= sil_min_samp)
-                                res.issues.push_back({ Issue::SILENCE, s.f0 + sil_start_s / spf, (std::min)(s.f1, s.f0 + (i - 1) / spf) });
+                                res.issues.push_back({ Issue::Type::SILENCE, s.f0 + sil_start_s / spf, (std::min)(s.f1, s.f0 + (i - 1) / spf) });
                             in_sil = false;
                         }
                     }
                 }
                 if (in_sil && N - sil_start_s >= sil_min_samp)
-                    res.issues.push_back({ Issue::SILENCE, s.f0 + sil_start_s / spf, s.f1 });
+                    res.issues.push_back({ Issue::Type::SILENCE, s.f0 + sil_start_s / spf, s.f1 });
             }
             res.valid = true;
         }
@@ -1113,8 +1117,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 int32_t idx_in_flt = 0;
                 for (Issue& iss : r.issues) {
-                    if (g_issue_filter == 1 && iss.type != Issue::CLIP) continue;
-                    if (g_issue_filter == 2 && iss.type != Issue::SILENCE) continue;
+                    if (g_issue_filter == 1 && iss.type != Issue::Type::CLIP) continue;
+                    if (g_issue_filter == 2 && iss.type != Issue::Type::SILENCE) continue;
                     if (!g_seen_issues.count(issue_seen_id(iss))) {
                         jump_to_frame(iss.f_start);
                         center_graph_on_frame(iss.f_start);
@@ -1586,8 +1590,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 for (int32_t i = 0; i < static_cast<int32_t>(res.issues.size()); i++) {
                     Issue& iss = res.issues[i];
                     if (g_issue_filter == 0 ||
-                        (g_issue_filter == 1 && iss.type == Issue::CLIP) ||
-                        (g_issue_filter == 2 && iss.type == Issue::SILENCE))
+                        (g_issue_filter == 1 && iss.type == Issue::Type::CLIP) ||
+                        (g_issue_filter == 2 && iss.type == Issue::Type::SILENCE))
                         flt.push_back(i);
                 }
                 const int32_t total_iss = static_cast<int32_t>(res.issues.size());
@@ -1689,9 +1693,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     }
 
                     wchar_t buf[128];
-                    COLORREF base_col = (iss.type == Issue::CLIP) ? C_RED : C_LABEL;
+                    COLORREF base_col = (iss.type == Issue::Type::CLIP) ? C_RED : C_LABEL;
                     COLORREF col = seen ? RGB(GetRValue(base_col) / 2, GetGValue(base_col) / 2, GetBValue(base_col) / 2) : base_col;
-                    if (iss.type == Issue::CLIP)
+                    if (iss.type == Issue::Type::CLIP)
                         swprintf_s(buf, (L"● " + std::wstring(TrText(L"クリッピング")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
                     else
                         swprintf_s(buf, (L"○ " + std::wstring(TrText(L"無音区間")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
