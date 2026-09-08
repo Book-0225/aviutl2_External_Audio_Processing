@@ -113,7 +113,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
             extra_segment += "S=" + sub_id_it->second + ",";
         if (!extra_segment.empty())
             all_data_str += "|" + extra_segment;
-        all_data_str += ";";
+        all_data_str += ';';
     }
     return all_data_str;
 }
