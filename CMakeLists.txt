@@ -5,6 +5,7 @@ project(aviutl2_External_Audio_Processing CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -179,6 +180,19 @@ add_custom_target(fetch_sdk_force
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 add_dependencies(${PROJECT_NAME} fetch_sdk)
+
+find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+
+if(CLANG_TIDY_EXE)
+    add_custom_target(tidy
+        COMMAND "${CLANG_TIDY_EXE}"
+            -p "${CMAKE_BINARY_DIR}"
+            ${SOURCES}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Running clang-tidy"
+        VERBATIM
+    )
+endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/aviutl2_sdk
