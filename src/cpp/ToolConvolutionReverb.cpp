@@ -189,7 +189,7 @@ static void NormalizeTogether(std::initializer_list<std::vector<float>*> arrays)
         for (auto& s : *v) s *= g;
 }
 
-static void LoadIRAsync(int64_t effect_id, std::wstring path_l, std::wstring path_r, double sample_rate, bool normalize, int32_t channel_mode, int32_t ts4ch_order) {
+static void LoadIRAsync(int64_t effect_id, const std::wstring& path_l, const std::wstring& path_r, double sample_rate, bool normalize, int32_t channel_mode, int32_t ts4ch_order) {
     bool true_stereo = false;
     bool ok = false;
     bool stereo_ir = false;

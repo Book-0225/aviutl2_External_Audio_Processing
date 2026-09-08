@@ -207,7 +207,7 @@ void SaveConfig() {
 
 void ResetConfig() {
     std::filesystem::path path = GetConfigPath();
-    ApplyToAllCategories([](const std::wstring&, std::vector<ConfigEntry> entries, auto) {
+    ApplyToAllCategories([](const std::wstring&, const std::vector<ConfigEntry>& entries, const std::filesystem::path&) {
         for (auto& e : entries)
             e.load(e.defaultValue);
     },

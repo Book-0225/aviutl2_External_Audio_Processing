@@ -154,7 +154,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR, DWORD) {
 }
 
 template <typename T, std::size_t N>
-std::vector<T> GetModule(const std::array<T, N>& plugins, AppSettings setting) {
+std::vector<T> GetModule(const std::array<T, N>& plugins, const AppSettings& setting) {
     std::unordered_set<T> disable_set;
     auto add_if = [&](bool condition, auto target) {
         if (condition) {
