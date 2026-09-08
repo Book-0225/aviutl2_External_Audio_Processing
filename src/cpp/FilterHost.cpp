@@ -802,7 +802,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                             if (new_host) {
                                 if (new_host->LoadPlugin(plugin_path, sampleRate, MAX_BLOCK_SIZE, sub_plugin_id)) {
                                     PluginManager::GetInstance().SetSubPluginId(instance_id, sub_plugin_id);
-                                    std::string test_id = PluginManager::GetInstance().GetSubPluginId(instance_id);
                                     std::string state_to_restore;
                                     if (!path_changed && !force_reload) state_to_restore = PluginManager::GetInstance().GetSavedState(instance_id);
                                     if (!state_to_restore.empty()) new_host->SetState(state_to_restore);
@@ -879,8 +878,6 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         else if (channels == 1) Avx2Utils::CopyBufferAVX2(inR.data(), inL.data(), total_samples);
     }
 
-    std::shared_ptr<IAudioPluginHost> host_for_audio = host;
-
     if (effective_bypass) {
         float vol_ratio = vol_val / 100.0f;
         if (vol_ratio == 0.0f) {
@@ -901,7 +898,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     bool processed_by_host = false;
     bool should_reset = false;
 
-    if (host_for_audio) {
+    if (host) {
         should_reset = PluginManager::GetInstance().ShouldReset(effect_id, current_pos, audio->object->sample_num);
         int32_t recv_id_val = static_cast<int32_t>(track_recv_id.value);
         std::lock_guard<std::mutex> midi_lock(g_midi_state_mutex);
@@ -996,8 +993,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             aviutl_tick_at_zero = aviutl_cumulative_tick(aviutl_segments, 0.0);
         } else if (sync_bpm == 0 && self_obj && frames_per_sec > 0.0) {
             double end_time_sec = static_cast<double>(current_pos + total_samples) / audio->scene->sample_rate;
-            if (host_for_audio) {
-                end_time_sec += static_cast<double>(host_for_audio->GetLatencySamples()) / audio->scene->sample_rate;
+            if (host) {
+                end_time_sec += static_cast<double>(host->GetLatencySamples()) / audio->scene->sample_rate;
             }
             double frame_len = 1.0 / frames_per_sec;
             double max_time_sec = (std::max)(0.0, (std::min)(end_time_sec + frame_len, time_total));
@@ -1075,7 +1072,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         get_bpm_and_signature_at(current_time_sec, bpm, ts_num, ts_denom);
 
         if (should_reset) {
-            host_for_audio->Reset(current_pos, bpm, ts_num, ts_denom);
+            host->Reset(current_pos, bpm, ts_num, ts_denom);
             ms.last_active_note_owners.clear();
 
             {
@@ -1160,8 +1157,8 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         while (processed < total_samples) {
             int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
-            if (host_for_audio) {
-                int64_t lat = host_for_audio->GetLatencySamples();
+            if (host) {
+                int64_t lat = host->GetLatencySamples();
                 current_block_pos += lat;
             }
 
@@ -1208,7 +1205,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             int32_t block_ts_denom = ts_denom;
             get_bpm_and_signature_at(time_start, block_bpm, block_ts_num, block_ts_denom);
 
-            host_for_audio->ProcessAudio(
+            host->ProcessAudio(
                 inL.data() + processed,
                 inR.data() + processed,
                 outL.data() + processed,
@@ -1227,7 +1224,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     }
 
     int32_t latency = 0;
-    if (host_for_audio) latency = host_for_audio->GetLatencySamples();
+    if (host) latency = host->GetLatencySamples();
 
     float* dryL = inL.data();
     float* dryR = inR.data();
