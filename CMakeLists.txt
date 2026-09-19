@@ -72,11 +72,48 @@ endif()
 unset(_eap2_pkg_text)
 unset(_eap2_pkg_txt)
 
-file(GLOB SOURCES
-    "src/cpp/*.cpp"
-    "vst3sdk/public.sdk/source/common/memorystream.cpp"
-    "vst3sdk/public.sdk/source/vst/hosting/module_win32.cpp"
-    "vst3sdk/public.sdk/source/vst/hosting/plugprovider.cpp"
+set(SOURCES
+    src/cpp/AudioPluginFactory.cpp
+    src/cpp/ClapHost.cpp
+    src/cpp/Config.cpp
+    src/cpp/FilterHost.cpp
+    src/cpp/MidiParser.cpp
+    src/cpp/ParamAssignPicker.cpp
+    src/cpp/PluginMain.cpp
+    src/cpp/PluginManager.cpp
+    src/cpp/SubPluginPicker.cpp
+    src/cpp/ToolAnalyzer.cpp
+    src/cpp/ToolAutoWah.cpp
+    src/cpp/ToolChainComp.cpp
+    src/cpp/ToolChainDynamicEQ.cpp
+    src/cpp/ToolChainFilter.cpp
+    src/cpp/ToolChainGate.cpp
+    src/cpp/ToolChainSend.cpp
+    src/cpp/ToolConvolutionReverb.cpp
+    src/cpp/ToolDeEsser.cpp
+    src/cpp/ToolDistortion.cpp
+    src/cpp/ToolDynamics.cpp
+    src/cpp/ToolEQ.cpp
+    src/cpp/ToolGenerator.cpp
+    src/cpp/ToolGenerator2.cpp
+    src/cpp/ToolMaximizer.cpp
+    src/cpp/ToolMidiGenerator.cpp
+    src/cpp/ToolMidiVisualizer.cpp
+    src/cpp/ToolModulation.cpp
+    src/cpp/ToolNotesSend.cpp
+    src/cpp/ToolPhaser.cpp
+    src/cpp/ToolPitchShift.cpp
+    src/cpp/ToolReverb.cpp
+    src/cpp/ToolReverb2.cpp
+    src/cpp/ToolSpatial.cpp
+    src/cpp/ToolSpectralGate.cpp
+    src/cpp/ToolStereo.cpp
+    src/cpp/ToolUtility.cpp
+    src/cpp/VolumeFix.cpp
+    src/cpp/VSTHost.cpp
+    vst3sdk/public.sdk/source/common/memorystream.cpp
+    vst3sdk/public.sdk/source/vst/hosting/module_win32.cpp
+    vst3sdk/public.sdk/source/vst/hosting/plugprovider.cpp
 )
 
 add_compile_definitions(
@@ -85,7 +122,6 @@ add_compile_definitions(
     _WIN32_WINNT=0x0A00
     WINVER=0x0A00
 )
-
 if(MSVC)
     string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     add_compile_options(/EHa /Zc:__cplusplus)
