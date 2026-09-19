@@ -103,159 +103,62 @@ struct InstanceID {
     char uuid[40] = { 0 };
 };
 FILTER_ITEM_DATA<InstanceID> instance_data_param(L"INSTANCE_ID");
-static std::vector<OBJECT_HANDLE> get_button_target_objects(EDIT_SECTION* edit) {
-    std::vector<OBJECT_HANDLE> targets;
-    OBJECT_HANDLE focus = edit->get_focus_object();
-    if (focus) targets.push_back(focus);
-    int32_t select_count = edit->get_selected_object_num();
-    for (int32_t s = 0; s < select_count; ++s) {
-        OBJECT_HANDLE obj = edit->get_selected_object(s);
-        if (obj && std::find(targets.begin(), targets.end(), obj) == targets.end()) targets.push_back(obj);
-    }
-    return targets;
+static std::string GetInstanceUuid(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect) {
+    if (!edit || !object || !effect) return std::string();
+    LPCSTR hex_id = edit->get_object_item_value(object, effect, instance_data_param.name);
+    if (!hex_id || hex_id[0] == '\0') return std::string();
+    std::string decoded = StringUtils::HexToString(hex_id);
+    return std::string(decoded.c_str());
 }
-FILTER_ITEM_BUTTON button_change_subplugin(L"サブプラグインを再選択", [](EDIT_SECTION* edit) {
-    if (!edit) return;
-    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
-    if (targets.empty()) {
-        DbgMessage(TrText(L"対象のオブジェクトが見つかりません。\nオブジェクトを選択してから押してください。"), LOG_WARN);
+static void RequestAudioRender(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR reason) {
+    if (!edit || !object || !g_edit_handle) return;
+    OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(object);
+    int target_frame = (edit->info) ? edit->info->frame : lf.start;
+    if (target_frame < lf.start) target_frame = lf.start;
+    if (target_frame > lf.end) target_frame = lf.end;
+    bool queued = g_edit_handle->rendering_object_audio(object, target_frame, true, nullptr, [](void*, int32_t, const float*, const float*, int32_t) {});
+    if (!queued)
+        DbgPrint(std::wstring(L"rendering_object_audio failed to queue for ") + reason, LOG_WARN);
+}
+FILTER_ITEM_BUTTON button_change_subplugin(L"サブプラグインを再選択", [](EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR) {
+    if (!edit || !object || !effect) return;
+    std::string uuid = GetInstanceUuid(edit, object, effect);
+    if (uuid.empty()) {
+        DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから再試行してください。"), LOG_WARN);
         return;
     }
-    int32_t hit_count = 0;
-    for (OBJECT_HANDLE obj : targets) {
-        bool has_target_effect = false;
-        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
-            int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
-            for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(current_filter_name);
-                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
-                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
-                if (hex_id) {
-                    std::string uuid = StringUtils::HexToString(hex_id);
-                    if (!uuid.empty()) {
-                        std::lock_guard<std::mutex> lock(g_force_reload_mutex);
-                        g_force_reload_instances.insert(uuid);
-                        ++hit_count;
-                        has_target_effect = true;
-                        DbgPrint(L"Force reload (sub-plugin reselect) requested via button for " + StringUtils::Utf8ToWide(uuid), LOG_VERBOSE);
-                    }
-                }
-            }
-        }
-
-        if (has_target_effect) {
-            OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(obj);
-            int target_frame = (edit->info) ? edit->info->frame : lf.start;
-            if (target_frame < lf.start) target_frame = lf.start;
-            if (target_frame > lf.end) target_frame = lf.end;
-
-            bool queued = g_edit_handle->rendering_object_audio(obj, target_frame, true, nullptr, [](void*, int32_t, const float*, const float*, int32_t) {});
-            if (!queued)
-                DbgPrint(L"rendering_object_audio failed to queue for force reload", LOG_WARN);
-        }
+    {
+        std::lock_guard<std::mutex> lock(g_force_reload_mutex);
+        g_force_reload_instances.insert(uuid);
     }
-
-    if (hit_count == 0)
-        DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
+    DbgPrint(L"Force reload (sub-plugin reselect) requested via button for " + StringUtils::Utf8ToWide(uuid), LOG_VERBOSE);
+    RequestAudioRender(edit, object, L"force reload");
 });
-FILTER_ITEM_BUTTON button_load_plugin(L"プラグインを読み込む", [](EDIT_SECTION* edit) {
-    if (!edit) return;
-    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
-    if (targets.empty()) {
-        DbgMessage(TrText(L"対象のオブジェクトが見つかりません。\nオブジェクトを選択してから押してください。"), LOG_WARN);
-        return;
-    }
-
-    int32_t hit_count = 0;
-    for (OBJECT_HANDLE obj : targets) {
-        bool has_target_effect = false;
-        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
-            if (edit->count_object_effect(obj, current_filter_name) > 0) {
-                has_target_effect = true;
-                break;
-            }
-        }
-        if (!has_target_effect) continue;
-        ++hit_count;
-
-        OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(obj);
-        int target_frame = (edit->info) ? edit->info->frame : lf.start;
-        if (target_frame < lf.start) target_frame = lf.start;
-        if (target_frame > lf.end) target_frame = lf.end;
-
-        bool queued = g_edit_handle->rendering_object_audio(obj, target_frame, true, nullptr, [](void*, int32_t, const float*, const float*, int32_t) {});
-        if (!queued)
-            DbgPrint(L"rendering_object_audio failed to queue for plugin load", LOG_WARN);
-    }
-
-    if (hit_count == 0)
-        DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
+FILTER_ITEM_BUTTON button_load_plugin(L"プラグインを読み込む", [](EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR) {
+    if (!edit || !object || !effect) return;
+    RequestAudioRender(edit, object, L"plugin load");
 });
-FILTER_ITEM_BUTTON toggle_gui_button(L"プラグインGUIを表示/非表示", [](EDIT_SECTION* edit) {
-    if (!edit) return;
-    std::vector<OBJECT_HANDLE> targets = get_button_target_objects(edit);
-    if (targets.empty()) {
-        DbgMessage(TrText(L"対象のオブジェクトが見つかりません。\nオブジェクトを選択してから押してください。"), LOG_WARN);
+FILTER_ITEM_BUTTON toggle_gui_button(L"プラグインGUIを表示/非表示", [](EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR) {
+    if (!edit || !object || !effect) return;
+    std::string uuid = GetInstanceUuid(edit, object, effect);
+    if (uuid.empty()) {
+        DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから再試行してください。"), LOG_WARN);
         return;
     }
-
-    std::vector<std::string> target_uuids;
-    for (OBJECT_HANDLE obj : targets) {
-        for (const WCHAR* current_filter_name : TARGET_FILTER_NAMES) {
-            int32_t effect_count = edit->count_object_effect(obj, current_filter_name);
-            for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(current_filter_name);
-                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
-                LPCSTR hex_id = edit->get_object_item_value(obj, indexed_filter_name.c_str(), instance_data_param.name);
-                if (!hex_id) continue;
-                std::string uuid = StringUtils::HexToString(hex_id);
-                if (!uuid.empty()) {
-                    target_uuids.push_back(uuid);
-                }
-            }
-        }
-    }
-
-    if (target_uuids.empty()) {
-        DbgMessage(TrText(L"Hostエフェクトが見つかりませんでした。"), LOG_WARN);
-        return;
-    }
-
     std::lock_guard<std::mutex> task_lock(g_task_queue_mutex);
-    g_main_thread_tasks.push_back([target_uuids]() {
-        bool any_visible = false;
-        int loaded_count = 0;
-
-        for (const auto& uuid : target_uuids) {
-            auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
-            if (host) {
-                loaded_count++;
-                if (host->IsGuiVisible()) {
-                    any_visible = true;
-                    break;
-                }
-            }
-        }
-
-        if (loaded_count == 0) {
+    g_main_thread_tasks.push_back([uuid]() {
+        auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
+        if (!host) {
             DbgMessage(TrText(L"プラグインが読み込まれていません。\n「プラグインを読み込む」ボタンを押してから再試行してください。"), LOG_WARN);
             return;
         }
-
-        for (const auto& uuid : target_uuids) {
-            auto host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
-            if (!host) continue;
-
-            if (any_visible) {
-                if (host->IsGuiVisible()) {
-                    host->HideGui();
-                    std::string state = host->GetState();
-                    DbgPrint(L"Plugin GUI hidden via button, saving state for " + StringUtils::Utf8ToWide(uuid) + L", (Size: " + std::to_wstring(state.size()) + L")", LOG_VERBOSE);
-                    if (!state.empty()) PluginManager::GetInstance().SaveState(uuid, state);
-                }
-            } else {
-                host->ShowGui();
-            }
+        if (host->IsGuiVisible()) {
+            host->HideGui();
+            std::string state = host->GetState();
+            DbgPrint(L"Plugin GUI hidden via button, saving state for " + StringUtils::Utf8ToWide(uuid) + L", (Size: " + std::to_wstring(state.size()) + L")", LOG_VERBOSE);
+            if (!state.empty()) PluginManager::GetInstance().SaveState(uuid, state);
+        } else {
+            host->ShowGui();
         }
     });
 });
@@ -307,9 +210,7 @@ void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR eff
     }
     if (slot < 0) return;
 
-    LPCSTR hex_id = edit->get_object_item_value(object, effect, instance_data_param.name);
-    if (!hex_id) return;
-    std::string uuid = StringUtils::HexToString(hex_id);
+    std::string uuid = GetInstanceUuid(edit, object, effect);
     if (uuid.empty()) return;
 
     std::shared_ptr<IAudioPluginHost> host = PluginManager::GetInstance().GetHostByInstanceId(uuid);
