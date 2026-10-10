@@ -18,7 +18,7 @@
 #define FILTER_NAME_SHORT L"EAP2"
 #define REGEX_FILTER_NAME L"filter_name"
 #define REGEX_TOOL_NAME L"tool_name"
-#define MINIMUM_VERSION 2011000
+#define MINIMUM_VERSION 2011300
 
 #define FILTER_NAME_MEDIA_FMT(name) (name L" (Media)")
 #define TOOL_NAME_FMT(name, regex) (name L" " regex)
@@ -123,7 +123,7 @@ std::mutex g_task_queue_mutex;
 std::vector<std::function<void()>> g_main_thread_tasks;
 std::vector<std::function<void()>> g_execution_queue;
 
-UINT_PTR g_timer_id = 87655;
+constexpr UINT_PTR g_timer_id = 87655;
 HWND g_hMessageWindow = nullptr;
 const uint32_t WM_APP_EXECUTE_TASKS = WM_APP + 100;
 
