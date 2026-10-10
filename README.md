@@ -165,7 +165,7 @@ v0.0.28で修正しました。
 
 ## 動作要件
 
-- AviUtl ExEdit2 version2.1.10以降(2.1.10で動作確認をしています)
+- AviUtl ExEdit2 version2.1.13以降(2.1.13で動作確認をしています)
   - <https://spring-fragrance.mints.ne.jp/aviutl>
   - バージョンアップによって仕様が変更された場合動作しない可能性があります。
   - 初代AviUtlでは[初代External_Audio_Processing](https://github.com/Book-0225/aviutl_External_Audio_Processing)を利用してください。(一部の機能のみ)
@@ -192,13 +192,6 @@ v0.0.28で修正しました。
 1. [AviUtl2 カタログ](https://github.com/Neosku/aviutl2-catalog) 内で`External Audio Processing 2`で検索します。
 2. インストールボタンを押すと導入出来ます。
 
-### aux2ファイルを直接インストールする場合(非推奨)
-
-1. リリースページから最新版の `External_Audio_Processing2.aux2` をダウンロードします。
-2. `External_Audio_Processing2.aux2`ファイルを、  
-  AviUtl ExEdit2のウィンドウにドラッグアンドドロップするか、  
-  `Plugin`フォルダ内に入れてください。
-
 ## 設定項目
 
 ### 設定ファイル
@@ -210,18 +203,18 @@ AviUtl ExEdit2上部の設定内のプラグイン設定にある`EAP2の設定�
 一部設定はAviUtl ExEdit2上部の設定内のプラグイン設定にある`EAP2の設定を再読込`を実行すると再起動なしでも反映されます。
 
 ```ini
-; デフォルト設定(v0.0.37時点)
+; デフォルト設定(v0.0.39時点)
 
 ; システムによって利用される設定(編集は非推奨)
 [Info]
 ; 設定ファイルが作成されたバージョン(ファイルの更新時には変更されません)
-Version=v0.0.37
+Version=v0.0.39
 ; 設定ファイルが作成されたバージョンを読み込みやすくしたもの
-VersionData=0000000000250000
+VersionData=0000000000270000
 ; 設定ファイルそのもののバージョン
 ConfigVersion=1
 ; 破壊的変更通知用のバージョン
-AckedBreakingVersion=0000000000250000
+AckedBreakingVersion=0000000000270000
 ; プラグインの全体に影響する設定
 [General]
 ; 0にすると自動のオブジェクト名変更が有効になる
@@ -319,6 +312,8 @@ AutoCheck=1
 FuzzyMatchIssues=1
 ; 上記機能で利用する許容範囲を設定する
 FuzzyMatchDist=30
+; v0.0.39で追加されたオブジェクトからの推定を行う
+UseObjectParam=1
 ; 実験的機能(EnableExperimental=1のときのみ反映)
 [Experimental]
 ; 現状設定項目無し
@@ -1330,6 +1325,11 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
     表示用オブジェクト(MIDI Visualizer)として追加
 
 ## 改版履歴
+
+- **v0.0.39**
+  - アナライザーの測定時に映像再生/音声再生側の音量パラメータの結果を推定するように変更  
+    これにより`選択オブジェクトを計測`使用時にv0.0.38以前より正しい値が表示されます
+  - 動作に必要なAviUtl ExEdit2のバージョンをversion2.1.13以降に変更
 
 - **v0.0.38**
   - ボタンを押した時の動作を各エフェクト単位に変更
