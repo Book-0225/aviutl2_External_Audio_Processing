@@ -20,6 +20,7 @@ endforeach()
 
 find_program(CLANG_FORMAT_EXE NAMES clang-format)
 if(CLANG_FORMAT_EXE)
+    message(STATUS "Use clang-format : ${CLANG_FORMAT_EXE}")
     file(GLOB_RECURSE FORMAT_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/*.h"
@@ -184,6 +185,7 @@ add_dependencies(${PROJECT_NAME} fetch_sdk)
 find_program(CLANG_TIDY_EXE NAMES clang-tidy)
 
 if(CLANG_TIDY_EXE)
+    message(STATUS "Use clang-tidy : ${CLANG_TIDY_EXE}")
     add_custom_target(tidy
         COMMAND "${CLANG_TIDY_EXE}"
             -p "${CMAKE_BINARY_DIR}"
@@ -231,6 +233,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         -Wl,-Bstatic,--whole-archive
         -lwinpthread
         -Wl,--no-whole-archive
+        -fuse-ld=lld
     )
 endif()
 
