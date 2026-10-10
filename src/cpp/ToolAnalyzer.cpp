@@ -9,6 +9,8 @@
 #include <cmath>
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
 
 static constexpr const wchar_t* APP_NAME = L"EAP2 Analyzer";
 static constexpr const wchar_t* APP_CLASS = L"EAP2_Analyzer";
@@ -286,11 +288,94 @@ static int32_t frame_to_hist_idx(const AnalyzeResult& res, int32_t frame) {
     return (rel * spf) / step;
 }
 
+struct ObjParam {
+    bool valid = false;
+    bool animated = false;
+    double v0 = 0.0;
+    double v1 = 0.0;
+
+    double at(double t) const {
+        return animated ? v0 + (v1 - v0) * t : v0;
+    }
+};
+
+struct ObjVolume {
+    ObjParam vol;
+    ObjParam pan;
+
+    bool valid() const {
+        return vol.valid || pan.valid;
+    }
+
+    static double progress(int32_t f, int32_t f0, int32_t f1) {
+        if (f1 <= f0) return 0.0;
+        return (std::max)(0.0, (std::min)(1.0, static_cast<double>(f - f0) / (f1 - f0)));
+    }
+
+    void gains_at(int32_t f, int32_t f0, int32_t f1, double& gl, double& gr) const {
+        const double t = progress(f, f0, f1);
+        const double g = (vol.valid ? vol.at(t) : 100.0) / 100.0;
+        const double p = (std::max)(-100.0, (std::min)(100.0, pan.valid ? pan.at(t) : 0.0));
+        double pl, pr;
+        pan_gains(p, pl, pr);
+        gl = g * pl;
+        gr = g * pr;
+    }
+
+    static void pan_gains(double p, double& pl, double& pr) {
+        pl = p > 0.0 ? (100.0 - p) / 100.0 : 1.0;
+        pr = p < 0.0 ? (100.0 + p) / 100.0 : 1.0;
+    }
+};
+
+static bool parse_num(const std::string& tok, double& out) {
+    if (tok.empty()) return false;
+    char* end = nullptr;
+    out = std::strtod(tok.c_str(), &end);
+    return end != tok.c_str();
+}
+
+static ObjParam read_param(EDIT_SECTION* edit, OBJECT_HANDLE obj, const wchar_t* eff, const wchar_t* item) {
+    ObjParam r;
+    LPCSTR raw = edit->get_object_item_value(obj, eff, item);
+    if (!raw || !*raw) return r;
+
+    std::vector<std::string> tok;
+    std::string cur;
+    for (const char* p = raw; *p; ++p) {
+        if (*p == ',') {
+            tok.push_back(cur);
+            cur.clear();
+        } else {
+            cur.push_back(*p);
+        }
+    }
+    tok.push_back(cur);
+
+    if (!parse_num(tok[0], r.v0)) return r;
+    r.v1 = r.v0;
+    if (tok.size() >= 2 && parse_num(tok[1], r.v1)) r.animated = true;
+    r.valid = true;
+    return r;
+}
+
+static ObjVolume read_object_volume(EDIT_SECTION* edit, OBJECT_HANDLE obj) {
+    static const wchar_t* const EFFECTS[] = { L"映像再生", L"音声再生" };
+    for (const wchar_t* eff : EFFECTS) {
+        ObjVolume v;
+        v.vol = read_param(edit, obj, eff, L"音量");
+        v.pan = read_param(edit, obj, eff, L"左右");
+        if (v.valid()) return v;
+    }
+    return {};
+}
+
 struct ObjPickResult {
     OBJECT_HANDLE obj = nullptr;
     int32_t f_start = 0;
     int32_t f_end = 0;
     std::wstring name;
+    ObjVolume vol;
     bool found = false;
 };
 
@@ -307,6 +392,7 @@ static void pick_target_object_cb(void* p, EDIT_SECTION* edit) {
     r->f_start = lf.start;
     r->f_end = lf.end;
     r->name = nm ? nm : L"";
+    r->vol = read_object_volume(edit, obj);
     r->found = true;
 }
 
@@ -372,6 +458,7 @@ struct AnalysisState {
     OBJECT_HANDLE target_obj = nullptr;
     std::wstring obj_name;
     bool aplly_effect = false;
+    ObjVolume vol;
 
     int32_t mom_len = 0;
     int32_t st_len = 0;
@@ -596,10 +683,14 @@ static void analysis_step(HWND hwnd) {
             auto& [Lbuf, Rbuf] = it->second;
             const int32_t n = static_cast<int32_t>(Lbuf.size());
             if (n == 0) continue;
+            double gl = 1.0;
+            double gr = 1.0;
+            if (s.snap.use_obj_param && s.target_obj && s.vol.valid())
+                s.vol.gains_at(f, s.f0, s.f1, gl, gr);
             double fp = 0.0;
             for (int32_t i = 0; i < n; i++) {
-                const double lv = static_cast<double>(Lbuf[i]);
-                const double rv = static_cast<double>(Rbuf[i]);
+                const double lv = static_cast<double>(Lbuf[i]) * gl;
+                const double rv = static_cast<double>(Rbuf[i]) * gr;
                 const double kl = s.kw.L(lv);
                 const double kr = s.kw.R(rv);
                 s.kw_sq.push_back(static_cast<float>((kl * kl + kr * kr) * 0.5));
@@ -619,7 +710,7 @@ static void analysis_step(HWND hwnd) {
     s.bs = bs + batch_size;
 }
 
-static void start_analysis(int32_t f_start, int32_t f_end, OBJECT_HANDLE target_obj = nullptr, const std::wstring& obj_name = L"", const bool aplly_effect = false) {
+static void start_analysis(int32_t f_start, int32_t f_end, OBJECT_HANDLE target_obj = nullptr, const std::wstring& obj_name = L"", const bool aplly_effect = false, const ObjVolume& vol = {}) {
     if (g_busy.exchange(true)) return;
     g_abort.store(false);
     g_prog.store(0);
@@ -654,6 +745,7 @@ static void start_analysis(int32_t f_start, int32_t f_end, OBJECT_HANDLE target_
     s.target_obj = target_obj;
     s.obj_name = obj_name;
     s.aplly_effect = aplly_effect;
+    s.vol = vol;
     s.mom_len = s.sr * 400 / 1000;
     s.st_len = s.sr * 3;
     s.step = s.sr * 100 / 1000;
@@ -716,7 +808,7 @@ static void apply_volume_fix_and_remeasure() {
     ObjPickResult pick;
     g_edit_handle->call_read_section_param(&pick, pick_target_object_cb);
     if (pick.found)
-        start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, true);
+        start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, true, pick.vol);
 }
 
 static void read_controls_to_settings() {
@@ -992,7 +1084,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         MessageBoxW(hwnd, TrText(L"計測するオブジェクトを選択してください"), APP_NAME, MB_ICONWARNING);
                         break;
                     }
-                    start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 4 ? true : false);
+                    start_analysis(pick.f_start, pick.f_end, pick.obj, pick.name, id == 4 ? true : false, pick.vol);
                 }
                 break;
             }

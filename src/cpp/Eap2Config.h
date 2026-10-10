@@ -271,6 +271,7 @@ struct AnalyzerConfig {
     bool auto_check = true;         // ジャンプした問題箇所に自動でチェックをつける
     bool fuzzy_match_issues = true; // 問題箇所の再測定時に曖昧一致を利用する
     int32_t fuzzy_match_dist = 30;  // 上記機能で利用する許容範囲を設定する
+    bool use_obj_param = true;      // オブジェクトパラメータからの推定を実行する
     std::vector<ConfigEntry> getEntries() {
         return {
             ConfigEntry::Create(L"TargetLUFS", L"-14.0", &target_lufs, true),
@@ -284,7 +285,8 @@ struct AnalyzerConfig {
             ConfigEntry::Create(L"BatchSize", L"512", &batch_size, false),
             ConfigEntry::Create(L"AutoCheck", L"1", &auto_check, true),
             ConfigEntry::Create(L"FuzzyMatchIssues", L"1", &fuzzy_match_issues, true),
-            ConfigEntry::Create(L"FuzzyMatchDist", L"30", &fuzzy_match_dist, true)
+            ConfigEntry::Create(L"FuzzyMatchDist", L"30", &fuzzy_match_dist, true),
+            ConfigEntry::Create(L"UseObjectParam", L"1", &use_obj_param, true)
         };
     }
 };
