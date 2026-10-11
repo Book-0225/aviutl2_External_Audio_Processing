@@ -288,38 +288,24 @@ static int32_t frame_to_hist_idx(const AnalyzeResult& res, int32_t frame) {
     return (rel * spf) / step;
 }
 
-struct ObjParam {
-    bool valid = false;
-    bool animated = false;
-    double v0 = 0.0;
-    double v1 = 0.0;
-
-    double at(double t) const {
-        return animated ? v0 + (v1 - v0) * t : v0;
-    }
-};
-
 struct ObjVolume {
-    ObjParam vol;
-    ObjParam pan;
+    int32_t f0 = 0;
+    std::vector<float> gl;
+    std::vector<float> gr;
 
     bool valid() const {
-        return vol.valid || pan.valid;
+        return !gl.empty();
     }
 
-    static double progress(int32_t f, int32_t f0, int32_t f1) {
-        if (f1 <= f0) return 0.0;
-        return (std::max)(0.0, (std::min)(1.0, static_cast<double>(f - f0) / (f1 - f0)));
-    }
-
-    void gains_at(int32_t f, int32_t f0, int32_t f1, double& gl, double& gr) const {
-        const double t = progress(f, f0, f1);
-        const double g = (vol.valid ? vol.at(t) : 100.0) / 100.0;
-        const double p = (std::max)(-100.0, (std::min)(100.0, pan.valid ? pan.at(t) : 0.0));
-        double pl, pr;
-        pan_gains(p, pl, pr);
-        gl = g * pl;
-        gr = g * pr;
+    void gains_at(int32_t f, double& l, double& r) const {
+        if (gl.empty()) {
+            l = r = 1.0;
+            return;
+        }
+        int64_t i = static_cast<int64_t>(f) - f0;
+        i = (std::max<int64_t>)(0, (std::min<int64_t>)(static_cast<int64_t>(gl.size()) - 1, i));
+        l = gl[static_cast<size_t>(i)];
+        r = gr[static_cast<size_t>(i)];
     }
 
     static void pan_gains(double p, double& pl, double& pr) {
@@ -328,46 +314,107 @@ struct ObjVolume {
     }
 };
 
-static bool parse_num(const std::string& tok, double& out) {
-    if (tok.empty()) return false;
-    char* end = nullptr;
-    out = std::strtod(tok.c_str(), &end);
-    return end != tok.c_str();
-}
+struct ParamSrc {
+    int32_t kind = 0;
+    double c = 0.0;
+    EFFECT_HANDLE h = nullptr;
+    const wchar_t* item = nullptr;
 
-static ObjParam read_param(EDIT_SECTION* edit, OBJECT_HANDLE obj, const wchar_t* eff, const wchar_t* item) {
-    ObjParam r;
-    LPCSTR raw = edit->get_object_item_value(obj, eff, item);
-    if (!raw || !*raw) return r;
+    double eval(EDIT_SECTION* edit, double frame, double def) const {
+        if (kind == 2) {
+            double v = 0.0;
+            return edit->get_effect_track_value(h, item, frame, &v) ? v : def;
+        }
+        return kind == 1 ? c : def;
+    }
+};
 
-    std::vector<std::string> tok;
-    std::string cur;
-    for (const char* p = raw; *p; ++p) {
-        if (*p == ',') {
-            tok.push_back(cur);
-            cur.clear();
-        } else {
-            cur.push_back(*p);
+static ParamSrc probe_param(EDIT_SECTION* edit, EFFECT_HANDLE h, const wchar_t* item, double frame) {
+    ParamSrc p;
+    p.h = h;
+    p.item = item;
+    double v = 0.0;
+    if (edit->get_effect_track_value(h, item, frame, &v)) {
+        p.kind = 2;
+        return p;
+    }
+    LPCSTR raw = edit->get_effect_item_value(h, item);
+    if (raw && *raw) {
+        char* end = nullptr;
+        v = std::strtod(raw, &end);
+        if (end != raw) {
+            p.kind = 1;
+            p.c = v;
         }
     }
-    tok.push_back(cur);
-
-    if (!parse_num(tok[0], r.v0)) return r;
-    r.v1 = r.v0;
-    if (tok.size() >= 2 && parse_num(tok[1], r.v1)) r.animated = true;
-    r.valid = true;
-    return r;
+    return p;
 }
 
-static ObjVolume read_object_volume(EDIT_SECTION* edit, OBJECT_HANDLE obj) {
-    static const wchar_t* const EFFECTS[] = { L"映像再生", L"音声再生" };
-    for (const wchar_t* eff : EFFECTS) {
-        ObjVolume v;
-        v.vol = read_param(edit, obj, eff, L"音量");
-        v.pan = read_param(edit, obj, eff, L"左右");
-        if (v.valid()) return v;
+struct ObjVolLayer {
+    ParamSrc vol;
+    ParamSrc pan;
+};
+
+static ObjVolume read_object_volume(EDIT_SECTION* edit, OBJECT_HANDLE obj, int32_t f_start, int32_t f_end) {
+    ObjVolume r;
+    const int32_t len = f_end - f_start + 1;
+    if (len <= 0) return r;
+
+    const int32_t total = edit->get_effect_list(obj, nullptr, 0);
+    if (total <= 0) return r;
+    std::vector<EFFECT_HANDLE> list(total);
+    const int32_t n = edit->get_effect_list(obj, list.data(), total);
+
+    static const wchar_t* const BASE_EFFECTS[] = { L"映像再生", L"音声再生" };
+    static const wchar_t* const FILTER_NAME = L"音量調整";
+
+    const double probe_f = static_cast<double>(f_start);
+    std::vector<ObjVolLayer> layers;
+    bool base_found = false;
+
+    for (int32_t i = 0; i < n; i++) {
+        EFFECT_HANDLE h = list[i];
+        LPCWSTR name = edit->get_effect_name(h);
+        if (!name) continue;
+
+        bool is_base = false;
+        for (const wchar_t* b : BASE_EFFECTS)
+            if (std::wcscmp(name, b) == 0) is_base = true;
+        const bool is_filter = std::wcscmp(name, FILTER_NAME) == 0;
+        if (!is_base && !is_filter) continue;
+        if (is_base && base_found) continue;
+
+        ObjVolLayer l;
+        l.vol = probe_param(edit, h, L"音量", probe_f);
+        l.pan = probe_param(edit, h, L"左右", probe_f);
+        const bool enabled = edit->get_effect_enable(h);
+
+        if (!enabled) continue;
+        if (l.vol.kind == 0 && l.pan.kind == 0) continue;
+        if (is_base) base_found = true;
+        layers.push_back(l);
     }
-    return {};
+    if (layers.empty()) return r;
+
+    r.f0 = f_start;
+    r.gl.resize(len);
+    r.gr.resize(len);
+    for (int32_t k = 0; k < len; k++) {
+        const double tf = static_cast<double>(f_start + k);
+        double gl = 1.0, gr = 1.0;
+        for (const ObjVolLayer& l : layers) {
+            const double g = l.vol.eval(edit, tf, 100.0) / 100.0;
+            const double p = (std::max)(-100.0, (std::min)(100.0, l.pan.eval(edit, tf, 0.0)));
+            double pl;
+            double pr;
+            ObjVolume::pan_gains(p, pl, pr);
+            gl *= g * pl;
+            gr *= g * pr;
+        }
+        r.gl[k] = static_cast<float>(gl);
+        r.gr[k] = static_cast<float>(gr);
+    }
+    return r;
 }
 
 struct ObjPickResult {
@@ -392,7 +439,7 @@ static void pick_target_object_cb(void* p, EDIT_SECTION* edit) {
     r->f_start = lf.start;
     r->f_end = lf.end;
     r->name = nm ? nm : L"";
-    r->vol = read_object_volume(edit, obj);
+    r->vol = read_object_volume(edit, obj, lf.start, lf.end);
     r->found = true;
 }
 
@@ -686,7 +733,7 @@ static void analysis_step(HWND hwnd) {
             double gl = 1.0;
             double gr = 1.0;
             if (s.snap.use_obj_param && s.target_obj && s.vol.valid())
-                s.vol.gains_at(f, s.f0, s.f1, gl, gr);
+                s.vol.gains_at(f, gl, gr);
             double fp = 0.0;
             for (int32_t i = 0; i < n; i++) {
                 const double lv = static_cast<double>(Lbuf[i]) * gl;
