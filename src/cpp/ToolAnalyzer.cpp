@@ -111,9 +111,9 @@ struct KWeight {
 };
 
 struct TruePeakDetector {
-    static constexpr int BUF = 4;
+    static constexpr int32_t BUF = 4;
     double ring[BUF] = {};
-    int pos = 0;
+    int32_t pos = 0;
 
     double push(double x) noexcept {
         ring[pos] = x;
@@ -128,7 +128,7 @@ struct TruePeakDetector {
         const double d = p1;
 
         double pk = 0.0;
-        for (int k = 1; k < 4; ++k) {
+        for (int32_t k = 1; k < 4; ++k) {
             const double t = k * 0.25;
             const double v = ((a * t + b) * t + c) * t + d;
             const double av = std::abs(v);

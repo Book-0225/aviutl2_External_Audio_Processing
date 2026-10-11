@@ -113,7 +113,7 @@ static std::string GetInstanceUuid(EDIT_SECTION* edit, OBJECT_HANDLE object, LPC
 static void RequestAudioRender(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR reason) {
     if (!edit || !object || !g_edit_handle) return;
     OBJECT_LAYER_FRAME lf = edit->get_object_layer_frame(object);
-    int target_frame = (edit->info) ? edit->info->frame : lf.start;
+    int32_t target_frame = (edit->info) ? edit->info->frame : lf.start;
     if (target_frame < lf.start) target_frame = lf.start;
     if (target_frame > lf.end) target_frame = lf.end;
     bool queued = g_edit_handle->rendering_object_audio(object, target_frame, true, nullptr, [](void*, int32_t, const float*, const float*, int32_t) {});

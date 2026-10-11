@@ -481,7 +481,7 @@ std::vector<IAudioPluginHost::SubPluginInfo> VstHost::Impl::EnumerateSubPlugins(
         std::string cid_str;
         cid_str.reserve(32);
         static const char* hex = "0123456789ABCDEF";
-        for (int j = 0; j < 16; ++j) {
+        for (int32_t j = 0; j < 16; ++j) {
             unsigned char b = ci.cid[j];
             cid_str.push_back(hex[(b >> 4) & 0xF]);
             cid_str.push_back(hex[b & 0xF]);
@@ -517,7 +517,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         std::string cid_str;
         cid_str.reserve(32);
         static const char* hex = "0123456789ABCDEF";
-        for (int j = 0; j < 16; ++j) {
+        for (int32_t j = 0; j < 16; ++j) {
             unsigned char b = ci.cid[j];
             cid_str.push_back(hex[(b >> 4) & 0xF]);
             cid_str.push_back(hex[b & 0xF]);
