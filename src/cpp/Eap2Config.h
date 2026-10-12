@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "Eap2Common.h"
+#include "AnalyzerColor.h"
 
 #include <cmath>
 #include <cwctype>
@@ -259,21 +260,23 @@ struct VstConfig {
 
 struct AnalyzerConfig {
     std::wstring categoryName = L"Analyzer";
-    double target_lufs = -14.0;     // 目標 Integrated LUFS
-    double target_peak = -1.0;      // 目標 True Peak [dBTP]
-    double sil_db = -60.0;          // 無音判定しきい値 [dBFS]
-    double sil_min_s = 0.5;         // 無音最短継続 [秒]
-    double lufs_tol = 1.0;          // PASS 判定の許容幅 [LU] (±)
-    double lufs_fail = 2.0;         // LUFS FAIL判定条件(target + lufs_fail < lufs)
-    double lufs_warn = 8.0;         // LUFS WARN判定条件(target - lufs_warn >= lufs)
-    double peak_fail = 1.0;         // TP FAIL判定条件(target + peak_fail < peak)
-    int32_t batch_size = 512;       // 処理サイズ(大きいほど処理が高速だがUI反映が遅れる)
-    bool auto_check = true;         // ジャンプした問題箇所に自動でチェックをつける
-    bool fuzzy_match_issues = true; // 問題箇所の再測定時に曖昧一致を利用する
-    int32_t fuzzy_match_dist = 30;  // 上記機能で利用する許容範囲を設定する
-    bool use_obj_param = true;      // オブジェクトパラメータからの推定を実行する
+    double target_lufs = -14.0;            // 目標 Integrated LUFS
+    double target_peak = -1.0;             // 目標 True Peak [dBTP]
+    double sil_db = -60.0;                 // 無音判定しきい値 [dBFS]
+    double sil_min_s = 0.5;                // 無音最短継続 [秒]
+    double lufs_tol = 1.0;                 // PASS 判定の許容幅 [LU] (±)
+    double lufs_fail = 2.0;                // LUFS FAIL判定条件(target + lufs_fail < lufs)
+    double lufs_warn = 8.0;                // LUFS WARN判定条件(target - lufs_warn >= lufs)
+    double peak_fail = 1.0;                // TP FAIL判定条件(target + peak_fail < peak)
+    int32_t batch_size = 512;              // 処理サイズ(大きいほど処理が高速だがUI反映が遅れる)
+    bool auto_check = true;                // ジャンプした問題箇所に自動でチェックをつける
+    bool fuzzy_match_issues = true;        // 問題箇所の再測定時に曖昧一致を利用する
+    int32_t fuzzy_match_dist = 30;         // 上記機能で利用する許容範囲を設定する
+    bool use_obj_param = true;             // オブジェクトパラメータからの推定を実行する
+    bool use_host_color = false;           // ホストの style.conf の配色を参照する
+    std::wstring color_override[AC_COUNT]; // 配色を個別で上書きする
     std::vector<ConfigEntry> getEntries() {
-        return {
+        std::vector<ConfigEntry> v = {
             ConfigEntry::Create(L"TargetLUFS", L"-14.0", &target_lufs, true),
             ConfigEntry::Create(L"TargetPeak", L"-1.0", &target_peak, true),
             ConfigEntry::Create(L"Silentdb", L"-60.0", &sil_db, true),
@@ -286,8 +289,13 @@ struct AnalyzerConfig {
             ConfigEntry::Create(L"AutoCheck", L"1", &auto_check, true),
             ConfigEntry::Create(L"FuzzyMatchIssues", L"1", &fuzzy_match_issues, true),
             ConfigEntry::Create(L"FuzzyMatchDist", L"30", &fuzzy_match_dist, true),
-            ConfigEntry::Create(L"UseObjectParam", L"1", &use_obj_param, true)
+            ConfigEntry::Create(L"UseObjectParam", L"1", &use_obj_param, true),
+            ConfigEntry::Create(L"UseHostColor", L"0", &use_host_color, false)
         };
+        const AnalyzerColorSlot* slots = analyzer_color_slots();
+        for (int32_t i = 0; i < AC_COUNT; i++)
+            v.push_back(ConfigEntry::Create(slots[i].cfg_key, L"", &color_override[i], false));
+        return v;
     }
 };
 

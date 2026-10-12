@@ -192,6 +192,7 @@ static std::atomic<bool> g_busy{ false };
 static std::atomic<bool> g_abort{ false };
 static std::atomic<int32_t> g_prog{ 0 };
 static std::atomic<int32_t> g_cur_frame{ -1 };
+static std::atomic<int32_t> g_notice{ 0 };
 
 static double g_gt_zoom = 1.0;
 static double g_gt_pan = 0.0;
@@ -522,6 +523,7 @@ struct AnalysisState {
     BatchBuf batch;
     int32_t bs = 0;
     bool abort_flag = false;
+    bool render_failed = false;
 };
 
 static std::unique_ptr<AnalysisState> g_analysis;
@@ -530,7 +532,11 @@ static void analysis_finish(HWND hwnd) {
     if (!g_analysis) return;
     AnalysisState& s = *g_analysis;
 
-    if (!s.abort_flag) {
+    if (s.abort_flag) {
+        g_notice.store(2);
+    } else if (s.render_failed || s.kw_sq.empty()) {
+        g_notice.store(1);
+    } else {
         AnalyzeResult res;
         res.f_start = s.f0;
         res.f_end = s.f1;
@@ -664,6 +670,7 @@ static void analysis_finish(HWND hwnd) {
         }
         std::lock_guard<std::mutex> lk(g_result_mtx);
         g_result = std::move(res);
+        g_notice.store(3);
     }
     g_analysis.reset();
     g_busy.store(false);
@@ -716,7 +723,7 @@ static void analysis_step(HWND hwnd) {
         const bool ok = s.target_obj ? g_edit_handle->rendering_object_audio(s.target_obj, f, s.aplly_effect, &s.batch, audio_cb) : g_edit_handle->rendering_scene_audio(f, &s.batch, audio_cb);
         if (!ok) {
             g_edit_handle->wait_rendering_task();
-            s.abort_flag = true;
+            s.render_failed = true;
             analysis_finish(hwnd);
             return;
         }
@@ -761,6 +768,7 @@ static void start_analysis(int32_t f_start, int32_t f_end, OBJECT_HANDLE target_
     if (g_busy.exchange(true)) return;
     g_abort.store(false);
     g_prog.store(0);
+    g_notice.store(0);
     EnableWindow(s_btn_rng, FALSE);
     EnableWindow(s_btn_all, FALSE);
     EnableWindow(s_btn_obj, FALSE);
@@ -939,16 +947,46 @@ static JudgeStatus judge_peak(double v, const AnalyzerConfig& s) {
     return JudgeStatus::FAIL;
 }
 
+static bool parse_hex_color(const std::wstring& raw, COLORREF& out) {
+    std::wstring s = TrimCopy(raw);
+    if (!s.empty() && s[0] == L'#') s.erase(0, 1);
+    if (s.size() != 6 && s.size() != 8) return false;
+    for (wchar_t c : s)
+        if (!std::iswxdigit(c)) return false;
+    const uint32_t v = static_cast<uint32_t>(std::stoul(s.substr(0, 6), nullptr, 16));
+    out = RGB((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+    return true;
+}
+
+static bool read_host_color(const AnalyzerColorSlot& sl, COLORREF& out) {
+    if (!sl.host_key || !g_config_handle || !g_config_handle->get_color_code_index) return false;
+    if (g_config_handle->get_color_code_index(g_config_handle, sl.host_key, -1) <= sl.host_index) return false;
+    const uint32_t v = static_cast<uint32_t>(g_config_handle->get_color_code_index(g_config_handle, sl.host_key, sl.host_index)) & 0xFFFFFF;
+    out = RGB((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+    return true;
+}
+
+static void load_analyzer_colors() {
+    const AnalyzerColorSlot* slots = analyzer_color_slots();
+    for (int32_t i = 0; i < AC_COUNT; i++) {
+        COLORREF c = slots[i].def;
+        if (settings.analyzer.use_host_color) read_host_color(slots[i], c);
+        parse_hex_color(settings.analyzer.color_override[i], c);
+        *slots[i].target = c;
+    }
+    analyzer_colors_update_derived();
+}
+
 static COLORREF judge_color(JudgeStatus j) {
     switch (j) {
         case JudgeStatus::PASS:
-            return C_GREEN;
+            return C_PASS;
         case JudgeStatus::WARN:
-            return C_YELLOW;
+            return C_WARN;
         case JudgeStatus::FAIL:
-            return C_RED;
+            return C_FAIL;
         default:
-            return C_LABEL;
+            return C_TEXT_SUB;
     }
 }
 static void draw_badge(HDC hdc, HFONT fnt, int32_t x, int32_t y, int32_t w, JudgeStatus j, const wchar_t* txt) {
@@ -974,7 +1012,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
     };
 
     {
-        HBRUSH b = CreateSolidBrush(C_GRAPHBG);
+        HBRUSH b = CreateSolidBrush(C_GRAPH_BG);
         RECT r = { gx, gy, gx + gw, gy + gh };
         FillRect(hdc, &r, b);
         DeleteObject(b);
@@ -984,7 +1022,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
     const int32_t gstep = (v_range > 30) ? 10 : (v_range > 12) ? 5
                                                                : 2;
     {
-        HPEN pg = CreatePen(PS_SOLID, 1, C_GRID);
+        HPEN pg = CreatePen(PS_SOLID, 1, C_GRAPH_GRID);
         HPEN op = static_cast<HPEN>(SelectObject(hdc, pg));
         for (int32_t db = static_cast<int32_t>(std::floor(v_min / gstep) * gstep);
              static_cast<double>(db) <= v_max; db += gstep) {
@@ -999,7 +1037,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
 
     if (target_lufs > v_min && target_lufs < v_max) {
         int32_t ty = yx(target_lufs);
-        HPEN pt = CreatePen(PS_DOT, 1, RGB(60, 120, 60));
+        HPEN pt = CreatePen(PS_DOT, 1, C_TARGET_LINE);
         HPEN ot = static_cast<HPEN>(SelectObject(hdc, pt));
         MoveToEx(hdc, gx, ty, nullptr);
         LineTo(hdc, gx + gw, ty);
@@ -1015,7 +1053,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         wchar_t lb[8];
         swprintf_s(lb, L"%d", db);
         RECT lr = { gx + gw + 2, yy - 7, gx + gw + 30, yy + 7 };
-        SetTextColor(hdc, C_GRIDLBL);
+        SetTextColor(hdc, C_GRAPH_LABEL);
         DrawTextW(hdc, lb, -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (target_lufs > v_min && target_lufs < v_max) {
@@ -1023,7 +1061,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         wchar_t tl[16];
         swprintf_s(tl, L"%.0f", target_lufs);
         RECT tlr = { gx + gw + 2, ty - 7, gx + gw + 30, ty + 7 };
-        SetTextColor(hdc, RGB(80, 160, 80));
+        SetTextColor(hdc, C_TARGET_LABEL);
         DrawTextW(hdc, tl, -1, &tlr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
@@ -1041,14 +1079,14 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         SelectObject(hdc, op);
         DeleteObject(p);
     };
-    draw_series(st, C_BLUE);
-    draw_series(mom, C_ORANGE);
+    draw_series(st, C_SHORT_TERM);
+    draw_series(mom, C_MOMENTARY);
 
     if (cursor_frac >= 0.0 && cursor_frac <= 1.0) {
         double vis = (cursor_frac - t_pan) * t_zoom;
         if (vis >= 0.0 && vis <= 1.0) {
             int32_t cx = gx + static_cast<int32_t>(vis * gw);
-            HPEN pc = CreatePen(PS_SOLID, 1, RGB(210, 210, 210));
+            HPEN pc = CreatePen(PS_SOLID, 1, C_TEXT);
             HPEN oc = static_cast<HPEN>(SelectObject(hdc, pc));
             MoveToEx(hdc, cx, gy, nullptr);
             LineTo(hdc, cx, gy + gh);
@@ -1059,7 +1097,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
 
     SelectObject(hdc, g_fS);
     int32_t lx = gx + 4;
-    for (auto& [label, col] : std::initializer_list<std::pair<const wchar_t*, COLORREF>>{ { L"Short-term", C_BLUE }, { L"Momentary", C_ORANGE } }) {
+    for (auto& [label, col] : std::initializer_list<std::pair<const wchar_t*, COLORREF>>{ { L"Short-term", C_SHORT_TERM }, { L"Momentary", C_MOMENTARY } }) {
         HPEN p = CreatePen(PS_SOLID, 2, col);
         HPEN op = static_cast<HPEN>(SelectObject(hdc, p));
         MoveToEx(hdc, lx, gy + 8, nullptr);
@@ -1076,7 +1114,7 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
         if (t_zoom > 1.01) swprintf_s(zi, (L"T×%.1f " + std::wstring(TrText(L"右クリックでリセット"))).c_str(), t_zoom);
         else swprintf_s(zi, TrText(L"右クリックでリセット"));
         RECT zr = { lx, gy, gx + gw, gy + 14 };
-        SetTextColor(hdc, C_GRIDLBL);
+        SetTextColor(hdc, C_GRAPH_LABEL);
         DrawTextW(hdc, zi, -1, &zr, DT_RIGHT | DT_TOP | DT_SINGLELINE);
     }
 }
@@ -1084,7 +1122,8 @@ static void draw_graph(HDC hdc, int32_t gx, int32_t gy, int32_t gw, int32_t gh, 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CREATE: {
-            s_br_ctrl = CreateSolidBrush(C_CTRL);
+            load_analyzer_colors();
+            s_br_ctrl = CreateSolidBrush(C_CONTROL);
             s_btn_rng = CreateWindowW(L"BUTTON", TrText(L"選択範囲を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(1), g_hinstance, nullptr);
             s_btn_all = CreateWindowW(L"BUTTON", TrText(L"シーン全体を計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 160, 8, 148, 26, hwnd, reinterpret_cast<HMENU>(2), g_hinstance, nullptr);
             s_btn_obj = CreateWindowW(L"BUTTON", TrText(L"選択オブジェクトを計測"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 312, 8, 184, 26, hwnd, reinterpret_cast<HMENU>(4), g_hinstance, nullptr);
@@ -1102,7 +1141,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_CTLCOLORLISTBOX: {
             HDC dc = reinterpret_cast<HDC>(wp);
             SetTextColor(dc, C_TEXT);
-            SetBkColor(dc, C_CTRL);
+            SetBkColor(dc, C_CONTROL);
             return reinterpret_cast<LRESULT>(s_br_ctrl);
         }
         case WM_COMMAND: {
@@ -1425,6 +1464,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
 
         case WM_DONE:
+            if (g_notice.load() == 1 || g_notice.load() == 2) {
+                EnableWindow(s_btn_rng, TRUE);
+                EnableWindow(s_btn_all, TRUE);
+                EnableWindow(s_btn_obj, TRUE);
+                EnableWindow(s_btn_abort, FALSE);
+                InvalidateRect(hwnd, nullptr, TRUE);
+                break;
+            }
             s_issues_scroll = 0;
             g_gt_zoom = 1.0;
             g_gt_pan = 0.0;
@@ -1515,7 +1562,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             HBITMAP mbmp = static_cast<HBITMAP>(SelectObject(mdc, CreateCompatibleBitmap(hdc, W, H)));
             SetBkMode(mdc, TRANSPARENT);
             {
-                HBRUSH b = CreateSolidBrush(C_BG);
+                HBRUSH b = CreateSolidBrush(C_BACKGROUND);
                 FillRect(mdc, &client, b);
                 DeleteObject(b);
             }
@@ -1525,23 +1572,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!g_fS) g_fS = CreateFontW(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
             SelectObject(mdc, g_fS);
 
-            dtw(mdc, TrText(L"目標 LUFS"), { 64, 74, 128, 94 }, C_LABEL);
-            dtw(mdc, TrText(L"TP Limit"), { 196, 74, 246, 94 }, C_LABEL);
-            dtw(mdc, TrText(L"無音 dBFS"), { 304, 74, 370, 94 }, C_LABEL);
+            dtw(mdc, TrText(L"目標 LUFS"), { 64, 74, 128, 94 }, C_TEXT_SUB);
+            dtw(mdc, TrText(L"TP Limit"), { 196, 74, 246, 94 }, C_TEXT_SUB);
+            dtw(mdc, TrText(L"無音 dBFS"), { 304, 74, 370, 94 }, C_TEXT_SUB);
+            if (!g_busy.load() && g_notice.load() != 0) {
+                const int32_t nt = g_notice.load();
+                const wchar_t* msg = nt == 3   ? L"計測が完了しました"
+                                      : nt == 2 ? L"計測を中止しました(前回の結果を表示中)"
+                                                : L"計測に失敗しました(前回の結果を表示中)";
+                const COLORREF ncol = nt == 3 ? C_PASS : nt == 2 ? C_TEXT_SUB : judge_color(JudgeStatus::WARN);
+                dtw(mdc, TrText(msg), { 316, 42, W - 8, 68 }, ncol);
+            }
 
             {
                 const int32_t cbx = s_keep_seen_hit.left + 4;
                 const int32_t cby = s_keep_seen_hit.top + 4;
                 const int32_t cbs = 12;
                 RECT br = { cbx, cby, cbx + cbs, cby + cbs };
-                HBRUSH bgbr = CreateSolidBrush(g_keep_seen ? C_GREEN : RGB(20, 20, 28));
+                HBRUSH bgbr = CreateSolidBrush(g_keep_seen ? C_PASS : C_BOX_BG);
                 FillRect(mdc, &br, bgbr);
                 DeleteObject(bgbr);
-                HBRUSH frbr = CreateSolidBrush(g_keep_seen ? C_GREEN : C_BORDER);
+                HBRUSH frbr = CreateSolidBrush(g_keep_seen ? C_PASS : C_BORDER);
                 FrameRect(mdc, &br, frbr);
                 DeleteObject(frbr);
                 if (g_keep_seen) {
-                    HPEN pchk = CreatePen(PS_SOLID, 2, C_BG);
+                    HPEN pchk = CreatePen(PS_SOLID, 2, C_BACKGROUND);
                     HPEN ochk = static_cast<HPEN>(SelectObject(mdc, pchk));
                     MoveToEx(mdc, cbx + 2, cby + 6, nullptr);
                     LineTo(mdc, cbx + 5, cby + 9);
@@ -1549,7 +1604,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     SelectObject(mdc, ochk);
                     DeleteObject(pchk);
                 }
-                dtw(mdc, TrText(L"確認済を維持"), { cbx + 18, s_keep_seen_hit.top, s_keep_seen_hit.right, s_keep_seen_hit.bottom }, C_LABEL);
+                dtw(mdc, TrText(L"確認済を維持"), { cbx + 18, s_keep_seen_hit.top, s_keep_seen_hit.right, s_keep_seen_hit.bottom }, C_TEXT_SUB);
             }
 
             {
@@ -1574,7 +1629,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 {
                     RECT pf = { 8, y, 8 + static_cast<int32_t>((W - 16) * prog / 100.0), y + 22 };
-                    HBRUSH b = CreateSolidBrush(C_PROGFG);
+                    HBRUSH b = CreateSolidBrush(C_PROGRESS);
                     FillRect(mdc, &pf, b);
                     DeleteObject(b);
                 }
@@ -1592,7 +1647,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             if (!paint_end && !res.valid) {
                 RECT r = { 0, y + 16, W, y + 36 };
-                dtw(mdc, TrText(L"「計測」ボタンを押してください"), r, C_LABEL, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                dtw(mdc, TrText(L"「計測」ボタンを押してください"), r, C_TEXT_SUB, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                 paint_end = true;
             }
 
@@ -1631,28 +1686,28 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     const int32_t ry = y + 1 + i * rh;
                     Row& row = rows[i];
                     SelectObject(mdc, g_fS);
-                    dtw(mdc, row.label, { 14, ry + 6, 140, ry + rh }, C_LABEL);
+                    dtw(mdc, row.label, { 14, ry + 6, 140, ry + rh }, C_TEXT_SUB);
                     SelectObject(mdc, g_fL);
                     COLORREF vc = (row.judge != JudgeStatus::NONE) ? judge_color(row.judge) : C_TEXT;
                     dtw(mdc, row.value.c_str(), { 138, ry + 2, 222, ry + rh }, vc, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                     SelectObject(mdc, g_fS);
-                    dtw(mdc, row.unit.c_str(), { 224, ry + 6, 252, ry + rh }, C_LABEL);
+                    dtw(mdc, row.unit.c_str(), { 224, ry + 6, 252, ry + rh }, C_TEXT_SUB);
                     if (row.judge != JudgeStatus::NONE)
                         draw_badge(mdc, g_fS, 256, ry + 5, 42, row.judge, row.badge.c_str());
                     if (i == 0 && res.integrated > -99.0) {
-                        COLORREF dc2 = std::abs(ldiff) < sn.lufs_tol ? C_GREEN : ldiff > 0 ? C_RED
-                                                                                           : C_LABEL;
+                        COLORREF dc2 = std::abs(ldiff) < sn.lufs_tol ? C_PASS : ldiff > 0 ? C_FAIL
+                                                                                           : C_TEXT_SUB;
                         dtw(mdc, fmtDiff(ldiff).c_str(), { 300, ry + 6, W - 10, ry + rh }, dc2, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                     }
                     if (row.jump_frame >= 0) {
                         std::wstring tc = fmtTimecode(row.jump_frame, res.fps_rate, res.fps_scale);
                         RECT tr = { 220, ry + 2, W - 10, ry + rh };
-                        dtw(mdc, tc.c_str(), tr, C_BLUE, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, tc.c_str(), tr, C_ACCENT, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                         s_maxrow_hits[i] = { 8, ry, W - 8, ry + rh };
                         s_maxrow_frames[i] = row.jump_frame;
                     }
                     if (i < 4) {
-                        HPEN p = CreatePen(PS_SOLID, 1, RGB(32, 32, 44));
+                        HPEN p = CreatePen(PS_SOLID, 1, C_SEPARATOR);
                         HPEN op = static_cast<HPEN>(SelectObject(mdc, p));
                         MoveToEx(mdc, 14, ry + rh, nullptr);
                         LineTo(mdc, W - 14, ry + rh);
@@ -1669,7 +1724,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     } else {
                         swprintf_s(rng_buf, (std::wstring(TrText(L"解析範囲")) + L"  F%d 〜 F%d").c_str(), res.f_start + 1, res.f_end + 1);
                     }
-                    dtw(mdc, rng_buf, { 14, y + 128, W - 14, y + 140 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    dtw(mdc, rng_buf, { 14, y + 128, W - 14, y + 140 }, C_TEXT_SUB, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
 
                 if (g_vol_fix_panel.visible()) {
@@ -1712,13 +1767,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         SelectObject(mdc, g_fS);
                         wchar_t fb[24];
                         swprintf_s(fb, L"F%d", cur + 1);
-                        dtw(mdc, fb, { 14, y + 2, 58, y + 20 }, C_LABEL, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-                        dtw(mdc, L"Mom", { 60, y + 2, 90, y + 20 }, C_LABEL, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-                        dtw(mdc, fmtL(mv).c_str(), { 90, y + 2, 140, y + 20 }, C_ORANGE, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-                        dtw(mdc, L"LUFS", { 142, y + 2, 172, y + 20 }, C_LABEL, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-                        dtw(mdc, L"ST", { 182, y + 2, 202, y + 20 }, C_LABEL, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-                        dtw(mdc, fmtL(sv).c_str(), { 202, y + 2, 256, y + 20 }, C_BLUE, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-                        dtw(mdc, L"LUFS", { 258, y + 2, 288, y + 20 }, C_LABEL, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, fb, { 14, y + 2, 58, y + 20 }, C_TEXT_SUB, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, L"Mom", { 60, y + 2, 90, y + 20 }, C_TEXT_SUB, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, fmtL(mv).c_str(), { 90, y + 2, 140, y + 20 }, C_MOMENTARY, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, L"LUFS", { 142, y + 2, 172, y + 20 }, C_TEXT_SUB, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, L"ST", { 182, y + 2, 202, y + 20 }, C_TEXT_SUB, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, fmtL(sv).c_str(), { 202, y + 2, 256, y + 20 }, C_SHORT_TERM, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, L"LUFS", { 258, y + 2, 288, y + 20 }, C_TEXT_SUB, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
                         y += 22;
                     }
                 }
@@ -1738,17 +1793,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
                 y += 4;
                 SelectObject(mdc, g_fS);
-                dtw(mdc, TrText(L"問題箇所"), { 8, y, 108, y + 16 }, C_YELLOW);
+                dtw(mdc, TrText(L"問題箇所"), { 8, y, 108, y + 16 }, C_WARN);
                 {
                     const wchar_t* flt_lbl[] = { L"All", L"C", L"S" };
-                    COLORREF flt_col[] = { C_TEXT, C_RED, C_LABEL };
+                    COLORREF flt_col[] = { C_TEXT, C_FAIL, C_TEXT_SUB };
                     int32_t bx = 112;
                     for (int32_t fi = 0; fi < 3; fi++) {
                         s_flt_btn[fi] = { bx, y, bx + 22, y + 16 };
                         bool sel = (g_issue_filter == fi);
                         COLORREF bc = flt_col[fi];
                         {
-                            HBRUSH b = CreateSolidBrush(sel ? RGB(GetRValue(bc) / 6, GetGValue(bc) / 6, GetBValue(bc) / 6) : RGB(30, 30, 44));
+                            HBRUSH b = CreateSolidBrush(sel ? RGB(GetRValue(bc) / 6, GetGValue(bc) / 6, GetBValue(bc) / 6) : C_CONTROL);
                             FillRect(mdc, &s_flt_btn[fi], b);
                             DeleteObject(b);
                         }
@@ -1757,7 +1812,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                             FrameRect(mdc, &s_flt_btn[fi], b);
                             DeleteObject(b);
                         }
-                        dtw(mdc, flt_lbl[fi], s_flt_btn[fi], sel ? bc : C_LABEL, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                        dtw(mdc, flt_lbl[fi], s_flt_btn[fi], sel ? bc : C_TEXT_SUB, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                         bx += 26;
                     }
 
@@ -1769,7 +1824,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         }
                     RECT nb = { bx + 6, y, bx + 6 + 92, y + 16 };
                     s_next_unseen_btn = (first_unseen >= 0) ? nb : RECT{};
-                    dtw(mdc, TrText(L"▶ 次の未確認"), nb, first_unseen >= 0 ? C_BLUE : RGB(50, 50, 62), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                    dtw(mdc, TrText(L"▶ 次の未確認"), nb, first_unseen >= 0 ? C_ACCENT : C_TEXT_DISABLED, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
                 }
                 {
                     int32_t seen_cnt = 0;
@@ -1778,7 +1833,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     wchar_t cnt[80];
                     if (g_issue_filter != 0) swprintf_s(cnt, L"%d / %d issues (✓%d)", flt_cnt, total_iss, seen_cnt);
                     else swprintf_s(cnt, L"%d issues (✓%d)", total_iss, seen_cnt);
-                    dtw(mdc, cnt, { W - 130, y, W - 8, y + 16 }, C_LABEL, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    dtw(mdc, cnt, { W - 130, y, W - 8, y + 16 }, C_TEXT_SUB, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                 }
                 y += 18;
 
@@ -1799,7 +1854,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     Issue& iss = res.issues[flt[i]];
 
                     if (s_hovered_issue == drawn) {
-                        HBRUSH bh = CreateSolidBrush(RGB(36, 36, 52));
+                        HBRUSH bh = CreateSolidBrush(C_ROW_HOVER);
                         RECT hr = { 8, iy, list_r, iy + ITEM_H };
                         FillRect(mdc, &hr, bh);
                         DeleteObject(bh);
@@ -1814,14 +1869,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         const int32_t cbs = 12;
                         const int32_t cbx = 14, cby = iy + (ITEM_H - cbs) / 2;
                         RECT br = { cbx, cby, cbx + cbs, cby + cbs };
-                        HBRUSH bgbr = CreateSolidBrush(seen ? C_GREEN : RGB(20, 20, 28));
+                        HBRUSH bgbr = CreateSolidBrush(seen ? C_PASS : C_BOX_BG);
                         FillRect(mdc, &br, bgbr);
                         DeleteObject(bgbr);
-                        HBRUSH frbr = CreateSolidBrush(seen ? C_GREEN : C_BORDER);
+                        HBRUSH frbr = CreateSolidBrush(seen ? C_PASS : C_BORDER);
                         FrameRect(mdc, &br, frbr);
                         DeleteObject(frbr);
                         if (seen) {
-                            HPEN pchk = CreatePen(PS_SOLID, 2, C_BG);
+                            HPEN pchk = CreatePen(PS_SOLID, 2, C_BACKGROUND);
                             HPEN ochk = static_cast<HPEN>(SelectObject(mdc, pchk));
                             MoveToEx(mdc, cbx + 2, cby + 6, nullptr);
                             LineTo(mdc, cbx + 5, cby + 9);
@@ -1832,7 +1887,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     }
 
                     wchar_t buf[128];
-                    COLORREF base_col = (iss.type == Issue::Type::CLIP) ? C_RED : C_LABEL;
+                    COLORREF base_col = (iss.type == Issue::Type::CLIP) ? C_FAIL : C_TEXT_SUB;
                     COLORREF col = seen ? RGB(GetRValue(base_col) / 2, GetGValue(base_col) / 2, GetBValue(base_col) / 2) : base_col;
                     if (iss.type == Issue::Type::CLIP)
                         swprintf_s(buf, (L"● " + std::wstring(TrText(L"クリッピング")) + L"  F%d〜F%d").c_str(), iss.f_start + 1, iss.f_end + 1);
@@ -1856,7 +1911,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     int32_t thumb_h = (std::max)(12, static_cast<int32_t>(sbh * vr));
                     int32_t thumb_y = sby + static_cast<int32_t>((sbh - thumb_h) * pr);
                     {
-                        HBRUSH b = CreateSolidBrush(s_sb_drag ? C_BLUE : C_LABEL);
+                        HBRUSH b = CreateSolidBrush(s_sb_drag ? C_ACCENT : C_TEXT_SUB);
                         RECT r = { sbx, thumb_y, sbx + SB_W, thumb_y + thumb_h };
                         FillRect(mdc, &r, b);
                         DeleteObject(b);

@@ -115,13 +115,13 @@ void VolumeFixPanel::paint_and_layout(HDC mdc, const RECT& area) {
     }
     const VolumeFixProposal live = current_proposal_with_edit();
 
-    dtw(mdc, TrText(L"音量の調整"), { area.left, area.top, area.left + 120, area.top + 18 }, C_LABEL);
+    dtw(mdc, TrText(L"音量の調整"), { area.left, area.top, area.left + 120, area.top + 18 }, C_TEXT_SUB);
 
     wchar_t preview[160];
     const bool over = live.exceeds_ceiling();
     swprintf_s(preview, L"%s%s: Integrated %.1f LUFS / Peak %.1f dBTP", over ? L"⚠ " : L"", TrText(L"適用後の予測"), live.predicted_integrated(), live.predicted_peak());
-    dtw(mdc, preview, { area.left, area.top, area.right, area.top + 18 }, over ? C_RED : C_GREEN, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-    dtw(mdc, L"dB", { area.left + 76, area.top + 20, area.left + 100, area.top + 44 }, C_LABEL);
+    dtw(mdc, preview, { area.left, area.top, area.right, area.top + 18 }, over ? C_FAIL : C_PASS, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    dtw(mdc, L"dB", { area.left + 76, area.top + 20, area.left + 100, area.top + 44 }, C_TEXT_SUB);
 }
 
 bool func_proc_audio_volume(FILTER_PROC_AUDIO* audio) {
