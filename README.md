@@ -314,6 +314,25 @@ FuzzyMatchIssues=1
 FuzzyMatchDist=30
 ; v0.0.39で追加されたオブジェクトからの推定を行う
 UseObjectParam=1
+; v0.0.39bで追加されたstyle.confからの配色の取得を行う
+UseHostColor=0
+; 配色を上書きする
+ColorBackground=
+ColorPanel=
+ColorControl=
+ColorBorder=
+ColorText=
+ColorTextSub=
+ColorPass=
+ColorWarn=
+ColorFail=
+ColorAccent=
+ColorShortTerm=
+ColorMomentary=
+ColorGraphBackground=
+ColorGraphGrid=
+ColorGraphLabel=
+ColorProgress=
 ; 実験的機能(EnableExperimental=1のときのみ反映)
 [Experimental]
 ; 現状設定項目無し
@@ -1325,6 +1344,10 @@ Chain Sendから送られてきた音量に応じて、ローパスフィルタ�
     表示用オブジェクト(MIDI Visualizer)として追加
 
 ## 改版履歴
+
+- **v0.0.39b**
+  - アナライザーの測定成功/失敗/中止それぞれにメッセージを追加
+  - アナライザーの配色を変更可能にし、style.confからの取得機能を追加
 
 - **v0.0.39a**
   - v0.0.39で追加した推定がオブジェクトに含まれる音量調整フィルタに発動しない問題の修正
