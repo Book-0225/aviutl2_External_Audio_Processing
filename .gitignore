@@ -10,6 +10,7 @@ External*/
 /release
 rust
 *.md
+!docs/*
 build/
 !README.md
 out/

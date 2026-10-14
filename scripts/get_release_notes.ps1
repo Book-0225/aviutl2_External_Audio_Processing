@@ -6,8 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path $PSScriptRoot -Parent
-$readme = Join-Path $root "README.md"
-$lines = Get-Content $readme
+$changelog = Join-Path $root "CHANGELOG.md"
+$lines = Get-Content $changelog -Encoding UTF8
 $startPattern = "- **v$Version**"
 $start = -1
 
@@ -19,7 +19,7 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
 }
 
 if ($start -lt 0) {
-    throw "Release notes for v$Version were not found."
+    throw "Release notes for v$Version were not found in CHANGELOG.md."
 }
 
 $result = New-Object System.Collections.Generic.List[string]
