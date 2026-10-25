@@ -1,6 +1,6 @@
 ﻿#pragma once
-#include <windows.h>
 #include <cstdint>
+#include <windows.h>
 
 inline COLORREF C_BACKGROUND = RGB(18, 18, 22);
 inline COLORREF C_PANEL = RGB(26, 26, 34);

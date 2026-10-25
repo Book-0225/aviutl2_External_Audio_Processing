@@ -1,6 +1,6 @@
 ﻿#pragma once
-#include "Eap2Common.h"
 #include "AnalyzerColor.h"
+#include "Eap2Common.h"
 
 #include <cmath>
 #include <cwctype>

@@ -1578,9 +1578,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!g_busy.load() && g_notice.load() != 0) {
                 const int32_t nt = g_notice.load();
                 const wchar_t* msg = nt == 3   ? L"計測が完了しました"
-                                      : nt == 2 ? L"計測を中止しました(前回の結果を表示中)"
-                                                : L"計測に失敗しました(前回の結果を表示中)";
-                const COLORREF ncol = nt == 3 ? C_PASS : nt == 2 ? C_TEXT_SUB : judge_color(JudgeStatus::WARN);
+                                     : nt == 2 ? L"計測を中止しました(前回の結果を表示中)"
+                                               : L"計測に失敗しました(前回の結果を表示中)";
+                const COLORREF ncol = nt == 3 ? C_PASS : nt == 2 ? C_TEXT_SUB
+                                                                 : judge_color(JudgeStatus::WARN);
                 dtw(mdc, TrText(msg), { 316, 42, W - 8, 68 }, ncol);
             }
 
@@ -1696,7 +1697,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         draw_badge(mdc, g_fS, 256, ry + 5, 42, row.judge, row.badge.c_str());
                     if (i == 0 && res.integrated > -99.0) {
                         COLORREF dc2 = std::abs(ldiff) < sn.lufs_tol ? C_PASS : ldiff > 0 ? C_FAIL
-                                                                                           : C_TEXT_SUB;
+                                                                                          : C_TEXT_SUB;
                         dtw(mdc, fmtDiff(ldiff).c_str(), { 300, ry + 6, W - 10, ry + rh }, dc2, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                     }
                     if (row.jump_frame >= 0) {

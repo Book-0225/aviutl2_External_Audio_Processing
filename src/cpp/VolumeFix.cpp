@@ -20,10 +20,7 @@ void dtw(HDC hdc, const wchar_t* s, RECT r, COLORREF c, UINT fmt = DT_LEFT | DT_
 }
 } // namespace
 
-VolumeFixProposal make_volume_fix_proposal(
-    int32_t f_start, const std::wstring& obj_name,
-    double measured_integrated, double measured_peak,
-    double target_lufs, double peak_ceiling) {
+VolumeFixProposal make_volume_fix_proposal(int32_t f_start, const std::wstring& obj_name, double measured_integrated, double measured_peak, double target_lufs, double peak_ceiling) {
     VolumeFixProposal p;
     p.f_start = f_start;
     p.obj_name = obj_name;
