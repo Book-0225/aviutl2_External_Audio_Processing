@@ -6,8 +6,8 @@ name = "External_Audio_Processing2"
 version = "0.0.39b"
 
 [build_group]
-debug_group = "cmake --build ./build --config Debug"
-release_group = "cmake --build ./build --config Release"
+debug_group = "cmake --build ./build --config Debug --target aviutl2_External_Audio_Processing"
+release_group = "cmake --build ./build --config Release --target aviutl2_External_Audio_Processing"
 
 [artifacts.English_External_Audio_Processing2_aul2]
 source = "lang/English.External_Audio_Processing2.aul2"
