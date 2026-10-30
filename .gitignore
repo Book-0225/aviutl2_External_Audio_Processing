@@ -12,7 +12,9 @@ rust
 *.md
 !docs/*
 build/
+!CHANGELOG.md
 !README.md
+!THIRD_PARTY_LICENSES.md
 out/
 version.txt
 .clang-tidy
