@@ -27,7 +27,7 @@ bool apply_volume_fix(EDIT_SECTION* edit, const VolumeFixProposal& prop);
 
 class VolumeFixPanel {
   public:
-    void create(HWND parent, HINSTANCE hinst, int32_t base_ctrl_id);
+    void create(HWND parent, HINSTANCE hinst, int32_t base_ctrl_id, HFONT font);
     void destroy();
 
     void set_proposal(const VolumeFixProposal& prop);

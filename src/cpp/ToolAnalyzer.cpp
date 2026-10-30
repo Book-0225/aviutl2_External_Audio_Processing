@@ -260,7 +260,9 @@ static HBRUSH s_br_ctrl = nullptr;
 static bool g_keep_seen = true;
 static RECT s_keep_seen_hit = { 380, 74, 490, 94 };
 
+static std::wstring font_name;
 static HFONT g_fL = nullptr;
+static HFONT g_fLB = nullptr;
 static HFONT g_fS = nullptr;
 struct BatchBuf {
     std::map<int32_t, std::pair<std::vector<float>, std::vector<float>>> frames;
@@ -1133,8 +1135,31 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             s_edit_l = CreateWindowW(L"EDIT", L"-14.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 8, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(11), g_hinstance, nullptr);
             s_edit_p = CreateWindowW(L"EDIT", L"-1.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 148, 74, 44, 20, hwnd, reinterpret_cast<HMENU>(12), g_hinstance, nullptr);
             s_edit_sil = CreateWindowW(L"EDIT", L"-60.0", WS_CHILD | WS_VISIBLE | ES_RIGHT | ES_AUTOHSCROLL, 248, 74, 52, 20, hwnd, reinterpret_cast<HMENU>(13), g_hinstance, nullptr);
+            if (!g_fL) {
+                if (font_name.empty())
+                    font_name = g_config_handle->get_font_info(g_config_handle, "DefaultFamily")->name;
+                int32_t font_size = settings.analyzer.font_L;
+                if (font_size < 1) {
+                    int32_t tmp = static_cast<int32_t>(g_config_handle->get_font_info(g_config_handle, "Control")->size);
+                    font_size = -(tmp + (tmp >> 1));
+                }
+                g_fL = CreateFontW(font_size, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font_name.c_str());
+            }
+            HWND controls[] = {
+                s_btn_rng,
+                s_btn_all,
+                s_btn_obj,
+                s_btn_abort,
+                s_combo,
+                s_edit_l,
+                s_edit_p,
+                s_edit_sil
+            };
+            for (HWND h : controls)
+                if (h)
+                    SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(g_fL), TRUE);
             write_settings_to_controls();
-            g_vol_fix_panel.create(hwnd, g_hinstance, 200);
+            g_vol_fix_panel.create(hwnd, g_hinstance, 200, g_fL);
             return 0;
         }
         case WM_CTLCOLOREDIT:
@@ -1567,9 +1592,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 DeleteObject(b);
             }
 
-            FONT_INFO* font = g_config_handle->get_font_info(g_config_handle, "DefaultFamily");
-            if (!g_fL) g_fL = CreateFontW(24, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
-            if (!g_fS) g_fS = CreateFontW(16, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font->name);
+            if (!g_fLB || !g_fS) {
+                if (font_name.empty())
+                    font_name = g_config_handle->get_font_info(g_config_handle, "DefaultFamily")->name;
+                int32_t font_size_L = settings.analyzer.font_L;
+                int32_t font_size_S = settings.analyzer.font_S;
+                if (font_size_L < 1) {
+                    int32_t tmp = static_cast<int32_t>(g_config_handle->get_font_info(g_config_handle, "Control")->size);
+                    font_size_L = -(tmp + (tmp >> 1));
+                }
+                if (font_size_S < 1)
+                    font_size_S = -static_cast<int32_t>(g_config_handle->get_font_info(g_config_handle, "Control")->size);
+                if (!g_fLB) g_fLB = CreateFontW(font_size_L, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font_name.c_str());
+                if (!g_fS) g_fS = CreateFontW(font_size_S, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, font_name.c_str());
+            }
             SelectObject(mdc, g_fS);
 
             dtw(mdc, TrText(L"目標 LUFS"), { 64, 74, 128, 94 }, C_TEXT_SUB);
@@ -1688,7 +1724,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     Row& row = rows[i];
                     SelectObject(mdc, g_fS);
                     dtw(mdc, row.label, { 14, ry + 6, 140, ry + rh }, C_TEXT_SUB);
-                    SelectObject(mdc, g_fL);
+                    SelectObject(mdc, g_fLB);
                     COLORREF vc = (row.judge != JudgeStatus::NONE) ? judge_color(row.judge) : C_TEXT;
                     dtw(mdc, row.value.c_str(), { 138, ry + 2, 222, ry + rh }, vc, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
                     SelectObject(mdc, g_fS);
@@ -1944,6 +1980,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (s_br_ctrl) {
                 DeleteObject(s_br_ctrl);
                 s_br_ctrl = nullptr;
+            }
+            if (g_fLB) {
+                DeleteObject(g_fLB);
+                g_fLB = nullptr;
             }
             if (g_fL) {
                 DeleteObject(g_fL);

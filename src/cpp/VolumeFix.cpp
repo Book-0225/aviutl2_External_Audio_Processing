@@ -47,11 +47,19 @@ bool apply_volume_fix(EDIT_SECTION* edit, const VolumeFixProposal& prop) {
     return edit->set_object_item_value(obj, target.c_str(), VOLUME_ITEM_NAME.c_str(), std::to_string(prop.user_gain_db < -140.0 ? 0.0 : (std::max)(0.0, (std::min)(1000.0, 100.0 * std::pow(10.0, prop.user_gain_db / 20.0)))).c_str());
 }
 
-void VolumeFixPanel::create(HWND parent, HINSTANCE hinst, int32_t base_ctrl_id) {
+void VolumeFixPanel::create(HWND parent, HINSTANCE hinst, int32_t base_ctrl_id, HFONT font) {
     m_parent = parent;
     m_edit_gain = CreateWindowW(L"EDIT", L"0.00", WS_CHILD | ES_RIGHT | ES_AUTOHSCROLL, 0, 0, 70, 20, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 0)), hinst, nullptr);
     m_btn_apply = CreateWindowW(L"BUTTON", TrText(L"適用"), WS_CHILD | BS_PUSHBUTTON, 0, 0, 60, 24, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 1)), hinst, nullptr);
     m_btn_reset = CreateWindowW(L"BUTTON", TrText(L"提案値に戻す"), WS_CHILD | BS_PUSHBUTTON, 0, 0, 100, 24, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(base_ctrl_id + 2)), hinst, nullptr);
+    HWND controls[] = {
+        m_edit_gain,
+        m_btn_apply,
+        m_btn_reset
+    };
+    for (HWND h : controls)
+        if (h)
+            SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
 }
 
 void VolumeFixPanel::destroy() {

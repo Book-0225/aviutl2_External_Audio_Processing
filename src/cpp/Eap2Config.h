@@ -274,6 +274,8 @@ struct AnalyzerConfig {
     int32_t fuzzy_match_dist = 30;         // 上記機能で利用する許容範囲を設定する
     bool use_obj_param = true;             // オブジェクトパラメータからの推定を実行する
     bool use_host_color = false;           // ホストの style.conf の配色を参照する
+    int32_t font_L = 24;                   // 大きい文字のフォントサイズ(1未満でstyle.confのControlフォントサイズ*1.5)
+    int32_t font_S = 16;                   // 小さい文字のフォントサイズ(1未満でstyle.confのControlフォントサイズ)
     std::wstring color_override[AC_COUNT]; // 配色を個別で上書きする
     std::vector<ConfigEntry> getEntries() {
         std::vector<ConfigEntry> v = {
@@ -290,6 +292,8 @@ struct AnalyzerConfig {
             ConfigEntry::Create(L"FuzzyMatchIssues", L"1", &fuzzy_match_issues, true),
             ConfigEntry::Create(L"FuzzyMatchDist", L"30", &fuzzy_match_dist, true),
             ConfigEntry::Create(L"UseObjectParam", L"1", &use_obj_param, true),
+            ConfigEntry::Create(L"FontL", L"24", &font_L, false),
+            ConfigEntry::Create(L"FontS", L"16", &font_S, false),
             ConfigEntry::Create(L"UseHostColor", L"0", &use_host_color, false)
         };
         const AnalyzerColorSlot* slots = analyzer_color_slots();
