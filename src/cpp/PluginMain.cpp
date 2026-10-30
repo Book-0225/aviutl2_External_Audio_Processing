@@ -290,11 +290,11 @@ void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
     int32_t frame = info->frame;
     int32_t layer_max = info->layer_max;
     std::wstring target_name = filter_plugin_table_midi_gen.name;
-    int32_t mode = 0;
+    bool mode = false;
     edit->get_mouse_layer_frame(&layer, &frame);
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000 || GetAsyncKeyState(VK_CONTROL) & 0x8000) {
         target_name = filter_plugin_table_midi_visualizer.name;
-        mode = 1;
+        mode = true;
     }
 
     int32_t length = 30;
@@ -324,6 +324,10 @@ void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
     edit->set_object_item_value(obj, target_name.c_str(), mode ? L"MIDI File" : L"MIDIファイル", utf8_path.c_str());
     if (lengthCalculated)
         edit->set_object_item_value(obj, target_name.c_str(), L"BPMの同期", "MIDIにBPMを同期");
+    if (mode) {
+        edit->set_object_item_value(obj, target_name.c_str(), L"幅", std::to_string(info->width).c_str());
+        edit->set_object_item_value(obj, target_name.c_str(), L"高さ", std::to_string(info->height).c_str());
+    }
 }
 
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
