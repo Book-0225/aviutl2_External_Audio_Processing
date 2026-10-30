@@ -299,7 +299,7 @@ FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
     { L"AviUtlにBPMを同期", 2 },
     { nullptr }
 };
-FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 0, sync_mode_visualizer);
+FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 1, sync_mode_visualizer);
 FILTER_ITEM_TRACK track_manual_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_manual_num(L"分子(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_manual_denom(L"分母(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);

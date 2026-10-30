@@ -211,3 +211,8 @@ TimeSignatureEvent MidiParser::GetTimeSignatureAt(uint32_t tick) const {
         if (it->absoluteTick <= tick) return *it;
     return m_timeSigEvents.front();
 }
+
+double MidiParser::GetDurationSeconds() const {
+    if (m_events.empty()) return 0.0;
+    return GetTimeAtTick(static_cast<double>(m_events.back().absoluteTick));
+}

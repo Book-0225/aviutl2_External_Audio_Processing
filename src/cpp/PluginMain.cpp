@@ -1,6 +1,7 @@
 ﻿#include "AudioPluginFactory.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "MidiParser.h"
 #include "StringUtils.h"
 
 #include <unordered_set>
@@ -291,17 +292,38 @@ void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
     std::wstring target_name = filter_plugin_table_midi_gen.name;
     int32_t mode = 0;
     edit->get_mouse_layer_frame(&layer, &frame);
-    for (; layer <= layer_max; layer++)
-        if (!edit->find_object(layer, frame))
-            break;
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000 || GetAsyncKeyState(VK_CONTROL) & 0x8000) {
         target_name = filter_plugin_table_midi_visualizer.name;
         mode = 1;
     }
-    OBJECT_HANDLE obj = edit->create_object(target_name.c_str(), layer, frame, 30);
+
+    int32_t length = 30;
+    bool lengthCalculated = false;
+    MidiParser parser;
+    if (parser.Load(path)) {
+        double seconds = parser.GetDurationSeconds();
+        if (seconds > 0.0) {
+            double fps = static_cast<double>(info->rate) / static_cast<double>(info->scale);
+            length = std::max<int32_t>(1, static_cast<int32_t>(std::ceil(seconds * fps)));
+            lengthCalculated = true;
+        }
+    }
+
+    const int32_t lastFrame = frame + length - 1;
+    for (; layer <= layer_max; layer++) {
+        OBJECT_HANDLE next = edit->find_object(layer, frame);
+        if (!next)
+            break;
+        if (edit->get_object_layer_frame(next).start > lastFrame)
+            break;
+    }
+
+    OBJECT_HANDLE obj = edit->create_object(target_name.c_str(), layer, frame, length);
     if (!obj)
         return;
     edit->set_object_item_value(obj, target_name.c_str(), mode ? L"MIDI File" : L"MIDIファイル", utf8_path.c_str());
+    if (lengthCalculated)
+        edit->set_object_item_value(obj, target_name.c_str(), L"BPMの同期", "MIDIにBPMを同期");
 }
 
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {

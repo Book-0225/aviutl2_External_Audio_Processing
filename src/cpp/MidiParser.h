@@ -41,6 +41,7 @@ class MidiParser {
     int64_t GetTickAtTime(double time) const;
     double GetTimeAtTick(double tick) const;
     double GetBpmAtTime(double time) const;
+    double GetDurationSeconds() const;
     TimeSignatureEvent GetTimeSignatureAt(uint32_t tick) const;
 
     static float CalculateFrequency(int32_t noteNumber, int32_t pitchBendVal, float bendRangeSemiTones = 2.0f) {
