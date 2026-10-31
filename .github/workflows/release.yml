@@ -21,7 +21,7 @@ jobs:
         timeout-minutes: 45
 
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@v7.0.1
               with:
                   submodules: recursive
 
@@ -58,7 +58,7 @@ jobs:
 
             - name: Cache cargo (aviutl2-cli)
               id: cargo-cache
-              uses: actions/cache@v6
+              uses: actions/cache@v6.1.0
               with:
                   path: |
                       ~\.cargo\bin
@@ -97,7 +97,7 @@ jobs:
 
             - name: Upload Artifact
               if: ${{ inputs.dry_run }}
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v7.0.2
               with:
                 name: build-files
                 retention-days: 7
@@ -107,7 +107,7 @@ jobs:
 
             - name: Create Release
               if: ${{ !inputs.dry_run }}
-              uses: softprops/action-gh-release@v3
+              uses: softprops/action-gh-release@v3.0.3
               with:
                   tag_name: v${{ steps.version.outputs.version }}
                   name: v${{ steps.version.outputs.version }}
