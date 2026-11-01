@@ -470,7 +470,7 @@ std::vector<IAudioPluginHost::SubPluginInfo> VstHost::Impl::EnumerateSubPlugins(
     if (!temp_module) return candidates;
 
     auto& factory = temp_module->getFactory();
-    auto rawFactory = factory.get(); // 生のCポインタを使用
+    auto rawFactory = factory.get();
 
     int32_t numClasses = rawFactory->countClasses();
     for (int32_t i = 0; i < numClasses; ++i) {
