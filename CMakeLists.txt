@@ -122,6 +122,7 @@ add_compile_definitions(
     _UNICODE
     _WIN32_WINNT=0x0A00
     WINVER=0x0A00
+    NOMINMAX
 )
 if(MSVC)
     string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
