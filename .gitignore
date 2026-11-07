@@ -18,3 +18,5 @@ build/
 out/
 version.txt
 .clang-tidy
+*.ps1
+!scripts/*
