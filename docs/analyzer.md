@@ -49,7 +49,7 @@
 | :yellow_circle: 黄 | **WARN** | 許容誤差を僅かに超過、または目標より 8 LU 以上低い |
 | :red_circle: 赤 | **FAIL** | 目標 LUFS を 2 LU 超過、または TP 上限を 1 dB 超過 |
 
-`Max Short-term`と`Max Momentary`はクリックすると該当フレームに移動します。
+`Max Short-term`と`Max Momentary`の行はクリックすると該当フレームに移動します。
 
 ### グラフ操作
 
