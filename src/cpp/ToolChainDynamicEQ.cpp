@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -16,9 +17,16 @@ FILTER_ITEM_TRACK deq_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1, nullptr, 1.0)
 FILTER_ITEM_TRACK deq_att(L"Attack", 10.0, 0.0, 500.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK deq_rel(L"Release", 100.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
 
-void* filter_items_chain_dyn_eq[] = {
-    &deq_id, &deq_freq, &deq_q, &deq_gain, &deq_thresh, &deq_att, &deq_rel, nullptr
-};
+static std::vector<void*> filter_items_chain_dyn_eq = FilterItemHelper::ItemList()
+                                                          .Add(
+                                                              deq_id,
+                                                              deq_freq,
+                                                              deq_q,
+                                                              deq_gain,
+                                                              deq_thresh,
+                                                              deq_att,
+                                                              deq_rel)
+                                                          .Build();
 
 struct DynEqBiquad {
     float x1 = 0.0f, x2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
@@ -186,7 +194,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_dyn_eq = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_chain_dyn_eq,
+    filter_items_chain_dyn_eq.data(),
     nullptr,
     func_proc_audio_chain_dyn_eq,
     nullptr,

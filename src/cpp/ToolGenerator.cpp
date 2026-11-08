@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "FilterItemHelper.h"
 #include "PluginManager.h"
 #include "StringUtils.h"
 
@@ -31,12 +32,12 @@ struct GenData {
 };
 FILTER_ITEM_DATA<GenData> gen_data(L"GEN_DATA");
 
-void* filter_items_generator[] = {
-    &gen_type,
-    &gen_freq,
-    &gen_data,
-    nullptr
-};
+static std::vector<void*> filter_items_generator = FilterItemHelper::ItemList()
+                                                       .Add(
+                                                           gen_type,
+                                                           gen_freq,
+                                                           gen_data)
+                                                       .Build();
 
 const int32_t BLOCK_SIZE = 64;
 
@@ -263,7 +264,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_generator = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_generator,
+    filter_items_generator.data(),
     nullptr,
     func_proc_audio_generator,
     nullptr,

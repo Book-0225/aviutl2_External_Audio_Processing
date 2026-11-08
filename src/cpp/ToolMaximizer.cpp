@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,13 +15,13 @@ FILTER_ITEM_TRACK max_ceiling(L"Ceiling", -0.1, -20.0, 0.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK max_release(L"Release", 50.0, 1.0, 1000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK max_lookahead(L"Lookahead", 5.0, 0.0, 20.0, 0.1, nullptr, 1.0);
 
-void* filter_items_maximizer[] = {
-    &max_threshold,
-    &max_ceiling,
-    &max_release,
-    &max_lookahead,
-    nullptr
-};
+static std::vector<void*> filter_items_maximizer = FilterItemHelper::ItemList()
+                                                       .Add(
+                                                           max_threshold,
+                                                           max_ceiling,
+                                                           max_release,
+                                                           max_lookahead)
+                                                       .Build();
 
 const int32_t MAX_LOOKAHEAD_BUFFER = 4096;
 const int32_t BLOCK_SIZE = 64;
@@ -167,7 +168,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_maximizer = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_maximizer,
+    filter_items_maximizer.data(),
     nullptr,
     func_proc_maximizer,
     nullptr,

@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <cmath>
 #include <map>
@@ -11,13 +12,13 @@ FILTER_ITEM_TRACK deess_thresh(L"Threshold", -20.0, -60.0, 0.0, 0.1, nullptr, 1.
 FILTER_ITEM_TRACK deess_amt(L"Amount", 10.0, 0.0, 48.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK deess_width(L"Width", 2.0, 0.1, 10.0, 0.1, nullptr, 1.0);
 
-void* filter_items_deesser[] = {
-    &deess_freq,
-    &deess_thresh,
-    &deess_amt,
-    &deess_width,
-    nullptr
-};
+static std::vector<void*> filter_items_deesser = FilterItemHelper::ItemList()
+                                                     .Add(
+                                                         deess_freq,
+                                                         deess_thresh,
+                                                         deess_amt,
+                                                         deess_width)
+                                                     .Build();
 
 struct DeesserBiquad {
     float x1 = 0.0f, x2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
@@ -167,7 +168,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_deesser = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_deesser,
+    filter_items_deesser.data(),
     nullptr,
     func_proc_audio_deesser,
     nullptr,

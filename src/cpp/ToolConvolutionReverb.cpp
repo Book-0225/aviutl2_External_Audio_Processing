@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "ConvolutionEngine.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 #include "Reverb.h"
 #include "StringUtils.h"
 #include "WavLoader.h"
@@ -33,19 +34,19 @@ FILTER_ITEM_TRACK conv_highcut(L"ハイカット", 20.0, 1.0, 20.0, 0.1, nullptr
 FILTER_ITEM_TRACK conv_lowcut(L"ローカット", 0.02, 0.02, 1.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK conv_mix(L"Mix", 40.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_convolution_reverb[] = {
-    &conv_ir_file,
-    &conv_ir_file_r,
-    &conv_normalize,
-    &conv_ir_gain,
-    &conv_ch_mode,
-    &conv_ts4ch_order,
-    &conv_predelay,
-    &conv_highcut,
-    &conv_lowcut,
-    &conv_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_convolution_reverb = FilterItemHelper::ItemList()
+                                                                .Add(
+                                                                    conv_ir_file,
+                                                                    conv_ir_file_r,
+                                                                    conv_normalize,
+                                                                    conv_ir_gain,
+                                                                    conv_ch_mode,
+                                                                    conv_ts4ch_order,
+                                                                    conv_predelay,
+                                                                    conv_highcut,
+                                                                    conv_lowcut,
+                                                                    conv_mix)
+                                                                .Build();
 
 constexpr int32_t CONV_BLOCK_SIZE = 1024;
 constexpr double MAX_IR_SECONDS = 8.0;
@@ -387,7 +388,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_convolution_reverb = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_convolution_reverb,
+    filter_items_convolution_reverb.data(),
     nullptr,
     func_proc_audio_convolution_reverb
 };

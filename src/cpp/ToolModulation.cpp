@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -18,17 +19,17 @@ FILTER_ITEM_TRACK mod_feedback(L"Feedback", 0.0, 0.0, 95.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK mod_delay(L"Delay", 10.0, 0.1, 50.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK mod_mix(L"Mix", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_modulation[] = {
-    &mod_chorus_s,
-    &mod_flanger_s,
-    &mod_tremolo_s,
-    &mod_rate,
-    &mod_depth,
-    &mod_feedback,
-    &mod_delay,
-    &mod_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_modulation = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            mod_chorus_s,
+                                                            mod_flanger_s,
+                                                            mod_tremolo_s,
+                                                            mod_rate,
+                                                            mod_depth,
+                                                            mod_feedback,
+                                                            mod_delay,
+                                                            mod_mix)
+                                                        .Build();
 
 const int32_t MAX_BUFFER_SIZE = 48000 * 2;
 const int32_t BLOCK_SIZE = 64;
@@ -217,7 +218,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_modulation = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_modulation,
+    filter_items_modulation.data(),
     nullptr,
     func_proc_audio_modulation,
     nullptr,

@@ -1,4 +1,5 @@
 ﻿#include "Eap2Common.h"
+#include "FilterItemHelper.h"
 #include "MidiParser.h"
 #include "SynthCommon.h"
 #include "TempoUtils.h"
@@ -26,8 +27,8 @@ FILTER_ITEM_SELECT::ITEM list_sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT midi_sync_mode(L"BPMの同期", 1, list_sync_mode);
-FILTER_ITEM_TRACK midi_fixed_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_fixed_bpm_hide(L"BPM(手動)", L"BPMの同期", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+const FilterItemHelper::HideCond HideBpmSynced{ midi_sync_mode.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0 };
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_fixed_bpm(HideBpmSynced, L"BPM(手動)", 120.0, 1.0, 999.0, 0.1);
 FILTER_ITEM_TRACK midi_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_SELECT::ITEM list_render_mode[] = {
     { L"内蔵シンセ", 0 },
@@ -35,68 +36,46 @@ FILTER_ITEM_SELECT::ITEM list_render_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT render_mode(L"レンダリング", 0, list_render_mode);
-FILTER_ITEM_GROUP sf2_group(L"SF2", false);
-FILTER_ITEM_FILE sf2_file(L"SF2ファイル", L"", L"SoundFont\0*.sf2\0");
-FILTER_ITEM_HIDE_RULE sf2_file_hide(L"SF2ファイル", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 1);
-FILTER_ITEM_TRACK sf2_master_volume(L"SF2音量", 1.0, 0.0, 2.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE sf2_master_volume_hide(L"SF2音量", L"SF2ファイル", FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
-FILTER_ITEM_TRACK sf2_reverb_level(L"SF2リバーブ", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE sf2_reverb_level_hide(L"SF2リバーブ", L"SF2ファイル", FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
-FILTER_ITEM_GROUP built_in_group(L"内蔵", false);
-FILTER_ITEM_SELECT midi_type(L"波形", 0, gen_type_list);
-FILTER_ITEM_HIDE_RULE midi_type_hide(L"波形", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_timbre(L"音色", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_timbre_hide(L"音色", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_attack(L"アタック", 0.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_attack_hide(L"アタック", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_decay(L"ディケイ", 0.0, 0.0, 5000.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_decay_hide(L"ディケイ", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_sustain(L"サステイン", 0.0, -60.0, 0.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_sustain_hide(L"サステイン", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_release(L"リリース", 0.0, 0.0, 5000.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_release_hide(L"リリース", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_cutoff(L"カットオフ", 1.0, 0.0, 1.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_cutoff_hide(L"カットオフ", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_reso(L"レゾナンス", 0.0, 0.0, 1.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_reso_hide(L"レゾナンス", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK midi_detune(L"デチューン", 0.2, 0.0, 1.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE midi_detune_hide(L"デチューン", L"レンダリング", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+const FilterItemHelper::HideCond HideNotSf2(render_mode.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 1);
+const FilterItemHelper::HideCond HideNotBuiltIn(render_mode.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_GROUP> sf2_group(HideNotSf2, L"SF2", true);
+FilterItemHelper::WithHide<FILTER_ITEM_FILE> sf2_file(HideNotSf2, L"SF2ファイル", L"", L"SoundFont\0*.sf2\0");
+const FilterItemHelper::HideCond HideNoSf2File(sf2_file.name, FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> sf2_master_volume(HideNoSf2File, L"SF2音量", 1.0, 0.0, 2.0, 0.01);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> sf2_reverb_level(HideNoSf2File, L"SF2リバーブ", 0.0, 0.0, 1.0, 0.01);
+FilterItemHelper::WithHide<FILTER_ITEM_GROUP> built_in_group(HideNotBuiltIn, L"内蔵", true);
+FilterItemHelper::WithHide<FILTER_ITEM_SELECT> midi_type(HideNotBuiltIn, L"波形", 0, gen_type_list);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_timbre(HideNotBuiltIn, L"音色", 0.0, 0.0, 1.0, 0.01);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_attack(HideNotBuiltIn, L"アタック", 0.0, 0.0, 2000.0, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_decay(HideNotBuiltIn, L"ディケイ", 0.0, 0.0, 5000.0, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_sustain(HideNotBuiltIn, L"サステイン", 0.0, -60.0, 0.0, 0.1);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_release(HideNotBuiltIn, L"リリース", 0.0, 0.0, 5000.0, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_cutoff(HideNotBuiltIn, L"カットオフ", 1.0, 0.0, 1.0, 0.01);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_reso(HideNotBuiltIn, L"レゾナンス", 0.0, 0.0, 1.0, 0.01);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_detune(HideNotBuiltIn, L"デチューン", 0.2, 0.0, 1.0, 0.01);
 
-void* filter_items_midi_gen[] = {
-    &midi_file,
-    &midi_sync_mode,
-    &midi_fixed_bpm,
-    &midi_fixed_bpm_hide,
-    &midi_offset,
-    &render_mode,
-    &sf2_group,
-    &sf2_file,
-    &sf2_file_hide,
-    &sf2_master_volume,
-    &sf2_master_volume_hide,
-    &sf2_reverb_level,
-    &sf2_reverb_level_hide,
-    &built_in_group,
-    &midi_type,
-    &midi_type_hide,
-    &midi_timbre,
-    &midi_timbre_hide,
-    &midi_attack,
-    &midi_attack_hide,
-    &midi_decay,
-    &midi_decay_hide,
-    &midi_sustain,
-    &midi_sustain_hide,
-    &midi_release,
-    &midi_release_hide,
-    &midi_cutoff,
-    &midi_cutoff_hide,
-    &midi_reso,
-    &midi_reso_hide,
-    &midi_detune,
-    &midi_detune_hide,
-    nullptr
-};
+static std::vector<void*> filter_items_midi_gen = FilterItemHelper::ItemList()
+                                                      .Add(
+                                                          midi_file,
+                                                          midi_sync_mode,
+                                                          midi_fixed_bpm,
+                                                          midi_offset,
+                                                          render_mode,
+                                                          sf2_group,
+                                                          sf2_file,
+                                                          sf2_master_volume,
+                                                          sf2_reverb_level,
+                                                          built_in_group,
+                                                          midi_type,
+                                                          midi_timbre,
+                                                          midi_attack,
+                                                          midi_decay,
+                                                          midi_sustain,
+                                                          midi_release,
+                                                          midi_cutoff,
+                                                          midi_reso,
+                                                          midi_detune)
+                                                      .Build();
 
 struct RendererInitParams {
     double sample_rate = 44100.0;
@@ -789,7 +768,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_midi_gen = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_midi_gen,
+    filter_items_midi_gen.data(),
     nullptr,
     func_proc_audio_midi,
     nullptr,

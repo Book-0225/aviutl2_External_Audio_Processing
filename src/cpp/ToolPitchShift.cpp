@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
 #include "FftUtils.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,13 +23,13 @@ FILTER_ITEM_TRACK ps_pitch(L"Pitch", 0.0, -24.0, 24.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_TRACK ps_speed(L"再生速度補正", 100.0, -2000.0, 2000.0, 0.01, L"無効", 1.0);
 FILTER_ITEM_TRACK ps_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_pitch_shift[] = {
-    &ps_algo,
-    &ps_pitch,
-    &ps_speed,
-    &ps_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_pitch_shift = FilterItemHelper::ItemList()
+                                                         .Add(
+                                                             ps_algo,
+                                                             ps_pitch,
+                                                             ps_speed,
+                                                             ps_mix)
+                                                         .Build();
 
 static constexpr int32_t BLOCK_SIZE = 64;
 
@@ -335,7 +336,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_pitch_shift = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_pitch_shift,
+    filter_items_pitch_shift.data(),
     nullptr,
     func_proc_audio_pitch_shift,
     nullptr,

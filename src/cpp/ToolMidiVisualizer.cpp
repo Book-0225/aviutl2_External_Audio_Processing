@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "FilterItemHelper.h"
 #include "MidiParser.h"
 #include "PluginManager.h"
 #include "StringUtils.h"
@@ -290,7 +291,8 @@ FILTER_ITEM_GROUP group_keys(L"キーの範囲とサイズ");
 FILTER_ITEM_TRACK track_key_min(L"最小キー", 0, 0, 127, 1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_key_max(L"最大キー", 127, 0, 127, 1, nullptr, 1.0);
 FILTER_ITEM_CHECK check_auto_fit(L"自動調整", true);
-FILTER_ITEM_TRACK track_key_size(L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0, nullptr, 1.0);
+const FilterItemHelper::HideCond HideAutofit(check_auto_fit.name, FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 1);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_key_size(HideAutofit, L"サイズ(手動)", 12.0, 1.0, 200.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_sync(L"同期", false);
 FILTER_ITEM_TRACK track_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
@@ -300,12 +302,14 @@ FILTER_ITEM_SELECT::ITEM sync_mode_visualizer[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync_visualizer(L"BPMの同期", 1, sync_mode_visualizer);
-FILTER_ITEM_TRACK track_manual_bpm(L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_TRACK track_manual_num(L"分子(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_TRACK track_manual_denom(L"分母(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+const FilterItemHelper::HideCond HideBPMVis(select_bpm_sync_visualizer.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_manual_bpm(HideBPMVis, L"BPM(手動)", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_manual_num(HideBPMVis, L"分子(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_manual_denom(HideBPMVis, L"分母(手動)", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK track_speed_mul(L"速度", 1.0, 0.1, 10.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_CHECK check_constant_speed(L"ノーツ速度を固定", false);
-FILTER_ITEM_TRACK track_ref_bpm(L"固定表示BPM", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
+const FilterItemHelper::HideCond HideConstspeed(check_constant_speed.name, FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_ref_bpm(HideConstspeed, L"固定表示BPM", 120.0, 1.0, 999.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_GROUP group_filter(L"フィルタ", false);
 FILTER_ITEM_TRACK track_ch_target(L"チャンネル", 0, 0, 16, 1, nullptr, 1.0);
 FILTER_ITEM_TRACK track_vel_min(L"最小強度", 0, 0, 127, 1, nullptr, 1.0);
@@ -325,23 +329,24 @@ FILTER_ITEM_COLOR color_base(L"基本色", 0x00FF00);
 FILTER_ITEM_TRACK track_radius(L"角の半径", 2.0, 0.0, 20.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_CHECK check_gradient(L"グラデーション", true);
 FILTER_ITEM_TRACK track_padding(L"余白", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_GROUP group_col_ind(L"色個別指定", false);
-FILTER_ITEM_COLOR col_ch1(L"ch1", 0x00FF00);
-FILTER_ITEM_COLOR col_ch2(L"ch2", 0xFF0000);
-FILTER_ITEM_COLOR col_ch3(L"ch3", 0x0000FF);
-FILTER_ITEM_COLOR col_ch4(L"ch4", 0x00FFFF);
-FILTER_ITEM_COLOR col_ch5(L"ch5", 0xFF00FF);
-FILTER_ITEM_COLOR col_ch6(L"ch6", 0xFFFF00);
-FILTER_ITEM_COLOR col_ch7(L"ch7", 0x0080FF);
-FILTER_ITEM_COLOR col_ch8(L"ch8", 0x8000FF);
-FILTER_ITEM_COLOR col_ch9(L"ch9", 0x80FF00);
-FILTER_ITEM_COLOR col_ch10(L"ch10", 0xFF8000);
-FILTER_ITEM_COLOR col_ch11(L"ch11", 0x008080);
-FILTER_ITEM_COLOR col_ch12(L"ch12", 0x800080);
-FILTER_ITEM_COLOR col_ch13(L"ch13", 0x808000);
-FILTER_ITEM_COLOR col_ch14(L"ch14", 0xC0C0C0);
-FILTER_ITEM_COLOR col_ch15(L"ch15", 0x4040FF);
-FILTER_ITEM_COLOR col_ch16(L"ch16", 0xFF4040);
+const FilterItemHelper::HideCond HideColInd{ select_col_mode.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 4 };
+FilterItemHelper::WithHide<FILTER_ITEM_GROUP> group_col_ind(HideColInd, L"色個別指定", false);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch1(HideColInd, L"ch1", 0x00FF00);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch2(HideColInd, L"ch2", 0xFF0000);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch3(HideColInd, L"ch3", 0x0000FF);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch4(HideColInd, L"ch4", 0x00FFFF);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch5(HideColInd, L"ch5", 0xFF00FF);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch6(HideColInd, L"ch6", 0xFFFF00);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch7(HideColInd, L"ch7", 0x0080FF);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch8(HideColInd, L"ch8", 0x8000FF);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch9(HideColInd, L"ch9", 0x80FF00);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch10(HideColInd, L"ch10", 0xFF8000);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch11(HideColInd, L"ch11", 0x008080);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch12(HideColInd, L"ch12", 0x800080);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch13(HideColInd, L"ch13", 0x808000);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch14(HideColInd, L"ch14", 0xC0C0C0);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch15(HideColInd, L"ch15", 0x4040FF);
+FilterItemHelper::WithHide<FILTER_ITEM_COLOR> col_ch16(HideColInd, L"ch16", 0xFF4040);
 FILTER_ITEM_GROUP group_border(L"縁", false);
 FILTER_ITEM_CHECK check_border(L"縁を描画", false);
 FILTER_ITEM_TRACK track_border_w(L"縁幅", 1.0, 0.0, 10.0, 1.0, nullptr, 1.0);
@@ -349,12 +354,13 @@ FILTER_ITEM_COLOR color_border(L"縁色", 0xFFFFFF);
 FILTER_ITEM_TRACK track_note_alpha(L"ノートの不透明度", 100.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_GROUP group_kb(L"装飾");
 FILTER_ITEM_CHECK check_draw_kb(L"キーボード", true);
-FILTER_ITEM_TRACK track_kb_width(L"キーボード幅", 40.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_CHECK check_kb_width_of(L"幅に合わせてノーツ位置を調整", true);
-FILTER_ITEM_TRACK track_kb_black_ratio(L"黒鍵割合", 0.65, 0.1, 1.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_TRACK track_kb_led_pos(L"LED位置", 85.0, 0.0, 100.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_TRACK track_kb_led_size(L"LEDサイズ", 60.0, 1.0, 100.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_TRACK track_kb_led_alpha(L"LED不透明度", 75.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+const FilterItemHelper::HideCond HideKb{ check_draw_kb.name, FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0 };
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_kb_width(HideKb, L"キーボード幅", 40.0, 0.0, 2000.0, 1.0, nullptr, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_CHECK> check_kb_width_of(HideKb, L"幅に合わせてノーツ位置を調整", true);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_kb_black_ratio(HideKb, L"黒鍵割合", 0.65, 0.1, 1.0, 0.01, nullptr, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_kb_led_pos(HideKb, L"LED位置", 85.0, 0.0, 100.0, 1.0, nullptr, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_kb_led_size(HideKb, L"LEDサイズ", 60.0, 1.0, 100.0, 1.0, nullptr, 1.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_kb_led_alpha(HideKb, L"LED不透明度", 75.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_COLOR color_grid(L"グリッド色", 0xFFFFFF);
 FILTER_ITEM_TRACK track_grid_width(L"グリッド幅", 1.0, 0.0, 10.0, 1.0, L"無効", 1.0);
 FILTER_ITEM_CHECK check_grid_h(L"キーグリッド", true);
@@ -374,87 +380,87 @@ struct LastMidiData {
 };
 FILTER_ITEM_DATA<LastMidiData> last_midi_path(L"LAST_MIDI_PATH");
 
-void* filter_items_midi_visualizer[] = {
-    &track_file,
-    &group_canvas,
-    &track_width,
-    &track_height,
-    &color_bg,
-    &track_bg_alpha,
-    &group_view,
-    &select_scroll,
-    &select_reaction,
-    &track_zoom_time,
-    &track_scroll_pos,
-    &group_keys,
-    &track_key_min,
-    &track_key_max,
-    &check_auto_fit,
-    &track_key_size,
-    &group_sync,
-    &track_offset,
-    &select_bpm_sync_visualizer,
-    &track_manual_bpm,
-    &track_manual_num,
-    &track_manual_denom,
-    &track_speed_mul,
-    &check_constant_speed,
-    &track_ref_bpm,
-    &group_filter,
-    &track_ch_target,
-    &track_vel_min,
-    &check_hide_perc,
-    &group_style,
-    &check_draw_notes,
-    &select_col_mode,
-    &color_base,
-    &track_radius,
-    &check_gradient,
-    &track_padding,
-    &group_col_ind,
-    &col_ch1,
-    &col_ch2,
-    &col_ch3,
-    &col_ch4,
-    &col_ch5,
-    &col_ch6,
-    &col_ch7,
-    &col_ch8,
-    &col_ch9,
-    &col_ch10,
-    &col_ch11,
-    &col_ch12,
-    &col_ch13,
-    &col_ch14,
-    &col_ch15,
-    &col_ch16,
-    &group_border,
-    &check_border,
-    &track_border_w,
-    &color_border,
-    &track_note_alpha,
-    &group_kb,
-    &check_draw_kb,
-    &track_kb_width,
-    &check_kb_width_of,
-    &track_kb_black_ratio,
-    &track_kb_led_pos,
-    &track_kb_led_size,
-    &track_kb_led_alpha,
-    &color_grid,
-    &track_grid_width,
-    &check_grid_h,
-    &check_grid_v,
-    &group_effect,
-    &track_sink_depth,
-    &track_ripple_size,
-    &track_ripple_time,
-    &track_particle_amt,
-    &track_particle_time,
-    &midi_visualizer_data_param,
-    &last_midi_path,
-    nullptr
-};
+static std::vector<void*> filter_items_midi_visualizer = FilterItemHelper::ItemList()
+                                                             .Add(
+                                                                 track_file,
+                                                                 group_canvas,
+                                                                 track_width,
+                                                                 track_height,
+                                                                 color_bg,
+                                                                 track_bg_alpha,
+                                                                 group_view,
+                                                                 select_scroll,
+                                                                 select_reaction,
+                                                                 track_zoom_time,
+                                                                 track_scroll_pos,
+                                                                 group_keys,
+                                                                 track_key_min,
+                                                                 track_key_max,
+                                                                 check_auto_fit,
+                                                                 track_key_size,
+                                                                 group_sync,
+                                                                 track_offset,
+                                                                 select_bpm_sync_visualizer,
+                                                                 track_manual_bpm,
+                                                                 track_manual_num,
+                                                                 track_manual_denom,
+                                                                 track_speed_mul,
+                                                                 check_constant_speed,
+                                                                 track_ref_bpm,
+                                                                 group_filter,
+                                                                 track_ch_target,
+                                                                 track_vel_min,
+                                                                 check_hide_perc,
+                                                                 group_style,
+                                                                 check_draw_notes,
+                                                                 select_col_mode,
+                                                                 color_base,
+                                                                 track_radius,
+                                                                 check_gradient,
+                                                                 track_padding,
+                                                                 group_col_ind,
+                                                                 col_ch1,
+                                                                 col_ch2,
+                                                                 col_ch3,
+                                                                 col_ch4,
+                                                                 col_ch5,
+                                                                 col_ch6,
+                                                                 col_ch7,
+                                                                 col_ch8,
+                                                                 col_ch9,
+                                                                 col_ch10,
+                                                                 col_ch11,
+                                                                 col_ch12,
+                                                                 col_ch13,
+                                                                 col_ch14,
+                                                                 col_ch15,
+                                                                 col_ch16,
+                                                                 group_border,
+                                                                 check_border,
+                                                                 track_border_w,
+                                                                 color_border,
+                                                                 track_note_alpha,
+                                                                 group_kb,
+                                                                 check_draw_kb,
+                                                                 track_kb_width,
+                                                                 check_kb_width_of,
+                                                                 track_kb_black_ratio,
+                                                                 track_kb_led_pos,
+                                                                 track_kb_led_size,
+                                                                 track_kb_led_alpha,
+                                                                 color_grid,
+                                                                 track_grid_width,
+                                                                 check_grid_h,
+                                                                 check_grid_v,
+                                                                 group_effect,
+                                                                 track_sink_depth,
+                                                                 track_ripple_size,
+                                                                 track_ripple_time,
+                                                                 track_particle_amt,
+                                                                 track_particle_time,
+                                                                 midi_visualizer_data_param,
+                                                                 last_midi_path)
+                                                             .Build();
 
 struct RenameParam {
     std::wstring newName;
@@ -1215,7 +1221,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_midi_visualizer = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_midi_visualizer,
+    filter_items_midi_visualizer.data(),
     func_proc_video_midi_visualizer,
     nullptr,
     nullptr,

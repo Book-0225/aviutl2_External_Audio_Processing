@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <map>
@@ -13,13 +14,13 @@ FILTER_ITEM_TRACK rev_damping(L"Damping", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK rev_predelay(L"Pre-Delay", 0.0, 0.0, 200.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK rev_mix(L"Mix", 30.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_reverb[] = {
-    &rev_time,
-    &rev_damping,
-    &rev_predelay,
-    &rev_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_reverb = FilterItemHelper::ItemList()
+                                                    .Add(
+                                                        rev_time,
+                                                        rev_damping,
+                                                        rev_predelay,
+                                                        rev_mix)
+                                                    .Build();
 
 const int32_t MAX_BUFFER_SIZE = 48000 * 4;
 const int32_t PROCESS_BLOCK_SIZE = 64;
@@ -316,7 +317,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_reverb = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_reverb,
+    filter_items_reverb.data(),
     nullptr,
     func_proc_audio_reverb,
     nullptr,

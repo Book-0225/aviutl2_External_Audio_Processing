@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <vector>
@@ -12,13 +13,13 @@ FILTER_ITEM_TRACK send_gain(L"Send Gain", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK send_offset(L"Offset", 0.0, 0.0, 600.0, 0.001, nullptr, 1.0);
 FILTER_ITEM_TRACK send_duration(L"Duration", 0.0, 0.0, 600.0, 0.001, L"オブジェクト長", 1.0);
 
-void* filter_items_chain_send[] = {
-    &send_id,
-    &send_gain,
-    &send_offset,
-    &send_duration,
-    nullptr
-};
+static std::vector<void*> filter_items_chain_send = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            send_id,
+                                                            send_gain,
+                                                            send_offset,
+                                                            send_duration)
+                                                        .Build();
 
 bool func_proc_audio_chain_send(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -89,7 +90,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_send = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_chain_send,
+    filter_items_chain_send.data(),
     nullptr,
     func_proc_audio_chain_send,
     nullptr,

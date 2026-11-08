@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -28,27 +29,27 @@ FILTER_ITEM_TRACK dyn_upcomp_release(L"Upward Release", 50.0, 10.0, 1000.0, 1.0,
 FILTER_ITEM_GROUP lim_group(L"", true);
 FILTER_ITEM_TRACK dyn_limiter(L"Limiter", 0.0, -20.0, 0.0, 0.1, nullptr, 1.0);
 
-void* filter_items_dynamics[] = {
-    &gate_group,
-    &dyn_gate_thresh,
-    &dyn_gate_att,
-    &dyn_gate_rel,
-    &comp_group,
-    &dyn_comp_thresh,
-    &dyn_comp_ratio,
-    &dyn_comp_attack,
-    &dyn_comp_release,
-    &dyn_comp_makeup,
-    &upcomp_group,
-    &dyn_upcomp_thresh,
-    &dyn_upcomp_ratio,
-    &dyn_upcomp_range,
-    &dyn_upcomp_attack,
-    &dyn_upcomp_release,
-    &lim_group,
-    &dyn_limiter,
-    nullptr
-};
+static std::vector<void*> filter_items_dynamics = FilterItemHelper::ItemList()
+                                                      .Add(
+                                                          gate_group,
+                                                          dyn_gate_thresh,
+                                                          dyn_gate_att,
+                                                          dyn_gate_rel,
+                                                          comp_group,
+                                                          dyn_comp_thresh,
+                                                          dyn_comp_ratio,
+                                                          dyn_comp_attack,
+                                                          dyn_comp_release,
+                                                          dyn_comp_makeup,
+                                                          upcomp_group,
+                                                          dyn_upcomp_thresh,
+                                                          dyn_upcomp_ratio,
+                                                          dyn_upcomp_range,
+                                                          dyn_upcomp_attack,
+                                                          dyn_upcomp_release,
+                                                          lim_group,
+                                                          dyn_limiter)
+                                                      .Build();
 
 struct DynamicsState {
     double gate_gain = 1.0;
@@ -228,7 +229,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_dynamics = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_dynamics,
+    filter_items_dynamics.data(),
     nullptr,
     func_proc_audio_dynamics,
     nullptr,

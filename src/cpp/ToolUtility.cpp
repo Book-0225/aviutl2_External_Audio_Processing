@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <vector>
@@ -22,15 +23,15 @@ FILTER_ITEM_SELECT::ITEM mono_mode_list[] = {
 
 FILTER_ITEM_SELECT tool_mono_mode(L"Mono Mode", 0, mono_mode_list);
 
-void* filter_items_utility[] = {
-    &tool_gain,
-    &tool_pan,
-    &tool_swap_s,
-    &tool_inv_l_s,
-    &tool_inv_r_s,
-    &tool_mono_mode,
-    nullptr
-};
+static std::vector<void*> filter_items_utility = FilterItemHelper::ItemList()
+                                                     .Add(
+                                                         tool_gain,
+                                                         tool_pan,
+                                                         tool_swap_s,
+                                                         tool_inv_l_s,
+                                                         tool_inv_r_s,
+                                                         tool_mono_mode)
+                                                     .Build();
 
 bool func_proc_audio_utility(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -107,7 +108,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_utility = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_utility,
+    filter_items_utility.data(),
     nullptr,
     func_proc_audio_utility,
     nullptr,

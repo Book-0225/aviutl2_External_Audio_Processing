@@ -2,6 +2,7 @@
 #include "Avx2Utils.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "FilterItemHelper.h"
 #include "IAudioPluginHost.h"
 #include "MidiParser.h"
 #include "NotesManager.h"
@@ -85,16 +86,9 @@ constexpr char AHS_DB[] = "AudioHostStateDB";
 
 FILTER_ITEM_GROUP general_group(L"General Settings", true);
 FILTER_ITEM_FILE plugin_path_param(L"プラグイン", L"", filter_ext);
-FILTER_ITEM_TRACK track_wet(L"Wet", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE track_wet_hide(L"Wet", L"プラグイン", FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
-FILTER_ITEM_TRACK track_volume(L"Gain", 100.0, 0.0, 500.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE track_volume_hide(L"Gain", L"プラグイン", FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
-FILTER_ITEM_TRACK track_bpm(L"BPM", 120.0, 1.0, 999.0, 0.01, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE track_bpm_hide(L"BPM", L"BPMの同期", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK track_ts_num(L"分子", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE track_ts_num_hide(L"分子", L"BPMの同期", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
-FILTER_ITEM_TRACK track_ts_denom(L"分母", 4.0, 1.0, 32.0, 1.0, nullptr, 1.0);
-FILTER_ITEM_HIDE_RULE track_ts_denom_hide(L"分母", L"BPMの同期", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+const FilterItemHelper::HideCond HideNoPlugin(plugin_path_param.name, FILTER_ITEM_HIDE_RULE::OPERATOR::EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_wet(HideNoPlugin, L"Wet", 100.0, 0.0, 100.0, 0.1);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_volume(HideNoPlugin, L"Gain", 100.0, 0.0, 500.0, 0.1);
 FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { L"同期しない", 0 },
     { L"MIDIにBPMを同期", 1 },
@@ -102,6 +96,10 @@ FILTER_ITEM_SELECT::ITEM sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT select_bpm_sync(L"BPMの同期", 0, sync_mode);
+const FilterItemHelper::HideCond HideBpmSynced(select_bpm_sync.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_bpm(HideBpmSynced, L"BPM", 120.0, 1.0, 999.0, 0.01);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_ts_num(HideBpmSynced, L"分子", 4.0, 1.0, 32.0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_ts_denom(HideBpmSynced, L"分母", 4.0, 1.0, 32.0);
 FILTER_ITEM_CHECK_SECTION checks_apply_l(L"Apply to L (Each section)", true, false);
 FILTER_ITEM_CHECK_SECTION checks_apply_r(L"Apply to R (Each section)", true, false);
 struct InstanceID {
@@ -167,49 +165,54 @@ FILTER_ITEM_BUTTON toggle_gui_button(L"プラグインGUIを表示/非表示", [
         }
     });
 });
-FILTER_ITEM_GROUP param_group(L"パラメータ紐づけ設定", false);
-FILTER_ITEM_SEPARATOR sep_map1(L"割り当て 1");
-FILTER_ITEM_TRACK track_map1(L"Map 1", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param1(L"Param 1", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_SEPARATOR sep_map2(L"割り当て 2");
-FILTER_ITEM_TRACK track_map2(L"Map 2", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param2(L"Param 2", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_SEPARATOR sep_map3(L"割り当て 3");
-FILTER_ITEM_TRACK track_map3(L"Map 3", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param3(L"Param 3", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_SEPARATOR sep_map4(L"割り当て 4");
-FILTER_ITEM_TRACK track_map4(L"Map 4", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param4(L"Param 4", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_GROUP param_ex_group(L"パラメータ紐づけ設定(追加)", false);
-FILTER_ITEM_SEPARATOR sep_map5(L"割り当て 5");
-FILTER_ITEM_TRACK track_map5(L"Map 5", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param5(L"Param 5", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_SEPARATOR sep_map6(L"割り当て 6");
-FILTER_ITEM_TRACK track_map6(L"Map 6", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param6(L"Param 6", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_SEPARATOR sep_map7(L"割り当て 7");
-FILTER_ITEM_TRACK track_map7(L"Map 7", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param7(L"Param 7", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
-FILTER_ITEM_SEPARATOR sep_map8(L"割り当て 8");
-FILTER_ITEM_TRACK track_map8(L"Map 8", 0.0, 0.0, 1000, 1.0, L"無効", 1.0);
-FILTER_ITEM_TRACK track_param8(L"Param 8", 0.0, 0.0, 100.0, 0.1, nullptr, 1.0);
+
+constexpr int32_t BaseMapSlots = 4;
+constexpr int32_t MapSlotCount = 8;
+
+struct MapSlot {
+    MapSlot(int32_t n)
+        : n_sep(L"割り当て {}", n),
+          n_map(L"Map {}", n),
+          n_param(L"Param {}", n),
+          sep(n_sep.s.c_str()),
+          sep_hide(MakeHideRule(n_sep.s.c_str(), HideNoPlugin)),
+          map(n_map.s.c_str(), 0.0, 0.0, 1000.0, 1.0, L"無効"),
+          map_hide(MakeHideRule(n_map.s.c_str(), HideNoPlugin)),
+          param(n_param.s.c_str(), 0.0, 0.0, 100.0, 0.1),
+          param_hide(MakeHideRule(n_param.s.c_str(), HideNoPlugin)) {}
+
+    MapSlot(const MapSlot&) = delete;
+    MapSlot& operator=(const MapSlot&) = delete;
+
+    void AddTo(FilterItemHelper::ItemList& l) {
+        l.Add(sep);
+        l.Add(sep_hide);
+        l.Add(map);
+        l.Add(map_hide);
+        l.Add(param);
+        l.Add(param_hide);
+    }
+
+    FilterItemHelper::NumberedName n_sep;
+    FilterItemHelper::NumberedName n_map;
+    FilterItemHelper::NumberedName n_param;
+    FILTER_ITEM_SEPARATOR sep;
+    FILTER_ITEM_HIDE_RULE sep_hide;
+    FILTER_ITEM_TRACK map;
+    FILTER_ITEM_HIDE_RULE map_hide;
+    FILTER_ITEM_TRACK param;
+    FILTER_ITEM_HIDE_RULE param_hide;
+};
+static MapSlot map_slots[MapSlotCount] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+FilterItemHelper::WithHide<FILTER_ITEM_GROUP> param_group(HideNoPlugin, L"パラメータ紐づけ設定", false);
+FilterItemHelper::WithHide<FILTER_ITEM_GROUP> param_ex_group(HideNoPlugin, L"パラメータ紐づけ設定(追加)", false);
+
 void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR effect, LPCWSTR item) {
     if (!edit || !object || !item) return;
-
-    static const std::pair<LPCWSTR, int32_t> kSlotNames[] = {
-        { track_map1.name, 0 },
-        { track_map2.name, 1 },
-        { track_map3.name, 2 },
-        { track_map4.name, 3 },
-        { track_map5.name, 4 },
-        { track_map6.name, 5 },
-        { track_map7.name, 6 },
-        { track_map8.name, 7 },
-    };
     int32_t slot = -1;
-    for (auto& [name, idx] : kSlotNames) {
-        if (wcscmp(item, name) == 0) {
-            slot = idx;
+    for (int32_t i = 0; i < MapSlotCount; ++i) {
+        if (wcscmp(item, map_slots[i].map.name) == 0) {
+            slot = i;
             break;
         }
     }
@@ -248,9 +251,9 @@ void HandleAssignParamMenu(EDIT_SECTION* edit, OBJECT_HANDLE object, LPCWSTR eff
 }
 
 FILTER_ITEM_GROUP midi_group(L"MIDI Settings", false);
-FILTER_ITEM_TRACK track_recv_id(L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0, L"無効", 1.0);
-FILTER_ITEM_HIDE_RULE track_recv_id_hide(L"Recv ID", L"MIDI File", FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
 FILTER_ITEM_FILE midi_path_param(L"MIDI File", L"", L"MIDI Files (*.mid;*.midi)\0*.mid;*.midi\0All Files (*.*)\0*.*\0\0");
+const FilterItemHelper::HideCond HideNoMidi(midi_path_param.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
+FilterItemHelper::WithHide<FILTER_ITEM_TRACK> track_recv_id(HideNoMidi, L"Recv ID", 0.0, 0.0, NotesManager::MAX_ID, 1.0, L"無効");
 struct InstanceLastRecvData {
     int32_t last_recv_id = -1;
 };
@@ -264,191 +267,26 @@ struct InstanceLastMidiData {
 };
 FILTER_ITEM_DATA<InstanceLastMidiData> last_midi_data(L"LAST_MIDI_DATA");
 
-void* filter_items_host[] = {
-    &general_group,
-    &plugin_path_param,
-    &button_change_subplugin,
-    &track_wet,
-    &track_wet_hide,
-    &track_volume,
-    &track_volume_hide,
-    &track_bpm,
-    &track_bpm_hide,
-    &track_ts_num,
-    &track_ts_num_hide,
-    &track_ts_denom,
-    &track_ts_denom_hide,
-    &select_bpm_sync,
-    &button_load_plugin,
-    &toggle_gui_button,
-    &checks_apply_l,
-    &checks_apply_r,
-    &param_group,
-    &sep_map1,
-    &track_map1,
-    &track_param1,
-    &sep_map2,
-    &track_map2,
-    &track_param2,
-    &sep_map3,
-    &track_map3,
-    &track_param3,
-    &sep_map4,
-    &track_map4,
-    &track_param4,
-    &midi_group,
-    &track_recv_id,
-    &track_recv_id_hide,
-    &midi_path_param,
-    &instance_data_param,
-    &last_recv_data,
-    &last_plugin_data,
-    &last_midi_data,
-    nullptr
-};
+static std::vector<void*> BuildHostItems(bool media, bool param_ex) {
+    FilterItemHelper::ItemList l;
+    l.Add(general_group, plugin_path_param, button_change_subplugin);
+    if (!media) l.Add(track_wet, track_volume);
+    l.Add(select_bpm_sync, track_bpm, track_ts_num, track_ts_denom, button_load_plugin, toggle_gui_button);
+    if (!media) l.Add(checks_apply_l, checks_apply_r);
+    l.Add(param_group);
+    for (int32_t i = 0; i < BaseMapSlots; ++i) map_slots[i].AddTo(l);
+    if (param_ex) {
+        l.Add(param_ex_group);
+        for (int32_t i = BaseMapSlots; i < MapSlotCount; ++i) map_slots[i].AddTo(l);
+    }
+    l.Add(midi_group, track_recv_id, midi_path_param, instance_data_param, last_recv_data, last_plugin_data, last_midi_data);
+    return l.Build();
+}
 
-void* filter_items_host_media[] = {
-    &general_group,
-    &plugin_path_param,
-    &button_change_subplugin,
-    &track_bpm,
-    &track_bpm_hide,
-    &track_ts_num,
-    &track_ts_num_hide,
-    &track_ts_denom,
-    &track_ts_denom_hide,
-    &select_bpm_sync,
-    &button_load_plugin,
-    &toggle_gui_button,
-    &param_group,
-    &sep_map1,
-    &track_map1,
-    &track_param1,
-    &sep_map2,
-    &track_map2,
-    &track_param2,
-    &sep_map3,
-    &track_map3,
-    &track_param3,
-    &sep_map4,
-    &track_map4,
-    &track_param4,
-    &midi_group,
-    &track_recv_id,
-    &track_recv_id_hide,
-    &midi_path_param,
-    &instance_data_param,
-    &last_recv_data,
-    &last_plugin_data,
-    &last_midi_data,
-    nullptr
-};
-
-void* filter_items_host_param_ex[] = {
-    &general_group,
-    &plugin_path_param,
-    &button_change_subplugin,
-    &track_wet,
-    &track_wet_hide,
-    &track_volume,
-    &track_volume_hide,
-    &track_bpm,
-    &track_bpm_hide,
-    &track_ts_num,
-    &track_ts_num_hide,
-    &track_ts_denom,
-    &track_ts_denom_hide,
-    &select_bpm_sync,
-    &button_load_plugin,
-    &toggle_gui_button,
-    &checks_apply_l,
-    &checks_apply_r,
-    &param_group,
-    &sep_map1,
-    &track_map1,
-    &track_param1,
-    &sep_map2,
-    &track_map2,
-    &track_param2,
-    &sep_map3,
-    &track_map3,
-    &track_param3,
-    &sep_map4,
-    &track_map4,
-    &track_param4,
-    &param_ex_group,
-    &sep_map5,
-    &track_map5,
-    &track_param5,
-    &sep_map6,
-    &track_map6,
-    &track_param6,
-    &sep_map7,
-    &track_map7,
-    &track_param7,
-    &sep_map8,
-    &track_map8,
-    &track_param8,
-    &midi_group,
-    &track_recv_id,
-    &track_recv_id_hide,
-    &midi_path_param,
-    &instance_data_param,
-    &last_recv_data,
-    &last_plugin_data,
-    &last_midi_data,
-    nullptr
-};
-
-void* filter_items_host_media_param_ex[] = {
-    &general_group,
-    &plugin_path_param,
-    &button_change_subplugin,
-    &track_bpm,
-    &track_bpm_hide,
-    &track_ts_num,
-    &track_ts_num_hide,
-    &track_ts_denom,
-    &track_ts_denom_hide,
-    &select_bpm_sync,
-    &button_load_plugin,
-    &toggle_gui_button,
-    &param_group,
-    &sep_map1,
-    &track_map1,
-    &track_param1,
-    &sep_map2,
-    &track_map2,
-    &track_param2,
-    &sep_map3,
-    &track_map3,
-    &track_param3,
-    &sep_map4,
-    &track_map4,
-    &track_param4,
-    &param_ex_group,
-    &sep_map5,
-    &track_map5,
-    &track_param5,
-    &sep_map6,
-    &track_map6,
-    &track_param6,
-    &sep_map7,
-    &track_map7,
-    &track_param7,
-    &sep_map8,
-    &track_map8,
-    &track_param8,
-    &midi_group,
-    &track_recv_id,
-    &track_recv_id_hide,
-    &midi_path_param,
-    &instance_data_param,
-    &last_recv_data,
-    &last_plugin_data,
-    &last_midi_data,
-    nullptr
-};
+static std::vector<void*> items_host = BuildHostItems(false, false);
+static std::vector<void*> items_host_media = BuildHostItems(true, false);
+static std::vector<void*> items_host_param_ex = BuildHostItems(false, true);
+static std::vector<void*> items_host_media_param_ex = BuildHostItems(true, true);
 
 struct NotesState {
     std::array<uint32_t, NotesManager::MAX_PER_ID> last_update_count = { 0 };
@@ -804,33 +642,19 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
     int32_t ts_denom = static_cast<int32_t>(track_ts_denom.value);
 
     if (host) {
-        float slider_vals[4] = {
-            static_cast<float>(track_param1.value),
-            static_cast<float>(track_param2.value),
-            static_cast<float>(track_param3.value),
-            static_cast<float>(track_param4.value)
-        };
-
-        float map_vals[4] = {
-            static_cast<float>(track_map1.value),
-            static_cast<float>(track_map2.value),
-            static_cast<float>(track_map3.value),
-            static_cast<float>(track_map4.value)
-        };
-
         int32_t maxParam = host->GetParameterCount();
-        for (int32_t i = 0; i < 4; ++i) {
-            int32_t mapIndex = static_cast<int32_t>(map_vals[i]) - 1;
+        for (int32_t i = 0; i < (settings.vst.host_param_ex ? MapSlotCount : BaseMapSlots); ++i) {
+            int32_t mapIndex = static_cast<int32_t>(map_slots[i].map.value) - 1;
             if (mapIndex >= 0 && mapIndex < maxParam) {
                 uint32_t paramID = host->GetParameterID(mapIndex);
                 PluginManager::GetInstance().UpdateMapping(instance_id, i, paramID);
             }
         }
 
-        for (int32_t i = 0; i < 4; ++i) {
+        for (int32_t i = 0; i < BaseMapSlots; ++i) {
             int32_t mapID = PluginManager::GetInstance().GetMappedParamID(instance_id, i);
             if (mapID != -1) {
-                float normalized = slider_vals[i] / 100.0f;
+                float normalized = static_cast<float>(map_slots[i].param.value) / 100.0f;
                 if (normalized < 0.0f) normalized = 0.0f;
                 if (normalized > 1.0f) normalized = 1.0f;
 
@@ -1289,7 +1113,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host = {
     filter_name,
     label,
     GEN_FILTER_INFO(FILTER_NAME),
-    filter_items_host,
+    items_host.data(),
     nullptr,
     func_proc_audio_host,
     nullptr,
@@ -1301,7 +1125,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host_media = {
     filter_name_media,
     label,
     GEN_FILTER_INFO(FILTER_NAME_MEDIA),
-    filter_items_host_media,
+    items_host_media.data(),
     nullptr,
     func_proc_audio_host_media,
     nullptr,
@@ -1313,7 +1137,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host_param_ex = {
     filter_name,
     label,
     GEN_FILTER_INFO(FILTER_NAME),
-    filter_items_host_param_ex,
+    items_host_param_ex.data(),
     nullptr,
     func_proc_audio_host,
     nullptr,
@@ -1325,7 +1149,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_host_media_param_ex = {
     filter_name_media,
     label,
     GEN_FILTER_INFO(FILTER_NAME_MEDIA),
-    filter_items_host_media_param_ex,
+    items_host_media_param_ex.data(),
     nullptr,
     func_proc_audio_host_media,
     nullptr,

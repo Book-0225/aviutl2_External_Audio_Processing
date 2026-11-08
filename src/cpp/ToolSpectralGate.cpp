@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,13 +14,13 @@ FILTER_ITEM_TRACK spec_gate_attack(L"Attack (ms)", 10.0, 1.0, 500.0, 1.0, nullpt
 FILTER_ITEM_TRACK spec_gate_release(L"Release (ms)", 100.0, 1.0, 2000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK spec_gate_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_spectral_gate[] = {
-    &spec_gate_threshold,
-    &spec_gate_attack,
-    &spec_gate_release,
-    &spec_gate_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_spectral_gate = FilterItemHelper::ItemList()
+                                                           .Add(
+                                                               spec_gate_threshold,
+                                                               spec_gate_attack,
+                                                               spec_gate_release,
+                                                               spec_gate_mix)
+                                                           .Build();
 
 struct HighpassFilter {
     float x1 = 0.0f, y1 = 0.0f;
@@ -154,7 +155,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_spectral_gate = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_spectral_gate,
+    filter_items_spectral_gate.data(),
     nullptr,
     func_proc_audio_spectral_gate,
     nullptr,

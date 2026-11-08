@@ -2,15 +2,13 @@
 
 #include "AnalyzerColor.h"
 #include "Avx2Utils.h"
+#include "FilterItemHelper.h"
 
 constexpr auto TOOL_NAME = L"Volume";
 
 FILTER_ITEM_TRACK vol_gain(L"ゲイン", 100.0, 0.0, 10000.0, 0.1, nullptr, 1.0);
 
-void* filter_items_volume[] = {
-    &vol_gain,
-    nullptr
-};
+static std::vector<void*> filter_items_volume = FilterItemHelper::ItemList().Add(vol_gain).Build();
 
 namespace {
 
@@ -165,7 +163,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_volume = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_volume,
+    filter_items_volume.data(),
     nullptr,
     func_proc_audio_volume,
     nullptr,

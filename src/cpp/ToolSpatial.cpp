@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <map>
@@ -13,9 +14,13 @@ FILTER_ITEM_TRACK sp_feedback(L"Feedback", 0.0, 0.0, 90.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK sp_mix(L"Delay Mix", 0.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK sp_pseudo(L"Pseudo Width", 0.0, 0.0, 40.0, 0.1, nullptr, 1.0);
 
-void* filter_items_spatial[] = {
-    &sp_time, &sp_feedback, &sp_mix, &sp_pseudo, nullptr
-};
+static std::vector<void*> filter_items_spatial = FilterItemHelper::ItemList()
+                                                     .Add(
+                                                         sp_time,
+                                                         sp_feedback,
+                                                         sp_mix,
+                                                         sp_pseudo)
+                                                     .Build();
 
 const int32_t MAX_BUFFER_SIZE = 48000 * 2;
 const int32_t BLOCK_SIZE = 64;
@@ -190,7 +195,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_spatial = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_spatial,
+    filter_items_spatial.data(),
     nullptr,
     func_proc_audio_spatial,
     nullptr,

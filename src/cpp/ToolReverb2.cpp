@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 #include "Reverb.h"
 
 #include <algorithm>
@@ -21,19 +22,19 @@ FILTER_ITEM_TRACK rev_mod_rate(L"変動速度", 1.0, 0.1, 8.0, 0.1, nullptr, 1.0
 FILTER_ITEM_TRACK rev_mod_depth(L"変動量", 40.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK rev_mix2(L"ミックス", 40.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_reverb2[] = {
-    &rev_decay,
-    &rev_size,
-    &rev_diffusion,
-    &rev_highcut,
-    &rev_lowcut,
-    &rev_damping2,
-    &rev_predelay2,
-    &rev_mod_rate,
-    &rev_mod_depth,
-    &rev_mix2,
-    nullptr
-};
+static std::vector<void*> filter_items_reverb2 = FilterItemHelper::ItemList()
+                                                     .Add(
+                                                         rev_decay,
+                                                         rev_size,
+                                                         rev_diffusion,
+                                                         rev_highcut,
+                                                         rev_lowcut,
+                                                         rev_damping2,
+                                                         rev_predelay2,
+                                                         rev_mod_rate,
+                                                         rev_mod_depth,
+                                                         rev_mix2)
+                                                     .Build();
 
 const int32_t MAX_BUFFER_SIZE = 96000 * 4;
 const int32_t PROCESS_BLOCK_SIZE = 64;
@@ -356,7 +357,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_reverb2 = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_reverb2,
+    filter_items_reverb2.data(),
     nullptr,
     func_proc_audio_reverb2,
     nullptr,

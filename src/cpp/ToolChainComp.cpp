@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -17,15 +18,15 @@ FILTER_ITEM_TRACK chain_comp_attack(L"Attack", 5.0, 0.1, 100.0, 0.1, nullptr, 1.
 FILTER_ITEM_TRACK chain_comp_release(L"Release", 50.0, 10.0, 1000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK chain_comp_makeup(L"Makeup", 0.0, 0.0, 20.0, 0.1, nullptr, 1.0);
 
-void* filter_items_chain_comp[] = {
-    &chain_comp_id,
-    &chain_comp_thresh,
-    &chain_comp_ratio,
-    &chain_comp_attack,
-    &chain_comp_release,
-    &chain_comp_makeup,
-    nullptr
-};
+static std::vector<void*> filter_items_chain_comp = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            chain_comp_id,
+                                                            chain_comp_thresh,
+                                                            chain_comp_ratio,
+                                                            chain_comp_attack,
+                                                            chain_comp_release,
+                                                            chain_comp_makeup)
+                                                        .Build();
 
 struct ChainCompState {
     double comp_envelope = 0.0;
@@ -155,7 +156,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_comp = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_chain_comp,
+    filter_items_chain_comp.data(),
     nullptr,
     func_proc_audio_chain_comp,
     nullptr,

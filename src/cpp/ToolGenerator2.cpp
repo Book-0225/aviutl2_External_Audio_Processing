@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 #include "SynthCommon.h"
 
 #include <cmath>
@@ -27,22 +28,22 @@ struct GenData {
 };
 FILTER_ITEM_DATA<GenData> gen_data2(L"GEN_DATA");
 
-void* filter_items_generator2[] = {
-    &gen_type2,
-    &gen_freq2,
-    &gen_attack,
-    &gen_decay,
-    &gen_sustain,
-    &gen_release,
-    &gen_timbre,
-    &gen_cutoff,
-    &gen_reso,
-    &gen_detune,
-    &gen_data2,
-    &gen_offset,
-    &gen_duration,
-    nullptr
-};
+static std::vector<void*> filter_items_generator2 = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            gen_type2,
+                                                            gen_freq2,
+                                                            gen_attack,
+                                                            gen_decay,
+                                                            gen_sustain,
+                                                            gen_release,
+                                                            gen_timbre,
+                                                            gen_cutoff,
+                                                            gen_reso,
+                                                            gen_detune,
+                                                            gen_data2,
+                                                            gen_offset,
+                                                            gen_duration)
+                                                        .Build();
 
 struct GeneratorObjState {
     VoiceState voice;
@@ -138,7 +139,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_generator2 = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_generator2,
+    filter_items_generator2.data(),
     nullptr,
     func_proc_audio_generator2,
     nullptr,

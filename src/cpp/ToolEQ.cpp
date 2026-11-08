@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <cmath>
 #include <map>
@@ -23,23 +24,23 @@ FILTER_ITEM_TRACK eq_mid_freq(L"Mid Freq", 1000.0, 200.0, 10000.0, 1.0, nullptr,
 FILTER_ITEM_TRACK eq_mh_freq(L"M-High Freq", 3500.0, 1000.0, 20000.0, 1.0, nullptr, 1.0);
 FILTER_ITEM_TRACK eq_high_freq(L"High Freq", 10000.0, 2000.0, 20000.0, 1.0, nullptr, 1.0);
 
-void* filter_items_eq[] = {
-    &cut_group,
-    &eq_hpf,
-    &eq_lpf,
-    &eq_group,
-    &eq_low,
-    &eq_ml,
-    &eq_mid,
-    &eq_mh,
-    &eq_high,
-    &eq_low_freq,
-    &eq_ml_freq,
-    &eq_mid_freq,
-    &eq_mh_freq,
-    &eq_high_freq,
-    nullptr
-};
+static std::vector<void*> filter_items_eq = FilterItemHelper::ItemList()
+                                                .Add(
+                                                    cut_group,
+                                                    eq_hpf,
+                                                    eq_lpf,
+                                                    eq_group,
+                                                    eq_low,
+                                                    eq_ml,
+                                                    eq_mid,
+                                                    eq_mh,
+                                                    eq_high,
+                                                    eq_low_freq,
+                                                    eq_ml_freq,
+                                                    eq_mid_freq,
+                                                    eq_mh_freq,
+                                                    eq_high_freq)
+                                                .Build();
 
 struct Biquad {
     double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
@@ -272,7 +273,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_eq = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_eq,
+    filter_items_eq.data(),
     nullptr,
     func_proc_audio_eq,
     nullptr,

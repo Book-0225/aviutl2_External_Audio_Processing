@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "ChainManager.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -16,14 +17,14 @@ FILTER_ITEM_TRACK chain_gate_ratio(L"Ratio", 4.0, 1.0, 20.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK chain_gate_attack(L"Attack", 5.0, 0.1, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK chain_gate_release(L"Release", 50.0, 10.0, 1000.0, 1.0, nullptr, 1.0);
 
-void* filter_items_chain_gate[] = {
-    &chain_gate_id,
-    &chain_gate_thresh,
-    &chain_gate_ratio,
-    &chain_gate_attack,
-    &chain_gate_release,
-    nullptr
-};
+static std::vector<void*> filter_items_chain_gate = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            chain_gate_id,
+                                                            chain_gate_thresh,
+                                                            chain_gate_ratio,
+                                                            chain_gate_attack,
+                                                            chain_gate_release)
+                                                        .Build();
 
 struct ChaingateState {
     double gate_envelope = 0.0;
@@ -150,7 +151,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_chain_gate = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_chain_gate,
+    filter_items_chain_gate.data(),
     nullptr,
     func_proc_audio_chain_gate,
     nullptr,

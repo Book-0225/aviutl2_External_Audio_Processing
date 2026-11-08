@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,18 +20,18 @@ FILTER_ITEM_TRACK dist_downsample(L"Downsample", 1.0, 1.0, 50.0, 0.1, nullptr, 1
 FILTER_ITEM_TRACK dist_mix(L"Mix", 100.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK dist_output(L"Output", 0.0, -20.0, 20.0, 0.1, nullptr, 1.0);
 
-void* filter_items_distortion[] = {
-    &dist_overdrive_s,
-    &dist_fuzz_s,
-    &dist_bitcrush_s,
-    &dist_drive,
-    &dist_tone,
-    &dist_bits,
-    &dist_downsample,
-    &dist_mix,
-    &dist_output,
-    nullptr
-};
+static std::vector<void*> filter_items_distortion = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            dist_overdrive_s,
+                                                            dist_fuzz_s,
+                                                            dist_bitcrush_s,
+                                                            dist_drive,
+                                                            dist_tone,
+                                                            dist_bits,
+                                                            dist_downsample,
+                                                            dist_mix,
+                                                            dist_output)
+                                                        .Build();
 
 struct DistortionState {
     float lp_hist_l = 0.0f;
@@ -188,7 +189,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_distortion = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_distortion,
+    filter_items_distortion.data(),
     nullptr,
     func_proc_audio_distortion,
     nullptr,

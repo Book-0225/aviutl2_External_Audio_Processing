@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,13 +15,13 @@ FILTER_ITEM_TRACK ph_depth(L"Depth", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK ph_feedback(L"Feedback", 40.0, 0.0, 95.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK ph_mix(L"Mix", 50.0, 0.0, 100.0, 0.1, nullptr, 1.0);
 
-void* filter_items_phaser[] = {
-    &ph_rate,
-    &ph_depth,
-    &ph_feedback,
-    &ph_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_phaser = FilterItemHelper::ItemList()
+                                                    .Add(
+                                                        ph_rate,
+                                                        ph_depth,
+                                                        ph_feedback,
+                                                        ph_mix)
+                                                    .Build();
 
 class PhaserAPF {
   public:
@@ -178,7 +179,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_phaser = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_phaser,
+    filter_items_phaser.data(),
     nullptr,
     func_proc_audio_phaser,
     nullptr,

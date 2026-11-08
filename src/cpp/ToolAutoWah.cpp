@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,14 +14,14 @@ FILTER_ITEM_TRACK wah_range(L"Range", 2000.0, 100.0, 10000.0, 1.0, nullptr, 1.0)
 FILTER_ITEM_TRACK wah_res(L"Resonance", 3.0, 0.1, 20.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK wah_mix(L"Mix", 100.0, 0.0, 100.0, 1.0, nullptr, 1.0);
 
-void* filter_items_autowah[] = {
-    &wah_sens,
-    &wah_base,
-    &wah_range,
-    &wah_res,
-    &wah_mix,
-    nullptr
-};
+static std::vector<void*> filter_items_autowah = FilterItemHelper::ItemList()
+                                                     .Add(
+                                                         wah_sens,
+                                                         wah_base,
+                                                         wah_range,
+                                                         wah_res,
+                                                         wah_mix)
+                                                     .Build();
 
 struct AutoWahBiquad {
     float x1 = 0.0f, x2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
@@ -178,7 +179,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_autowah = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_autowah,
+    filter_items_autowah.data(),
     nullptr,
     func_proc_audio_autowah,
     nullptr,

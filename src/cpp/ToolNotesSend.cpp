@@ -1,6 +1,7 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
 #include "Eap2Config.h"
+#include "FilterItemHelper.h"
 #include "NotesManager.h"
 #include "PluginManager.h"
 #include "StringUtils.h"
@@ -155,14 +156,14 @@ struct NotesSendData {
 };
 FILTER_ITEM_DATA<NotesSendData> notes_send_data(L"NOTES_SEND_DATA");
 
-void* filter_items_notes_send[] = {
-    &notes_send_id,
-    &notes_send_offset,
-    &notes_send_duration,
-    &notes_send_note,
-    &notes_send_data,
-    nullptr
-};
+static std::vector<void*> filter_items_notes_send = FilterItemHelper::ItemList()
+                                                        .Add(
+                                                            notes_send_id,
+                                                            notes_send_offset,
+                                                            notes_send_duration,
+                                                            notes_send_note,
+                                                            notes_send_data)
+                                                        .Build();
 
 std::wstring GetNoteName(int32_t note) {
     static const wchar_t* noteNames[] = { L"C", L"C#", L"D", L"D#", L"E", L"F", L"F#", L"G", L"G#", L"A", L"A#", L"B" };
@@ -289,7 +290,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_notes_send_media = {
     GEN_TOOL_NAME(TOOL_NAME_MEDIA),
     label,
     GEN_FILTER_INFO(TOOL_NAME_MEDIA),
-    filter_items_notes_send,
+    filter_items_notes_send.data(),
     nullptr,
     func_proc_audio_notes_send,
     nullptr,

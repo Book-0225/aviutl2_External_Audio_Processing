@@ -1,5 +1,6 @@
 ﻿#include "Avx2Utils.h"
 #include "Eap2Common.h"
+#include "FilterItemHelper.h"
 
 #include <algorithm>
 #include <vector>
@@ -10,12 +11,12 @@ FILTER_ITEM_TRACK tool_width(L"Width", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK tool_mid(L"Mid Level", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
 FILTER_ITEM_TRACK tool_side(L"Side Level", 100.0, 0.0, 200.0, 0.1, nullptr, 1.0);
 
-void* filter_items_stereo[] = {
-    &tool_width,
-    &tool_mid,
-    &tool_side,
-    nullptr
-};
+static std::vector<void*> filter_items_stereo = FilterItemHelper::ItemList()
+                                                    .Add(
+                                                        tool_width,
+                                                        tool_mid,
+                                                        tool_side)
+                                                    .Build();
 
 bool func_proc_audio_stereo(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
@@ -68,7 +69,7 @@ FILTER_PLUGIN_TABLE filter_plugin_table_stereo = {
     GEN_TOOL_NAME(TOOL_NAME),
     label,
     GEN_FILTER_INFO(TOOL_NAME),
-    filter_items_stereo,
+    filter_items_stereo.data(),
     nullptr,
     func_proc_audio_stereo,
     nullptr,
