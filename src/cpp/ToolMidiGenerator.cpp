@@ -27,7 +27,7 @@ FILTER_ITEM_SELECT::ITEM list_sync_mode[] = {
     { nullptr }
 };
 FILTER_ITEM_SELECT midi_sync_mode(L"BPMの同期", 1, list_sync_mode);
-const FilterItemHelper::HideCond HideBpmSynced{ midi_sync_mode.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0 };
+const FilterItemHelper::HideCond HideBpmSynced(midi_sync_mode.name, FILTER_ITEM_HIDE_RULE::OPERATOR::NOT_EQUAL, 0);
 FilterItemHelper::WithHide<FILTER_ITEM_TRACK> midi_fixed_bpm(HideBpmSynced, L"BPM(手動)", 120.0, 1.0, 999.0, 0.1);
 FILTER_ITEM_TRACK midi_offset(L"オフセット", 0.0, -100.0, 100.0, 0.01, nullptr, 1.0);
 FILTER_ITEM_SELECT::ITEM list_render_mode[] = {

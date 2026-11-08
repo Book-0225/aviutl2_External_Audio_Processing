@@ -157,7 +157,7 @@ std::string ShowSubPluginPicker(HINSTANCE hInstance, HWND parentWindow, const st
     }
 
     if (state.confirmed && state.selectedIndex >= 0 &&
-        state.selectedIndex < static_cast<int32_t>(candidates.size())) {
+        state.selectedIndex < std::ssize(candidates)) {
         return candidates[state.selectedIndex].id;
     }
     return "";

@@ -59,9 +59,8 @@ class CombFilter {
             return;
         }
 
-        for (int32_t i = 0; i < count; ++i) {
+        for (int32_t i = 0; i < count; ++i)
             out[i] = process_sample(in[i]);
-        }
     }
 
     void clear() {
@@ -98,9 +97,8 @@ class AllPassFilter {
 
     void process_block(float* data, int32_t count) {
         if (buf_size == 0) return;
-        for (int32_t i = 0; i < count; ++i) {
+        for (int32_t i = 0; i < count; ++i)
             data[i] = process_sample(data[i]);
-        }
     }
 
     void clear() {
@@ -185,7 +183,7 @@ inline void ProcessPreDelayBlock(
     float* out, const float* in,
     std::vector<float>& buf, int32_t& w_pos,
     int32_t delay_samples, int32_t count) {
-    const int32_t buf_size = static_cast<int32_t>(buf.size());
+    const int32_t buf_size = std::ssize(buf);
     int32_t r_pos = w_pos - delay_samples;
     if (r_pos < 0) r_pos += buf_size;
 
@@ -203,7 +201,7 @@ inline void ProcessPreDelayBlock(
 bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     float room_size = static_cast<float>(rev_time.value);
     float damping = static_cast<float>(rev_damping.value);
@@ -220,9 +218,8 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_rev_state_mutex);
         state = &g_rev_states[audio->object->effect_id];
 
-        if (!state->initialized) {
+        if (!state->initialized)
             state->init(Fs);
-        }
 
         if (state->last_sample_index != -1 &&
             state->last_sample_index != audio->object->sample_index) {
@@ -251,7 +248,7 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_accum[PROCESS_BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += PROCESS_BLOCK_SIZE) {
-        int32_t block_size = (std::min)(PROCESS_BLOCK_SIZE, total_samples - i);
+        int32_t block_size = std::min(PROCESS_BLOCK_SIZE, total_samples - i);
 
         float* p_dry_l = bufL.data() + i;
         float* p_dry_r = bufR.data() + i;
@@ -274,9 +271,8 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
                 Avx2Utils::AccumulateAVX2(temp_accum, temp_comb_out, block_size);
             }
 
-            for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k) {
+            for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k)
                 state->allpassL[k].process_block(temp_accum, block_size);
-            }
 
             Avx2Utils::MixAudioAVX2(temp_accum, p_dry_l, block_size, mix, 1.0f - mix, 1.0f);
             Avx2Utils::CopyBufferAVX2(p_dry_l, temp_accum, block_size);
@@ -292,9 +288,8 @@ bool func_proc_audio_reverb(FILTER_PROC_AUDIO* audio) {
                 Avx2Utils::AccumulateAVX2(temp_accum, temp_comb_out, block_size);
             }
 
-            for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k) {
+            for (int32_t k = 0; k < ReverbState::NUM_ALLPASS; ++k)
                 state->allpassR[k].process_block(temp_accum, block_size);
-            }
 
             Avx2Utils::MixAudioAVX2(temp_accum, p_dry_r, block_size, mix, 1.0f - mix, 1.0f);
             Avx2Utils::CopyBufferAVX2(p_dry_r, temp_accum, block_size);

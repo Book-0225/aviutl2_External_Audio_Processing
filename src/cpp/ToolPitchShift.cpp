@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <numbers>
 #include <vector>
 
 constexpr auto TOOL_NAME = L"Pitch Shift";
@@ -56,8 +57,8 @@ struct GranularState : public IPitchShiftState {
     }
 
     void clear() override {
-        std::fill(bufferL.begin(), bufferL.end(), 0.0f);
-        std::fill(bufferR.begin(), bufferR.end(), 0.0f);
+        std::ranges::fill(bufferL, 0.0f);
+        std::ranges::fill(bufferR, 0.0f);
         write_pos = 0;
         read_pos_a = 0.0;
     }
@@ -75,7 +76,7 @@ struct GranularState : public IPitchShiftState {
         alignas(32) float wet_R[BLOCK_SIZE];
 
         for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-            const int32_t n = (std::min)(BLOCK_SIZE, total_samples - i);
+            const int32_t n = std::min(BLOCK_SIZE, total_samples - i);
             for (int32_t k = 0; k < n; ++k) {
                 bL[w_pos] = dryL[i + k];
                 bR[w_pos] = dryR[i + k];
@@ -84,8 +85,8 @@ struct GranularState : public IPitchShiftState {
                 if (r_pos_a < 0.0) r_pos_a += 1.0;
                 double r_pos_b = r_pos_a + 0.5;
                 if (r_pos_b >= 1.0) r_pos_b -= 1.0;
-                const float ga = static_cast<float>(std::sqrt(0.5 - 0.5 * std::cos(M_PI * 2 * r_pos_a)));
-                const float gb = static_cast<float>(std::sqrt(0.5 - 0.5 * std::cos(M_PI * 2 * r_pos_b)));
+                const float ga = static_cast<float>(std::sqrt(0.5 - 0.5 * std::cos(std::numbers::pi * 2 * r_pos_a)));
+                const float gb = static_cast<float>(std::sqrt(0.5 - 0.5 * std::cos(std::numbers::pi * 2 * r_pos_b)));
                 auto circ = [&](const float* buf, double idx) {
                     while (idx < 0.0) idx += buf_sz;
                     while (idx >= buf_sz) idx -= buf_sz;
@@ -109,8 +110,8 @@ struct GranularState : public IPitchShiftState {
 };
 
 static inline float wrap_phase(float p) {
-    while (p > M_PI) p -= static_cast<float>(M_PI * 2);
-    while (p < -M_PI) p += static_cast<float>(M_PI * 2);
+    while (p > std::numbers::pi) p -= static_cast<float>(std::numbers::pi * 2);
+    while (p < -std::numbers::pi) p += static_cast<float>(std::numbers::pi * 2);
     return p;
 }
 
@@ -151,7 +152,7 @@ struct PhaseVocoderState : public IPitchShiftState {
         syn_phase_L.assign(NUM_BINS, 0.0f);
         syn_phase_R.assign(NUM_BINS, 0.0f);
         hann.resize(FFT_SIZE);
-        for (int32_t i = 0; i < FFT_SIZE; ++i) hann[i] = 0.5f - 0.5f * static_cast<float>(std::cos(M_PI * 2 * i / FFT_SIZE));
+        for (int32_t i = 0; i < FFT_SIZE; ++i) hann[i] = 0.5f - 0.5f * static_cast<float>(std::cos(std::numbers::pi * 2 * i / FFT_SIZE));
         fft_buf.resize(FFT_SIZE);
         mag.resize(NUM_BINS);
         ifreq.resize(NUM_BINS);
@@ -182,7 +183,7 @@ struct PhaseVocoderState : public IPitchShiftState {
             peaks_buf.reserve(NUM_BINS / 4);
         }
 
-        const float freq_per_bin = static_cast<float>(M_PI * 2 * HOP_SIZE / FFT_SIZE);
+        const float freq_per_bin = static_cast<float>(std::numbers::pi * 2 * HOP_SIZE / FFT_SIZE);
         const float ola_gain = 2.0f / 3.0f;
 
         auto do_channel = [&](const std::vector<float>& in_buf, std::vector<float>& ana_phase, std::vector<float>& syn_phase, std::vector<float>& out_buf) {
@@ -209,8 +210,8 @@ struct PhaseVocoderState : public IPitchShiftState {
                     peak_owner[k] = peaks_buf[pi];
                 }
             }
-            std::fill(out_mag.begin(), out_mag.end(), 0.0f);
-            std::fill(out_ifreq.begin(), out_ifreq.end(), 0.0f);
+            std::ranges::fill(out_mag, 0.0f);
+            std::ranges::fill(out_ifreq, 0.0f);
             for (int32_t out_k = 0; out_k < NUM_BINS; ++out_k) {
                 const float in_k_f = static_cast<float>(out_k) / pitch_rate;
                 const int32_t in_k0 = static_cast<int32_t>(in_k_f);
@@ -227,9 +228,9 @@ struct PhaseVocoderState : public IPitchShiftState {
             }
             for (int32_t out_k = 0; out_k < NUM_BINS; ++out_k) {
                 const float in_k_f = static_cast<float>(out_k) / pitch_rate;
-                const int32_t in_k0 = (std::max)(0, (std::min)(NUM_BINS - 1, static_cast<int32_t>(in_k_f)));
+                const int32_t in_k0 = std::max(0, std::min(NUM_BINS - 1, static_cast<int32_t>(in_k_f)));
                 const int32_t in_peak = peak_owner[in_k0];
-                const int32_t out_peak = (std::max)(0, (std::min)(NUM_BINS - 1, static_cast<int32_t>(std::round(static_cast<float>(in_peak) * pitch_rate))));
+                const int32_t out_peak = std::max(0, std::min(NUM_BINS - 1, static_cast<int32_t>(std::lround(static_cast<float>(in_peak) * pitch_rate))));
                 if (out_k == out_peak) continue;
                 const float rel_phase = ana_phase[in_k0] - ana_phase[in_peak];
                 syn_phase[out_k] = wrap_phase(pass1_syn_phase[out_peak] + rel_phase);
@@ -285,7 +286,7 @@ static std::map<int64_t, std::shared_ptr<PitchShiftHandle>> g_ps_handles;
 bool func_proc_audio_pitch_shift(FILTER_PROC_AUDIO* audio) {
     const int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    const int32_t channels = (std::min)(2, audio->object->channel_num);
+    const int32_t channels = std::min(2, audio->object->channel_num);
     const int32_t algo = ps_algo.value;
     const float pitch = static_cast<float>(ps_pitch.value);
     const float speed = static_cast<float>(std::abs(ps_speed.value) / 100.0);

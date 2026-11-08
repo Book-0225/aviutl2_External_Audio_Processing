@@ -3,8 +3,9 @@
 
 #include <Windows.h>
 #include <cstdint>
+#include <format>
 #include <iomanip>
-#include <sstream>
+#include <string>
 
 struct Version {
     uint16_t major = 0;
@@ -28,15 +29,11 @@ struct Version {
     }
 
     std::string to_hex_string() const {
-        std::stringstream ss;
-        ss << std::hex << std::setfill('0') << std::setw(16) << pack();
-        return ss.str();
+        return std::format("{:016x}", pack());
     }
 
     std::wstring to_hex_wstring() const {
-        std::wstringstream wss;
-        wss << std::hex << std::setfill(L'0') << std::setw(16) << pack();
-        return wss.str();
+        return std::format(L"{:016x}", pack());
     }
 
     void from_hex_string(const std::string& hex) {
@@ -70,7 +67,7 @@ constexpr uint16_t ReadDigits(std::wstring_view s, size_t& pos, wchar_t stop_cha
     if (!any_digit)
         throw std::invalid_argument("Version: expected digit");
     if (stop_char != L'\0') {
-        if (pos >= s.size() || s[pos] != stop_char)
+        if (pos >= std::size(s) || s[pos] != stop_char)
             throw std::invalid_argument("Version: expected separator");
         ++pos;
     }

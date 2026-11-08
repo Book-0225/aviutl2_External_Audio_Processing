@@ -126,17 +126,9 @@ bool MidiParser::Load(const std::filesystem::path& path) {
             }
         }
     }
-    std::stable_sort(m_events.begin(), m_events.end(), [](const RawMidiEvent& a, const RawMidiEvent& b) {
-        return a.absoluteTick < b.absoluteTick;
-    });
-
-    std::stable_sort(m_tempoEvents.begin(), m_tempoEvents.end(), [](const TempoEvent& a, const TempoEvent& b) {
-        return a.absoluteTick < b.absoluteTick;
-    });
-
-    std::stable_sort(m_timeSigEvents.begin(), m_timeSigEvents.end(), [](const TimeSignatureEvent& a, const TimeSignatureEvent& b) {
-        return a.absoluteTick < b.absoluteTick;
-    });
+    std::ranges::stable_sort(m_events, [](const RawMidiEvent& a, const RawMidiEvent& b) { return a.absoluteTick < b.absoluteTick; });
+    std::ranges::stable_sort(m_tempoEvents, [](const TempoEvent& a, const TempoEvent& b) { return a.absoluteTick < b.absoluteTick; });
+    std::ranges::stable_sort(m_timeSigEvents, [](const TimeSignatureEvent& a, const TimeSignatureEvent& b) { return a.absoluteTick < b.absoluteTick; });
     BuildTempoMap();
     return true;
 }
@@ -165,10 +157,7 @@ void MidiParser::BuildTempoMap() {
 
 int64_t MidiParser::GetTickAtTime(double time) const {
     if (m_tempoMap.empty()) return static_cast<int64_t>(time * 120.0 * m_tpqn / 60.0);
-    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), time,
-                               [](double t, const TempoMapEntry& entry) {
-                                   return t < entry.time;
-                               });
+    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), time, [](double t, const TempoMapEntry& entry) { return t < entry.time; });
 
     if (it == m_tempoMap.begin()) return 0;
     --it;
@@ -180,10 +169,7 @@ int64_t MidiParser::GetTickAtTime(double time) const {
 double MidiParser::GetTimeAtTick(double tick) const {
     double safeTpqn = (m_tpqn > 0) ? static_cast<double>(m_tpqn) : 480.0;
     if (m_tempoMap.empty()) return tick * 60.0 / (120.0 * safeTpqn);
-    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), tick,
-                               [](double tk, const TempoMapEntry& entry) {
-                                   return tk < entry.tick;
-                               });
+    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), tick, [](double tk, const TempoMapEntry& entry) { return tk < entry.tick; });
     if (it == m_tempoMap.begin()) {
         const auto& first = m_tempoMap.front();
         double safeMpqn = (first.mpqn > 0) ? static_cast<double>(first.mpqn) : 500000.0;
@@ -196,10 +182,7 @@ double MidiParser::GetTimeAtTick(double tick) const {
 
 double MidiParser::GetBpmAtTime(double time) const {
     if (m_tempoMap.empty()) return 120.0;
-    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), time,
-                               [](double t, const TempoMapEntry& entry) {
-                                   return t < entry.time;
-                               });
+    auto it = std::upper_bound(m_tempoMap.begin(), m_tempoMap.end(), time, [](double t, const TempoMapEntry& entry) { return t < entry.time; });
     if (it == m_tempoMap.begin()) return 60000000.0 / m_tempoMap[0].mpqn;
     --it;
     return (it->mpqn > 0) ? (60000000.0 / (double)it->mpqn) : 120.0;

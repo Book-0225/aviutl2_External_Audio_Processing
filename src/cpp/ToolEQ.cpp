@@ -5,6 +5,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 #include <vector>
 
 constexpr auto TOOL_NAME = L"EQ";
@@ -43,8 +44,15 @@ static std::vector<void*> filter_items_eq = FilterItemHelper::ItemList()
                                                 .Build();
 
 struct Biquad {
-    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
-    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+    double b0 = 1.0;
+    double b1 = 0.0;
+    double b2 = 0.0;
+    double a1 = 0.0;
+    double a2 = 0.0;
+    double x1 = 0.0;
+    double x2 = 0.0;
+    double y1 = 0.0;
+    double y2 = 0.0;
 
     void setPassThrough() {
         b0 = 1.0;
@@ -84,7 +92,7 @@ struct Biquad {
             setPassThrough();
             return;
         }
-        double w0 = 2.0 * M_PI * f0 / Fs;
+        double w0 = 2.0 * std::numbers::pi * f0 / Fs;
         double alpha = sin(w0) / (2.0 * 0.7071);
         double cosw0 = cos(w0);
         double a0 = 1.0 + alpha;
@@ -100,7 +108,7 @@ struct Biquad {
             setPassThrough();
             return;
         }
-        double w0 = 2.0 * M_PI * f0 / Fs;
+        double w0 = 2.0 * std::numbers::pi * f0 / Fs;
         double alpha = sin(w0) / (2.0 * 0.7071);
         double cosw0 = cos(w0);
         double a0 = 1.0 + alpha;
@@ -117,7 +125,7 @@ struct Biquad {
             return;
         }
         double A = pow(10.0, dB_gain / 40.0);
-        double w0 = 2.0 * M_PI * f0 / Fs;
+        double w0 = 2.0 * std::numbers::pi * f0 / Fs;
         double alpha = sin(w0) / 2.0 * sqrt((A + 1 / A) * (1 / 0.707 - 1) + 2);
         double cosw0 = cos(w0);
         double a0 = (A + 1) + (A - 1) * cosw0 + 2 * sqrt(A) * alpha;
@@ -134,7 +142,7 @@ struct Biquad {
             return;
         }
         double A = pow(10.0, dB_gain / 40.0);
-        double w0 = 2.0 * M_PI * f0 / Fs;
+        double w0 = 2.0 * std::numbers::pi * f0 / Fs;
         double alpha = sin(w0) / 2.0 * sqrt((A + 1 / A) * (1 / 0.707 - 1) + 2);
         double cosw0 = cos(w0);
         double a0 = (A + 1) - (A - 1) * cosw0 + 2 * sqrt(A) * alpha;
@@ -151,7 +159,7 @@ struct Biquad {
             return;
         }
         double A = pow(10.0, dB_gain / 40.0);
-        double w0 = 2.0 * M_PI * f0 / Fs;
+        double w0 = 2.0 * std::numbers::pi * f0 / Fs;
         double alpha = sin(w0) / (2.0 * Q);
         double cosw0 = cos(w0);
         double a0 = 1.0 + alpha / A;
@@ -178,7 +186,7 @@ const int32_t BLOCK_SIZE = 256;
 bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     double val_hpf = eq_hpf.value;
     double val_lpf = eq_lpf.value;
@@ -241,7 +249,7 @@ bool func_proc_audio_eq(FILTER_PROC_AUDIO* audio) {
     else if (channels == 1) Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 

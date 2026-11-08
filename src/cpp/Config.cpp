@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <ranges>
 #include <set>
 #include <string>
 #include <vector>
@@ -36,7 +37,7 @@ void ShowBreakingChangeNotices() {
             pending.push_back(&change);
     if (pending.empty())
         return;
-    std::sort(pending.begin(), pending.end(), [](auto* a, auto* b) { return a->version < b->version; });
+    std::ranges::sort(pending, [](auto* a, auto* b) { return a->version < b->version; });
     std::wstring message = std::wstring(TrText(L"EAP2は以下のバージョンで破壊的変更が行われました:")) + L"\n\n";
     for (auto* change : pending)
         message += L"[" + FormatVersionLabel(change->version) + L"]\n" + change->message + L"\n\n";
@@ -59,9 +60,9 @@ void ShowConfigLoadWarning(const ConfigLoadReport& report) {
     std::wstring message = std::wstring(TrText(L"設定ファイル内に無効な値が見つかったため、")) + L"\n" + TrText(L"該当する項目はデフォルト設定で読み込まれました。");
     DbgPrint(message, LOG_WARN);
     constexpr size_t max_lines = 10;
-    for (size_t i = 0; i < report.messages.size() && i < max_lines; ++i)
+    for (size_t i = 0; i < std::size(report.messages) && i < max_lines; ++i)
         message += report.messages[i] + L"\n";
-    if (report.messages.size() > max_lines)
+    if (std::size(report.messages) > max_lines)
         message += L"...";
     MessageBoxW(nullptr, message.c_str(), L"EAP2 Config Warning", MB_OK | MB_ICONWARNING);
 }
@@ -79,7 +80,7 @@ std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const s
     std::set<std::wstring> keys;
     DWORD buffer_size = 4096;
 
-    for (;;) {
+    while (true) {
         std::vector<wchar_t> buffer(buffer_size, L'\0');
         DWORD copied = GetPrivateProfileSectionW(categoryName.c_str(), buffer.data(), buffer_size, path.c_str());
         if (copied == 0) return keys;
@@ -90,7 +91,7 @@ std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const s
                 size_t eq = entry.find(L'=');
                 if (eq != std::wstring_view::npos && eq > 0)
                     keys.insert(std::wstring(entry.substr(0, eq)));
-                current += entry.size() + 1;
+                current += std::size(entry) + 1;
             }
             return keys;
         }

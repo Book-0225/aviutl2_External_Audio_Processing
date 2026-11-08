@@ -267,13 +267,13 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(NotesManager::notes_mutexes[id_idx]);
         auto& note = NotesManager::notes[id_idx];
         const auto& ids = note.effect_id;
-        auto it = std::find(ids.begin(), ids.end(), audio->object->effect_id);
+        auto it = std::ranges::find(ids, audio->object->effect_id);
         if (it != ids.end()) {
             auto data_idx = std::distance(ids.begin(), it);
             note.number[data_idx] = note_num;
             note.update_count[data_idx]++;
         } else {
-            auto free_it = std::find(ids.begin(), ids.end(), -1);
+            auto free_it = std::ranges::find(ids, -1);
             if (free_it != ids.end()) {
                 auto free_idx = std::distance(ids.begin(), free_it);
                 note.effect_id[free_idx] = audio->object->effect_id;

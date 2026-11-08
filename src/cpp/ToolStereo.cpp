@@ -21,7 +21,7 @@ static std::vector<void*> filter_items_stereo = FilterItemHelper::ItemList()
 bool func_proc_audio_stereo(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     float width_val = static_cast<float>(tool_width.value);
     float mid_val = static_cast<float>(tool_mid.value);

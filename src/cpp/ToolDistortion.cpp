@@ -6,6 +6,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 #include <vector>
 
 constexpr auto TOOL_NAME = L"Distortion";
@@ -62,7 +63,7 @@ const int32_t BLOCK_SIZE = 64;
 bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     bool is_overdrive = dist_overdrive_s.value;
     bool is_fuzz = dist_fuzz_s.value;
@@ -91,7 +92,7 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    float alpha = static_cast<float>(2.0 * M_PI * tone_freq / Fs);
+    float alpha = static_cast<float>(2.0 * std::numbers::pi * tone_freq / Fs);
     if (alpha > 1.0f) alpha = 1.0f;
     bool tone_active = (tone_freq < 19000.0f);
 
@@ -115,7 +116,7 @@ bool func_proc_audio_distortion(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_R[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* p_dry_L = bufL.data() + i;
         float* p_dry_R = bufR.data() + i;
 

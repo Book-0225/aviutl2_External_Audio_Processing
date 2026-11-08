@@ -57,7 +57,7 @@ static std::map<int64_t, GeneratorObjState> g_gen_states;
 bool func_proc_audio_generator2(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     int64_t current_obj_sample_index = audio->object->sample_index;
     int64_t total_obj_samples = audio->object->sample_total;
     SynthParams p;
@@ -106,7 +106,7 @@ bool func_proc_audio_generator2(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_genR[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         for (int32_t k = 0; k < block_count; ++k) {
             int64_t current_pos = current_obj_sample_index + i + k;
             double elapsed = current_pos / Fs;

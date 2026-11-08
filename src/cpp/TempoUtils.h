@@ -25,9 +25,7 @@ inline std::vector<BPM_INFO> get_all_bpm(EDIT_SECTION* edit) {
     std::vector<BPM_INFO> list(num);
     int32_t got = edit->get_grid_bpm_list(list.data(), num, sizeof(BPM_INFO));
     list.resize(got);
-    std::sort(list.begin(), list.end(), [](const BPM_INFO& a, const BPM_INFO& b) {
-        return a.start < b.start;
-    });
+    std::ranges::sort(list, [](const BPM_INFO& a, const BPM_INFO& b) { return a.start < b.start; });
     return list;
 }
 
@@ -72,9 +70,7 @@ inline double aviutl_cumulative_tick(const std::vector<AviUtl_Tempo_Segment>& se
         const AviUtl_Tempo_Segment& s = segs.front();
         return s.start_tick + (t - s.start_time) * s.ticks_per_sec;
     }
-    auto it = std::upper_bound(
-        segs.begin(), segs.end(), t,
-        [](double time, const AviUtl_Tempo_Segment& s) { return time < s.start_time; });
+    auto it = std::upper_bound(segs.begin(), segs.end(), t, [](double time, const AviUtl_Tempo_Segment& s) { return time < s.start_time; });
     const AviUtl_Tempo_Segment& seg = *(it - 1);
     return seg.start_tick + (t - seg.start_time) * seg.ticks_per_sec;
 }
@@ -86,9 +82,7 @@ inline double aviutl_time_at_tick(const std::vector<AviUtl_Tempo_Segment>& segs,
         if (s.ticks_per_sec <= 0) return s.start_time;
         return s.start_time + (tick - s.start_tick) / s.ticks_per_sec;
     }
-    auto it = std::upper_bound(
-        segs.begin(), segs.end(), tick,
-        [](double tk, const AviUtl_Tempo_Segment& s) { return tk < s.start_tick; });
+    auto it = std::upper_bound(segs.begin(), segs.end(), tick, [](double tk, const AviUtl_Tempo_Segment& s) { return tk < s.start_tick; });
     const AviUtl_Tempo_Segment& seg = *(it - 1);
     if (seg.ticks_per_sec <= 0) return seg.start_time;
     return seg.start_time + (tick - seg.start_tick) / seg.ticks_per_sec;

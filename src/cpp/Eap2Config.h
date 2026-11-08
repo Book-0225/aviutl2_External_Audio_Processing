@@ -41,7 +41,7 @@ inline bool TryParseInt32(const std::wstring& raw, int32_t& out, int32_t minValu
         std::wstring s = TrimCopy(raw);
         size_t pos = 0;
         int64_t value = std::stoll(s, &pos, 10);
-        if (pos != s.size()) return false;
+        if (pos != std::size(s)) return false;
         if (!std::isfinite(value)) return false;
         if (value < minValue || value > maxValue) return false;
         out = static_cast<int32_t>(value);
@@ -56,7 +56,7 @@ inline bool TryParseDouble(const std::wstring& raw, double& out, double minValue
         std::wstring s = TrimCopy(raw);
         size_t pos = 0;
         double value = std::stod(s, &pos);
-        if (pos != s.size()) return false;
+        if (pos != std::size(s)) return false;
         if (!std::isfinite(value)) return false;
         if (value < minValue || value > maxValue) return false;
         out = value;

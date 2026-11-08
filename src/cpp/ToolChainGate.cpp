@@ -40,7 +40,7 @@ const int32_t BLOCK_SIZE = 64;
 bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     int32_t id_idx = static_cast<int32_t>(chain_gate_id.value) - 1;
     double gate_th_db = chain_gate_thresh.value;
@@ -64,8 +64,8 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double gate_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_att_ms) * 0.001 * Fs));
-    double gate_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_rel_ms) * 0.001 * Fs));
+    double gate_att_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, gate_att_ms) * 0.001 * Fs));
+    double gate_rel_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, gate_rel_ms) * 0.001 * Fs));
 
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
@@ -99,7 +99,7 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
                 state->missed_count[i] = 0;
             }
         }
-        sidechain_input = *std::max_element(levels.begin(), levels.end());
+        sidechain_input = *std::ranges::max_element(levels);
     }
 
     double current_gate_env = state->gate_envelope;
@@ -108,7 +108,7 @@ bool func_proc_audio_chain_gate(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_gain[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 

@@ -3,9 +3,9 @@
 #include <compressapi.h>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <limits>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -63,14 +63,12 @@ inline std::string HexToString(const std::string& hex) {
     for (size_t i = 0; i + 1 < hex.size(); i += 2) {
         uint8_t byte;
         auto result = std::from_chars(hex.data() + i, hex.data() + i + 2, byte, 16);
-        if (result.ec != std::errc{}) {
+        if (result.ec != std::errc{})
             continue;
-        }
         res.push_back(static_cast<char>(byte));
     }
-    while (!res.empty() && res.back() == '\0') {
+    while (!res.empty() && res.back() == '\0')
         res.pop_back();
-    }
     return res;
 }
 
@@ -82,9 +80,8 @@ inline std::string Base64Encode(const BYTE* data, DWORD len) {
     std::string s(b64_len, '\0');
     if (!CryptBinaryToStringA(data, len, flags, &s[0], &b64_len)) return "";
 
-    while (!s.empty() && (s.back() == '\0' || s.back() == '\r' || s.back() == '\n')) {
+    while (!s.empty() && (s.back() == '\0' || s.back() == '\r' || s.back() == '\n'))
         s.pop_back();
-    }
     return s;
 }
 
@@ -94,14 +91,12 @@ inline std::vector<BYTE> Base64Decode(const std::string& b64) {
     DWORD bin_len = 0;
     DWORD flags = CRYPT_STRING_BASE64_ANY;
 
-    if (!CryptStringToBinaryA(b64.c_str(), static_cast<DWORD>(b64.size()), flags, nullptr, &bin_len, nullptr, nullptr)) {
+    if (!CryptStringToBinaryA(b64.c_str(), static_cast<DWORD>(b64.size()), flags, nullptr, &bin_len, nullptr, nullptr))
         return {};
-    }
 
     std::vector<BYTE> v(bin_len);
-    if (!CryptStringToBinaryA(b64.c_str(), static_cast<DWORD>(b64.size()), flags, v.data(), &bin_len, nullptr, nullptr)) {
+    if (!CryptStringToBinaryA(b64.c_str(), static_cast<DWORD>(b64.size()), flags, v.data(), &bin_len, nullptr, nullptr))
         return {};
-    }
 
     v.resize(bin_len);
 
@@ -160,7 +155,7 @@ inline bool DecompressBlob(const BYTE* data, size_t len, std::vector<BYTE>& out,
         const_cast<void*>(static_cast<const void*>(data + sizeof(CompressedBlobHeader))),
         static_cast<size_t>(len - sizeof(CompressedBlobHeader)),
         out.data(),
-        static_cast<size_t>(out.size()),
+        std::size(out),
         &writtenSize);
     CloseDecompressor(decompressor);
     if (!ok || writtenSize != out.size()) {
@@ -199,12 +194,6 @@ inline bool DecodeStatePayload(const std::string& encodedState, std::string_view
 }
 
 inline std::wstring PointerToWide(const void* pointer) {
-    std::wstringstream wss;
-    wss << L"0x"
-        << std::setfill(L'0')
-        << std::setw(sizeof(void*) * 2)
-        << std::hex
-        << reinterpret_cast<std::uintptr_t>(pointer);
-    return wss.str();
+    return std::format(L"0x{:0{}x}", reinterpret_cast<std::uintptr_t>(pointer), sizeof(void*) * 2);
 }
 } // namespace StringUtils

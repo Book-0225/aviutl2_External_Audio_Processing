@@ -7,6 +7,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 #include <vector>
 
 constexpr auto TOOL_NAME = L"Reverb";
@@ -74,7 +75,7 @@ class ModDelayLine {
     }
 
     void clear() {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        std::ranges::fill(buffer, 0.0f);
         w_pos = 0;
     }
 
@@ -227,8 +228,8 @@ struct ReverbState2 {
         if (pre_samps >= MAX_BUFFER_SIZE) pre_samps = MAX_BUFFER_SIZE - 1;
         int32_t pre_r_idx = pre_delay_w - pre_samps;
         if (pre_r_idx < 0) pre_r_idx += MAX_BUFFER_SIZE;
-        int32_t pd_size = static_cast<int32_t>(pre_delay_buf.size());
-        lfo_inc = static_cast<float>(2.0 * M_PI * rev_mod_rate.value / current_sr);
+        int32_t pd_size = std::ssize(pre_delay_buf);
+        lfo_inc = static_cast<float>(2.0 * std::numbers::pi * rev_mod_rate.value / current_sr);
         float mod_amp = mod_depth * 15.0f;
 
         alignas(32) float diff_io[PROCESS_BLOCK_SIZE];
@@ -293,7 +294,7 @@ static std::map<int64_t, ReverbState2> g_rev_states;
 bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     float p_decay_norm = static_cast<float>(rev_decay.value / 100.0);
     p_decay_norm *= p_decay_norm;
     float p_decay = 0.30f + (p_decay_norm * 0.63f);
@@ -332,7 +333,7 @@ bool func_proc_audio_reverb2(FILTER_PROC_AUDIO* audio) {
     alignas(32) float wetR[PROCESS_BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += PROCESS_BLOCK_SIZE) {
-        int32_t block_size = (std::min)(PROCESS_BLOCK_SIZE, total_samples - i);
+        int32_t block_size = std::min(PROCESS_BLOCK_SIZE, total_samples - i);
         float* p_dry_l = bufL.data() + i;
         float* p_dry_r = bufR.data() + i;
         state->process_block(wetL, wetR, p_dry_l, p_dry_r, block_size, p_decay, p_size, p_diffusion, p_highcut, p_lowcut, p_damping, p_predelay, p_mod);

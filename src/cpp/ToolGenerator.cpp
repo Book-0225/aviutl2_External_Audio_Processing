@@ -9,6 +9,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 #include <random>
 #include <string>
 #include <vector>
@@ -137,7 +138,7 @@ static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
 bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     int32_t type = gen_type.value;
     float freq = static_cast<float>(gen_freq.value);
@@ -189,7 +190,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double phase_inc = (2.0 * M_PI * freq) / Fs;
+    double phase_inc = (2.0 * std::numbers::pi * freq) / Fs;
     double current_phase = state->phase;
 
     thread_local std::vector<float> bufL, bufR;
@@ -201,7 +202,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_gen[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
 
         for (int32_t k = 0; k < block_count; ++k) {
             float sample = 0.0f;
@@ -210,13 +211,13 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
                     sample = static_cast<float>(std::sin(current_phase));
                     break;
                 case 1:
-                    sample = (current_phase < M_PI) ? 1.0f : -1.0f;
+                    sample = (current_phase < std::numbers::pi) ? 1.0f : -1.0f;
                     break;
                 case 2:
-                    sample = static_cast<float>(2.0f / M_PI * std::asin(std::sin(current_phase)));
+                    sample = static_cast<float>(2.0f / std::numbers::pi * std::asin(std::sin(current_phase)));
                     break;
                 case 3:
-                    sample = static_cast<float>(1.0 - (current_phase / M_PI));
+                    sample = static_cast<float>(1.0 - (current_phase / std::numbers::pi));
                     break;
                 case 4:
                     sample = g_dist(g_rng);
@@ -238,7 +239,7 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
 
             if (type <= 3) {
                 current_phase += phase_inc;
-                if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                if (current_phase > 2.0 * std::numbers::pi) current_phase -= 2.0 * std::numbers::pi;
             }
         }
 

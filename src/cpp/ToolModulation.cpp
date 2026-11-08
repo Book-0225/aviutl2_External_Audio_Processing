@@ -6,6 +6,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 #include <vector>
 
 constexpr auto TOOL_NAME = L"Modulation";
@@ -74,7 +75,7 @@ inline float interpolate(const float* buffer, double index, int32_t size) {
 bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     bool is_chorus = mod_chorus_s.value;
     bool is_flanger = mod_flanger_s.value;
@@ -103,7 +104,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double lfo_inc = (2.0 * M_PI * rate) / Fs;
+    double lfo_inc = (2.0 * std::numbers::pi * rate) / Fs;
 
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
@@ -128,7 +129,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_tremolo_mod[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* p_dry_L = bufL.data() + i;
         float* p_dry_R = bufR.data() + i;
 
@@ -137,7 +138,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
                 float lfo = static_cast<float>(std::sin(current_phase));
                 if (!is_tremolo) {
                     current_phase += lfo_inc;
-                    if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                    if (current_phase > 2.0 * std::numbers::pi) current_phase -= 2.0 * std::numbers::pi;
                 }
 
                 float mod_delay_samples = base_delay_samples * (1.0f + lfo * depth * 0.5f);
@@ -167,7 +168,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
                     temp_tremolo_mod[k] = 1.0f - depth * (0.5f * (lfo + 1.0f));
 
                     current_phase += lfo_inc;
-                    if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                    if (current_phase > 2.0 * std::numbers::pi) current_phase -= 2.0 * std::numbers::pi;
                 }
 
                 w_pos++;
@@ -186,7 +187,7 @@ bool func_proc_audio_modulation(FILTER_PROC_AUDIO* audio) {
                     float lfo = static_cast<float>(std::sin(current_phase));
                     temp_tremolo_mod[k] = 1.0f - depth * (0.5f * (lfo + 1.0f));
                     current_phase += lfo_inc;
-                    if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+                    if (current_phase > 2.0 * std::numbers::pi) current_phase -= 2.0 * std::numbers::pi;
                 }
 
                 w_pos++;

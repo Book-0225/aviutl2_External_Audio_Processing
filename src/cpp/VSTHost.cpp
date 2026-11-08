@@ -189,9 +189,9 @@ class EventList : public IEventList {
     EventList() {}
     virtual ~EventList() {}
 
-    int32_t PLUGIN_API getEventCount() override { return static_cast<int32_t>(events.size()); }
+    int32_t PLUGIN_API getEventCount() override { return std::ssize(events); }
     tresult PLUGIN_API getEvent(int32_t index, Event& e) override {
-        if (index < 0 || index >= static_cast<int32_t>(events.size())) return kResultFalse;
+        if (index < 0 || index >= std::ssize(events)) return kResultFalse;
         e = events[index];
         return kResultOk;
     }
@@ -723,7 +723,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
     data.inputEvents = &eventList;
     data.outputParameterChanges = &outParamChanges;
 
-    int32_t numInputs = static_cast<int32_t>(inBusChannelCounts.size());
+    int32_t numInputs = std::ssize(inBusChannelCounts);
     if (numInputs > 0) {
         for (int32_t i = 0; i < numInputs; ++i) {
             int32_t chCount = inBusChannelCounts[i];
@@ -750,7 +750,7 @@ void VstHost::Impl::ProcessAudio(const float* inL, const float* inR, float* outL
         data.inputs = inBufsCache.data();
     }
 
-    int32_t numOutputs = static_cast<int32_t>(outBusChannelCounts.size());
+    int32_t numOutputs = std::ssize(outBusChannelCounts);
     if (numOutputs > 0) {
         for (int32_t i = 0; i < numOutputs; ++i) {
             int32_t chCount = outBusChannelCounts[i];
@@ -888,7 +888,7 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
     float* silence = GetDummyBuffer(blockSize);
     Avx2Utils::FillBufferAVX2(silence, blockSize, 0.0f);
 
-    int32_t numInputs = static_cast<int32_t>(inBusChannelCounts.size());
+    int32_t numInputs = std::ssize(inBusChannelCounts);
     for (int32_t i = 0; i < numInputs; ++i) {
         int32_t chCount = inBusChannelCounts[i];
         inBufsCache[i].numChannels = chCount;
@@ -899,7 +899,7 @@ void VstHost::Impl::Reset(int64_t currentSampleIndex, double bpm, int32_t timeSi
         }
     }
 
-    int32_t numOutputs = static_cast<int32_t>(outBusChannelCounts.size());
+    int32_t numOutputs = std::ssize(outBusChannelCounts);
     for (int32_t i = 0; i < numOutputs; ++i) {
         int32_t chCount = outBusChannelCounts[i];
         outBufsCache[i].numChannels = chCount;

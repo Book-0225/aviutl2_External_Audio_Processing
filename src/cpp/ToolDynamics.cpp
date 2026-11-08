@@ -65,7 +65,7 @@ const int32_t BLOCK_SIZE = 64;
 bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     double gate_th_db = dyn_gate_thresh.value;
     double gate_att_ms = dyn_gate_att.value;
@@ -85,9 +85,8 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
 
     double lim_db = dyn_limiter.value;
 
-    if (gate_th_db <= -90.0 && comp_ratio == 1.0 && comp_makeup_db == 0.0 && upcomp_ratio == 1.0 && lim_db >= 0.0) {
+    if (gate_th_db <= -90.0 && comp_ratio == 1.0 && comp_makeup_db == 0.0 && upcomp_ratio == 1.0 && lim_db >= 0.0)
         return true;
-    }
 
     DynamicsState* state = nullptr;
     {
@@ -103,21 +102,16 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-
     double gate_th_lin = std::pow(10.0, gate_th_db / 20.0);
-    double gate_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_rel_ms) * 0.001 * Fs));
-    double gate_atk_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, gate_att_ms) * 0.001 * Fs));
-
-    double comp_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_att_ms) * 0.001 * Fs));
-    double comp_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, comp_rel_ms) * 0.001 * Fs));
-
-    double upcomp_att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, upcomp_att_ms) * 0.001 * Fs));
-    double upcomp_rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, upcomp_rel_ms) * 0.001 * Fs));
-
+    double gate_rel_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, gate_rel_ms) * 0.001 * Fs));
+    double gate_atk_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, gate_att_ms) * 0.001 * Fs));
+    double comp_att_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, comp_att_ms) * 0.001 * Fs));
+    double comp_rel_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, comp_rel_ms) * 0.001 * Fs));
+    double upcomp_att_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, upcomp_att_ms) * 0.001 * Fs));
+    double upcomp_rel_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, upcomp_rel_ms) * 0.001 * Fs));
     double makeup_lin = std::pow(10.0, comp_makeup_db / 20.0);
     bool use_comp = (comp_ratio > 1.0 || comp_makeup_db > 0.0);
     bool use_upcomp = (upcomp_ratio > 1.0);
-
     float lim_lin = static_cast<float>(std::pow(10.0, lim_db / 20.0));
 
     thread_local std::vector<float> bufL, bufR;
@@ -144,7 +138,7 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_gain[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
         float* p_peak = peak_buf.data() + i;
@@ -197,7 +191,6 @@ bool func_proc_audio_dynamics(FILTER_PROC_AUDIO* audio) {
                 }
                 upcomp_gain = std::pow(10.0, gain_increase_db / 20.0);
             }
-
             temp_gain[k] = static_cast<float>(current_gate_gain * comp_gain * upcomp_gain);
         }
 

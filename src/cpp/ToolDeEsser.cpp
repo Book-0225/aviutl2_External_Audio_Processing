@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <map>
+#include <numbers>
 
 constexpr auto TOOL_NAME = L"DeEsser";
 
@@ -77,7 +78,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
         state->initialized = true;
     }
 
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -87,7 +88,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     if (channels >= 2) audio->get_sample_data(bufR.data(), 1);
     else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
-    float omega_sc = 2.0f * static_cast<float>(M_PI) * freq / static_cast<float>(sr);
+    float omega_sc = 2.0f * static_cast<float>(std::numbers::pi) * freq / static_cast<float>(sr);
     float sn_sc = std::sin(omega_sc);
     float cs_sc = std::cos(omega_sc);
     float alpha_sc = sn_sc / (2.0f * 0.707f);
@@ -97,7 +98,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     float b2_sc = b0_sc;
     float a1_sc = (-2.0f * cs_sc) * norm_sc_inv;
     float a2_sc = (1.0f - alpha_sc) * norm_sc_inv;
-    float omega = 2.0f * static_cast<float>(M_PI) * freq / static_cast<float>(sr);
+    float omega = 2.0f * static_cast<float>(std::numbers::pi) * freq / static_cast<float>(sr);
     float sn = std::sin(omega);
     float cs = std::cos(omega);
     float alpha = sn / (2.0f * q);
@@ -109,14 +110,14 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
     float c_a2 = state->cur_a2;
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
         for (int32_t k = 0; k < block_count; ++k) {
             float scL = state->scFilterL.process_ret(pL[k], b0_sc, b1_sc, b2_sc, a1_sc, a2_sc);
             float scR = state->scFilterR.process_ret(pR[k], b0_sc, b1_sc, b2_sc, a1_sc, a2_sc);
-            float sc_level = (std::max)(std::abs(scL), std::abs(scR));
+            float sc_level = std::max(std::abs(scL), std::abs(scR));
 
             if (sc_level > state->envelope)
                 state->envelope = att_coeff * (state->envelope - sc_level) + sc_level;
@@ -127,7 +128,7 @@ bool func_proc_audio_deesser(FILTER_PROC_AUDIO* audio) {
                 float gain_db = 0.0f;
                 if (state->envelope > thresh_lin) {
                     float over = state->envelope - thresh_lin;
-                    float ratio = (std::min)(1.0f, over * 4.0f);
+                    float ratio = std::min(1.0f, over * 4.0f);
                     gain_db = max_cut * ratio;
                 }
 

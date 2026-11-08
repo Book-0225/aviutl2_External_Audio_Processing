@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 
 static const int32_t BLOCK_SIZE = 64;
 
@@ -90,7 +91,7 @@ struct SvfFilter {
         if (cutoff > 0.49f) cutoff = 0.49f;
         if (cutoff < 0.001f) cutoff = 0.001f;
         if (q < 0.5f) q = 0.5f;
-        double g = std::tan(M_PI * cutoff);
+        double g = std::tan(std::numbers::pi * cutoff);
         double k = 1.0f / q;
         double a1 = 1.0f / (1.0f + g * (g + k));
         double a2 = g * a1;
@@ -110,7 +111,7 @@ struct SvfFilter {
     StereoSample processStereo(StereoSample in, float cutoff, float q) {
         if (cutoff > 0.49f) cutoff = 0.49f;
         if (cutoff < 0.0001f) cutoff = 0.0001f;
-        double g = std::tan(M_PI * cutoff);
+        double g = std::tan(std::numbers::pi * cutoff);
         double k = 1.0f / q;
         double a1 = 1.0f / (1.0f + g * (g + k));
         double a2 = g * a1;
@@ -135,11 +136,11 @@ struct DelayLine {
     size_t write_ptr = 0;
     size_t length = 0;
     void set_length(size_t len) {
-        length = (std::min)(len, MAX_DELAY);
+        length = std::min(len, MAX_DELAY);
         if (length < 2) length = 2;
     }
     void clear() {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        std::ranges::fill(buffer, 0.0f);
         write_ptr = 0;
     }
     float process_karplus(float damping) {
@@ -232,7 +233,7 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
     if (state.modWheel > 0.01f) {
         double vib_freq = 6.0;
         double vib_depth = state.modWheel * 0.03;
-        current_freq *= (1.0 + std::sin(time * M_PI * 2 * vib_freq) * vib_depth);
+        current_freq *= (1.0 + std::sin(time * std::numbers::pi * 2 * vib_freq) * vib_depth);
     }
     state.phase_inc = current_freq / sampleRate;
     if (p.type == GEN_KARPLUS && !state.string_plucked) {
@@ -246,7 +247,7 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
     double dt = state.phase_inc;
     switch (p.type) {
         case GEN_SINE: {
-            float v = static_cast<float>(std::sin(t * M_PI * 2));
+            float v = static_cast<float>(std::sin(t * std::numbers::pi * 2));
             sample = { v, v };
             break;
         }
@@ -296,8 +297,8 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
         }
         case GEN_FM: {
             double idx = 2.0 + (p.timbre * 10.0);
-            double mod = std::sin(t * M_PI * 4.0);
-            float v = static_cast<float>(std::sin(t * M_PI * 2 + mod * idx));
+            double mod = std::sin(t * std::numbers::pi * 4.0);
+            float v = static_cast<float>(std::sin(t * std::numbers::pi * 2 + mod * idx));
             sample = { v, v };
             break;
         }
@@ -306,7 +307,7 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
             float inharmonicity = 1.0f + 0.0003f * static_cast<float>(p.freq / 440.0);
             auto partial = [&](double ratio, float amp, float decay_rate) -> float {
                 float env = std::exp(static_cast<float>(-time * decay_rate));
-                return static_cast<float>(std::sin(t * M_PI * 2.0 * ratio)) * amp * env;
+                return static_cast<float>(std::sin(t * std::numbers::pi * 2.0 * ratio)) * amp * env;
             };
             float v = 0.0f;
             v += partial(1.0, 0.70f, 0.4f);
@@ -323,10 +324,10 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
         case GEN_MUSICBOX: {
             float body_decay = std::exp(static_cast<float>(-time * (3.5f + p.timbre * 8.0f)));
             float v = 0.0f;
-            v += static_cast<float>(std::sin(t * M_PI * 2.0)) * 0.60f;
-            v += static_cast<float>(std::sin(t * M_PI * 2.0 * 2.003)) * 0.12f * std::exp(static_cast<float>(-time * 5.0f));
-            v += static_cast<float>(std::sin(t * M_PI * 2.0 * 5.43)) * 0.18f * std::exp(static_cast<float>(-time * 14.0f));
-            v += static_cast<float>(std::sin(t * M_PI * 2.0 * 9.14)) * 0.07f * std::exp(static_cast<float>(-time * 22.0f));
+            v += static_cast<float>(std::sin(t * std::numbers::pi * 2.0)) * 0.60f;
+            v += static_cast<float>(std::sin(t * std::numbers::pi * 2.0 * 2.003)) * 0.12f * std::exp(static_cast<float>(-time * 5.0f));
+            v += static_cast<float>(std::sin(t * std::numbers::pi * 2.0 * 5.43)) * 0.18f * std::exp(static_cast<float>(-time * 14.0f));
+            v += static_cast<float>(std::sin(t * std::numbers::pi * 2.0 * 9.14)) * 0.07f * std::exp(static_cast<float>(-time * 22.0f));
             float pluck = state.rng.nextFloat() * std::exp(static_cast<float>(-time * 600.0f)) * 0.20f;
             v = (v * body_decay + pluck) * 0.75f;
             sample = { v, v };
@@ -341,8 +342,8 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
         }
         case GEN_KICK: {
             float body_env = std::exp(static_cast<float>(-time * 7.0f));
-            float body = static_cast<float>(std::sin(t * M_PI * 2.0)) * body_env;
-            float punch = static_cast<float>(std::sin(t * M_PI * 4.0)) * std::exp(static_cast<float>(-time * 35.0f)) * 0.20f;
+            float body = static_cast<float>(std::sin(t * std::numbers::pi * 2.0)) * body_env;
+            float punch = static_cast<float>(std::sin(t * std::numbers::pi * 4.0)) * std::exp(static_cast<float>(-time * 35.0f)) * 0.20f;
             float click = state.rng.nextFloat() * std::exp(static_cast<float>(-time * 280.0f)) * 0.55f;
             float v = (body + punch + click) * 0.80f;
             sample = { v, v };
@@ -365,7 +366,7 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
             break;
         }
         default: {
-            float v = static_cast<float>(std::sin(t * M_PI * 2));
+            float v = static_cast<float>(std::sin(t * std::numbers::pi * 2));
             sample = { v, v };
             break;
         }
@@ -380,7 +381,7 @@ inline StereoSample GenerateSampleStereo(VoiceState& state, const SynthParams& p
         float env = CalculateEnvelope(time, duration, p.attack, p.decay, p.sustain, p.release);
         sample = sample * env;
     }
-    double angle = state.pan * (M_PI / 2.0f);
+    double angle = state.pan * (std::numbers::pi / 2.0f);
     double pan_l = std::cos(angle);
     double pan_r = std::sin(angle);
     sample.l *= pan_l * state.volume;

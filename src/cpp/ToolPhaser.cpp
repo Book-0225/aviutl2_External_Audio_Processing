@@ -6,6 +6,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 #include <vector>
 
 constexpr auto TOOL_NAME = L"Phaser";
@@ -84,7 +85,7 @@ const int32_t BLOCK_SIZE = 64;
 bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     float rate = static_cast<float>(ph_rate.value);
     float depth = static_cast<float>(ph_depth.value) / 100.0f;
@@ -107,7 +108,7 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double lfo_inc = (2.0 * M_PI * rate) / Fs;
+    double lfo_inc = (2.0 * std::numbers::pi * rate) / Fs;
 
     float min_freq = 200.0f;
     float max_freq = 2000.0f;
@@ -128,17 +129,17 @@ bool func_proc_audio_phaser(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_R[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* p_dry_L = bufL.data() + i;
         float* p_dry_R = bufR.data() + i;
 
         for (int32_t k = 0; k < block_count; ++k) {
             float lfo = static_cast<float>(std::sin(current_phase) + 1.0f) * 0.5f;
             current_phase += lfo_inc;
-            if (current_phase > 2.0 * M_PI) current_phase -= 2.0 * M_PI;
+            if (current_phase > 2.0 * std::numbers::pi) current_phase -= 2.0 * std::numbers::pi;
 
             float freq = min_freq + (max_freq - min_freq) * lfo * depth;
-            float tan_val = static_cast<float>(std::tan(M_PI * freq / Fs));
+            float tan_val = static_cast<float>(std::tan(std::numbers::pi * freq / Fs));
             float a = (tan_val - 1.0f) / (tan_val + 1.0f);
 
             float in_l = p_dry_L[k] + state->last_feedbackL * feedback;

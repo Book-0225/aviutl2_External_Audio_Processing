@@ -153,7 +153,7 @@ int32_t ShowParamAssignPicker(HINSTANCE hInstance, HWND parentWindow, const std:
     }
 
     if (state.confirmed && state.selectedIndex >= 0 &&
-        state.selectedIndex < static_cast<int32_t>(candidates.size())) {
+        state.selectedIndex < std::ssize(candidates)) {
         return candidates[state.selectedIndex].index;
     }
     return -1;

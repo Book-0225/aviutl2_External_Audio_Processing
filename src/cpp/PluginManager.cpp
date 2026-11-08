@@ -106,7 +106,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
             const auto& mapping = m_param_mappings[id];
             for (int32_t i = 0; i < 4; ++i)
                 if (mapping[i] != -1)
-                    extra_segment += std::to_string(i) + "=" + std::to_string(mapping[i]) + ",";
+                    extra_segment += std::format("{:d}={:d},", i, mapping[i]);
         }
         auto sub_id_it = m_sub_plugin_ids.find(id);
         if (sub_id_it != m_sub_plugin_ids.end() && !sub_id_it->second.empty())

@@ -58,7 +58,7 @@ static std::map<int64_t, MaximizerState> g_max_states;
 bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     double threshold_db = max_threshold.value;
     double ceiling_db = max_ceiling.value;
@@ -115,7 +115,7 @@ bool func_proc_maximizer(FILTER_PROC_AUDIO* audio) {
     Avx2Utils::PeakDetectStereoAVX2(peak_buf.data(), bufL.data(), bufR.data(), total_samples);
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
         float* p_peak = peak_buf.data() + i;

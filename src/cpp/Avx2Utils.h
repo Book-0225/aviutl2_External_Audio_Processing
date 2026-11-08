@@ -6,9 +6,7 @@
 // clang-format on
 #include "filter2.h"
 
-#define _USE_MATH_DEFINES
 #include <algorithm>
-#include <cmath>
 #include <complex>
 #include <filesystem>
 #include <immintrin.h>
@@ -416,7 +414,7 @@ inline float GetPeakAbsAVX2(const float* src, size_t count) {
     for (int32_t k = 0; k < 8; ++k)
         if (temp[k] > max_val) max_val = temp[k];
 
-    for (; i < count; ++i) max_val = (std::max)(max_val, std::abs(src[i]));
+    for (; i < count; ++i) max_val = std::max(max_val, std::abs(src[i]));
     _mm256_zeroupper();
     return max_val;
 }
@@ -493,7 +491,7 @@ inline void MaxBufferAVX2(float* out, const float* src1, const float* src2, size
         _mm256_storeu_ps(out + i, _mm256_max_ps(va, vb));
     }
 
-    for (; i < count; ++i) out[i] = (std::max)(src1[i], src2[i]);
+    for (; i < count; ++i) out[i] = std::max(src1[i], src2[i]);
     _mm256_zeroupper();
 }
 
@@ -542,7 +540,7 @@ inline void PeakDetectStereoAVX2(float* out_peak, const float* inL, const float*
         _mm256_storeu_ps(out_peak + i, _mm256_max_ps(vL, vR));
     }
 
-    for (; i < count; ++i) out_peak[i] = (std::max)(std::abs(inL[i]), std::abs(inR[i]));
+    for (; i < count; ++i) out_peak[i] = std::max(std::abs(inL[i]), std::abs(inR[i]));
     _mm256_zeroupper();
 }
 
@@ -721,7 +719,7 @@ inline void BlendPointsAVX2(PIXEL_RGBA* img, int32_t imgW, int32_t imgH, const f
                 out.r = static_cast<uint8_t>(rx[k] + src.r * invA);
                 out.g = static_cast<uint8_t>(gx[k] + src.g * invA);
                 out.b = static_cast<uint8_t>(bx[k] + src.b * invA);
-                out.a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(src.a + color.a * alpha)));
+                out.a = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(src.a + color.a * alpha)));
                 img[idx] = out;
             }
         }
@@ -780,9 +778,9 @@ inline void ComputeRingAlphaMaskAVX2(float* outAlpha, int32_t rectX, int32_t rec
             if (d2 >= rIn2 && d2 <= rOut2) {
                 float distOut = rOut2 - d2;
                 float distIn = d2 - rIn2;
-                float ao = (std::min)(1.0f, distOut * 0.25f);
-                float ai = (std::min)(1.0f, distIn * 0.25f);
-                a = (std::min)(ao, ai);
+                float ao = std::min(1.0f, distOut * 0.25f);
+                float ai = std::min(1.0f, distIn * 0.25f);
+                a = std::min(ao, ai);
             }
             outAlpha[yy * rectW + xx] = a;
         }
@@ -792,7 +790,7 @@ inline void ComputeRingAlphaMaskAVX2(float* outAlpha, int32_t rectX, int32_t rec
 
 inline void FillLineRGBAx8(PIXEL_RGBA* buf, int32_t startX, int32_t y, int32_t lineLen, int32_t imgW, int32_t imgH, PIXEL_RGBA color) {
     if (lineLen <= 0 || y < 0 || y >= imgH) return;
-    int32_t endX = (std::min)(startX + lineLen, imgW);
+    int32_t endX = std::min(startX + lineLen, imgW);
     if (startX >= imgW || endX <= 0) return;
     if (startX < 0) startX = 0;
 
@@ -815,7 +813,7 @@ inline void BlendLineRGBAx8(PIXEL_RGBA* buf, int32_t startX, int32_t y, int32_t 
         return;
     }
 
-    int32_t endX = (std::min)(startX + lineLen, imgW);
+    int32_t endX = std::min(startX + lineLen, imgW);
     if (startX >= imgW || endX <= 0) return;
     if (startX < 0) startX = 0;
 
@@ -875,14 +873,14 @@ inline void BlendLineRGBAx8(PIXEL_RGBA* buf, int32_t startX, int32_t y, int32_t 
         buf[pixIdx + i].r = static_cast<uint8_t>(color.r * alpha + bg.r * invAlpha);
         buf[pixIdx + i].g = static_cast<uint8_t>(color.g * alpha + bg.g * invAlpha);
         buf[pixIdx + i].b = static_cast<uint8_t>(color.b * alpha + bg.b * invAlpha);
-        buf[pixIdx + i].a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(bg.a + color.a)));
+        buf[pixIdx + i].a = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(bg.a + color.a)));
     }
     _mm256_zeroupper();
 }
 
 inline void FillVerticalLineRGBAx8(PIXEL_RGBA* buf, int32_t x, int32_t startY, int32_t lineLen, int32_t imgW, int32_t imgH, PIXEL_RGBA color) {
     if (lineLen <= 0 || x < 0 || x >= imgW) return;
-    int32_t endY = (std::min)(startY + lineLen, imgH);
+    int32_t endY = std::min(startY + lineLen, imgH);
     if (startY >= imgH || endY <= 0) return;
     if (startY < 0) startY = 0;
 
@@ -897,7 +895,7 @@ inline void BlendVerticalLineRGBAx8(PIXEL_RGBA* buf, int32_t x, int32_t startY, 
         return;
     }
 
-    int32_t endY = (std::min)(startY + lineLen, imgH);
+    int32_t endY = std::min(startY + lineLen, imgH);
     if (startY >= imgH || endY <= 0) return;
     if (startY < 0) startY = 0;
 
@@ -954,7 +952,7 @@ inline void BlendVerticalLineRGBAx8(PIXEL_RGBA* buf, int32_t x, int32_t startY, 
         buf[idx].r = static_cast<uint8_t>(color.r * alpha + bg.r * invAlpha);
         buf[idx].g = static_cast<uint8_t>(color.g * alpha + bg.g * invAlpha);
         buf[idx].b = static_cast<uint8_t>(color.b * alpha + bg.b * invAlpha);
-        buf[idx].a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(bg.a + color.a)));
+        buf[idx].a = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(bg.a + color.a)));
     }
     _mm256_zeroupper();
 }

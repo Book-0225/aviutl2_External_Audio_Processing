@@ -51,38 +51,32 @@ struct SpatialState {
 static std::mutex g_sp_state_mutex;
 static std::map<int64_t, SpatialState> g_sp_states;
 
-inline void ReadRingBufferBlock(
-    float* out, const std::vector<float>& buf,
-    int32_t w_pos, int32_t delay_samples, int32_t count) {
-    const int32_t buf_size = static_cast<int32_t>(buf.size());
+inline void ReadRingBufferBlock(float* out, const std::vector<float>& buf, int32_t w_pos, int32_t delay_samples, int32_t count) {
+    const int32_t buf_size = std::ssize(buf);
     int32_t r_pos = w_pos - delay_samples;
     if (r_pos < 0) r_pos += buf_size;
 
-    int32_t first_chunk = (std::min)(count, buf_size - r_pos);
+    int32_t first_chunk = std::min(count, buf_size - r_pos);
     Avx2Utils::CopyBufferAVX2(out, buf.data() + r_pos, first_chunk);
 
-    if (first_chunk < count) {
+    if (first_chunk < count)
         Avx2Utils::CopyBufferAVX2(out + first_chunk, buf.data(), count - first_chunk);
-    }
 }
 
-inline void WriteRingBufferBlock(
-    std::vector<float>& buf, const float* in,
-    int32_t w_pos, int32_t count) {
-    const int32_t buf_size = static_cast<int32_t>(buf.size());
-    int32_t first_chunk = (std::min)(count, buf_size - w_pos);
+inline void WriteRingBufferBlock(std::vector<float>& buf, const float* in, int32_t w_pos, int32_t count) {
+    const int32_t buf_size = std::ssize(buf);
+    int32_t first_chunk = std::min(count, buf_size - w_pos);
 
     Avx2Utils::CopyBufferAVX2(buf.data() + w_pos, in, first_chunk);
 
-    if (first_chunk < count) {
+    if (first_chunk < count)
         Avx2Utils::CopyBufferAVX2(buf.data(), in + first_chunk, count - first_chunk);
-    }
 }
 
 bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     float d_time = static_cast<float>(sp_time.value);
     float d_fb = static_cast<float>(sp_feedback.value);
@@ -137,7 +131,7 @@ bool func_proc_audio_spatial(FILTER_PROC_AUDIO* audio) {
     const int32_t buf_size = MAX_BUFFER_SIZE;
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 

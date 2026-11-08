@@ -6,6 +6,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <numbers>
 
 constexpr auto TOOL_NAME = L"Spectral Gate";
 
@@ -27,7 +28,7 @@ struct HighpassFilter {
     float a1 = 0.0f, b0 = 0.0f, b1 = 0.0f;
 
     void design(float cutoff_freq, double sample_rate) {
-        float omega = 2.0f * static_cast<float>(M_PI) * cutoff_freq / static_cast<float>(sample_rate);
+        float omega = 2.0f * static_cast<float>(std::numbers::pi) * cutoff_freq / static_cast<float>(sample_rate);
         float sin_omega = std::sin(omega);
         float cos_omega = std::cos(omega);
         float alpha = sin_omega / (2.0f * 0.707107f);
@@ -86,7 +87,7 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     float attack_coeff = std::exp(-1.0f / (attack_ms * static_cast<float>(sr) / 1000.0f + 1.0f));
     float release_coeff = std::exp(-1.0f / (release_ms * static_cast<float>(sr) / 1000.0f + 1.0f));
 
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     thread_local std::vector<float> envL_buf, envR_buf, max_env_buf, gate_envelope;
 
@@ -106,17 +107,15 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
         std::lock_guard<std::mutex> lock(g_spectral_gate_mutex);
         for (int32_t i = 0; i < total_samples; ++i) {
             envL_buf[i] = std::abs(state->hpL.process(bufL[i]));
-            if (channels >= 2) {
+            if (channels >= 2)
                 envR_buf[i] = std::abs(state->hpR.process(bufR[i]));
-            }
         }
     }
 
-    if (channels >= 2) {
+    if (channels >= 2)
         Avx2Utils::MaxBufferAVX2(max_env_buf.data(), envL_buf.data(), envR_buf.data(), total_samples);
-    } else {
+    else
         Avx2Utils::CopyBufferAVX2(max_env_buf.data(), envL_buf.data(), total_samples);
-    }
 
     Avx2Utils::FillBufferAVX2(gate_envelope.data(), total_samples, state->envelope);
     Avx2Utils::EnvelopeFollowerAVX2(gate_envelope.data(), max_env_buf.data(), total_samples, attack_coeff, release_coeff);
@@ -129,16 +128,13 @@ bool func_proc_audio_spectral_gate(FILTER_PROC_AUDIO* audio) {
     std::vector<float> temp_wet_R(bufR.begin(), bufR.end());
 
     Avx2Utils::MultiplyBufferAVX2(temp_wet_L.data(), temp_wet_L.data(), max_env_buf.data(), total_samples);
-    if (channels >= 2) {
+    if (channels >= 2)
         Avx2Utils::MultiplyBufferAVX2(temp_wet_R.data(), temp_wet_R.data(), max_env_buf.data(), total_samples);
-    }
 
-    if (channels >= 1) {
+    if (channels >= 1)
         Avx2Utils::MixAudioAVX2(bufL.data(), temp_wet_L.data(), total_samples, mix, 1.0f - mix, 1.0f);
-    }
-    if (channels >= 2) {
+    if (channels >= 2)
         Avx2Utils::MixAudioAVX2(bufR.data(), temp_wet_R.data(), total_samples, mix, 1.0f - mix, 1.0f);
-    }
 
     if (channels >= 1) audio->set_sample_data(bufL.data(), 0);
     if (channels >= 2) audio->set_sample_data(bufR.data(), 1);

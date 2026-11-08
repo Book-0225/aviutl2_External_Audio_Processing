@@ -1,5 +1,5 @@
 ﻿#pragma once
-#define _USE_MATH_DEFINES
+
 // clang-format off
 #include <windows.h>
 #include <cstdint>
@@ -20,8 +20,6 @@
 #include <regex>
 #include <string>
 #include <string_view>
-#include <tchar.h>
-#include <variant>
 #include <vector>
 
 #define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() {                          \

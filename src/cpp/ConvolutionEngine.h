@@ -16,7 +16,7 @@ class IrSpectrum {
         block_size_ = block_size;
         fft_size_ = block_size * 2;
 
-        int32_t partitions = (static_cast<int32_t>(ir.size()) + block_size_ - 1) / block_size_;
+        int32_t partitions = (std::ssize(ir) + block_size_ - 1) / block_size_;
         if (partitions < 1) partitions = 1;
         num_partitions_ = partitions;
 
@@ -25,7 +25,7 @@ class IrSpectrum {
             std::vector<std::complex<float>> buf(fft_size_, std::complex<float>(0.0f, 0.0f));
             for (int32_t i = 0; i < block_size_; ++i) {
                 int64_t idx = static_cast<int64_t>(k) * block_size_ + i;
-                float v = (idx < static_cast<int64_t>(ir.size())) ? ir[idx] : 0.0f;
+                float v = (idx < std::ssize(ir)) ? ir[idx] : 0.0f;
                 buf[i] = std::complex<float>(v, 0.0f);
             }
             FftUtils::FftInplace(buf.data(), fft_size_, false);
@@ -85,7 +85,7 @@ class PartitionedConvolver {
         for (int32_t i = 0; i < fft_size; ++i) x0[i] = std::complex<float>(sliding_[i], 0.0f);
         FftUtils::FftInplace(x0.data(), fft_size, false);
 
-        std::fill(y_scratch_.begin(), y_scratch_.end(), std::complex<float>(0.0f, 0.0f));
+        std::ranges::fill(y_scratch_, std::complex<float>(0.0f, 0.0f));
         for (int32_t k = 0; k < p; ++k) {
             int32_t idx = hist_write_ - k;
             if (idx < 0) idx += p;
@@ -101,8 +101,8 @@ class PartitionedConvolver {
     }
 
     void Clear() {
-        for (auto& v : x_hist_) std::fill(v.begin(), v.end(), std::complex<float>(0.0f, 0.0f));
-        std::fill(sliding_.begin(), sliding_.end(), 0.0f);
+        for (auto& v : x_hist_) std::ranges::fill(v, std::complex<float>(0.0f, 0.0f));
+        std::ranges::fill(sliding_, 0.0f);
         hist_write_ = 0;
     }
 
@@ -140,7 +140,7 @@ class StreamingConvolver {
         int32_t i = 0;
         while (i < n) {
             int32_t space = block_size_ - in_fill_;
-            int32_t take = (std::min)(space, n - i);
+            int32_t take = std::min(space, n - i);
             std::copy(in + i, in + i + take, in_buf_.begin() + in_fill_);
             in_fill_ += take;
             i += take;
@@ -152,8 +152,8 @@ class StreamingConvolver {
             }
         }
 
-        int32_t avail = static_cast<int32_t>(out_buf_.size()) - out_read_;
-        int32_t give = (std::min)(avail, n);
+        int32_t avail = std::ssize(out_buf_) - out_read_;
+        int32_t give = std::min(avail, n);
         for (int32_t k = 0; k < give; ++k) out[k] = out_buf_[out_read_ + k];
         for (int32_t k = give; k < n; ++k) out[k] = 0.0f;
         out_read_ += give;
@@ -166,7 +166,7 @@ class StreamingConvolver {
 
     void Clear() {
         conv_.Clear();
-        std::fill(in_buf_.begin(), in_buf_.end(), 0.0f);
+        std::ranges::fill(in_buf_, 0.0f);
         in_fill_ = 0;
         out_buf_.assign(block_size_, 0.0f);
         out_read_ = 0;
@@ -185,7 +185,7 @@ class StreamingConvolver {
 class TrueStereoSpectrum {
   public:
     void Build(const std::vector<float>& ir_ll, const std::vector<float>& ir_lr, const std::vector<float>& ir_rl, const std::vector<float>& ir_rr, int32_t block_size) {
-        size_t max_len = (std::max)({ ir_ll.size(), ir_lr.size(), ir_rl.size(), ir_rr.size() });
+        size_t max_len = std::max({ std::size(ir_ll), std::size(ir_lr), std::size(ir_rl), std::size(ir_rr) });
         auto pad = [&](const std::vector<float>& v) {
             std::vector<float> out = v;
             out.resize(max_len, 0.0f);
@@ -261,8 +261,8 @@ class TrueStereoConvolver {
         FftUtils::FftInplace(x0l.data(), fft_size, false);
         FftUtils::FftInplace(x0r.data(), fft_size, false);
 
-        std::fill(y_l_.begin(), y_l_.end(), std::complex<float>(0.0f, 0.0f));
-        std::fill(y_r_.begin(), y_r_.end(), std::complex<float>(0.0f, 0.0f));
+        std::ranges::fill(y_l_, std::complex<float>(0.0f, 0.0f));
+        std::ranges::fill(y_r_, std::complex<float>(0.0f, 0.0f));
         for (int32_t k = 0; k < p; ++k) {
             int32_t idx = hist_write_ - k;
             if (idx < 0) idx += p;
@@ -285,10 +285,10 @@ class TrueStereoConvolver {
     }
 
     void Clear() {
-        for (auto& v : x_hist_l_) std::fill(v.begin(), v.end(), std::complex<float>(0.0f, 0.0f));
-        for (auto& v : x_hist_r_) std::fill(v.begin(), v.end(), std::complex<float>(0.0f, 0.0f));
-        std::fill(sliding_l_.begin(), sliding_l_.end(), 0.0f);
-        std::fill(sliding_r_.begin(), sliding_r_.end(), 0.0f);
+        for (auto& v : x_hist_l_) std::ranges::fill(v, std::complex<float>(0.0f, 0.0f));
+        for (auto& v : x_hist_r_) std::ranges::fill(v, std::complex<float>(0.0f, 0.0f));
+        std::ranges::fill(sliding_l_, 0.0f);
+        std::ranges::fill(sliding_r_, 0.0f);
         hist_write_ = 0;
     }
 
@@ -332,7 +332,7 @@ class TrueStereoStreamingConvolver {
         int32_t i = 0;
         while (i < n) {
             int32_t space = block_size_ - in_fill_;
-            int32_t take = (std::min)(space, n - i);
+            int32_t take = std::min(space, n - i);
             std::copy(in_l + i, in_l + i + take, in_l_.begin() + in_fill_);
             std::copy(in_r + i, in_r + i + take, in_r_.begin() + in_fill_);
             in_fill_ += take;
@@ -346,8 +346,8 @@ class TrueStereoStreamingConvolver {
             }
         }
 
-        int32_t avail = static_cast<int32_t>(out_l_.size()) - out_read_;
-        int32_t give = (std::min)(avail, n);
+        int32_t avail = std::ssize(out_l_) - out_read_;
+        int32_t give = std::min(avail, n);
         for (int32_t k = 0; k < give; ++k) {
             out_l[k] = out_l_[out_read_ + k];
             out_r[k] = out_r_[out_read_ + k];
@@ -367,8 +367,8 @@ class TrueStereoStreamingConvolver {
 
     void Clear() {
         conv_.Clear();
-        std::fill(in_l_.begin(), in_l_.end(), 0.0f);
-        std::fill(in_r_.begin(), in_r_.end(), 0.0f);
+        std::ranges::fill(in_l_, 0.0f);
+        std::ranges::fill(in_r_, 0.0f);
         in_fill_ = 0;
         out_l_.assign(block_size_, 0.0f);
         out_r_.assign(block_size_, 0.0f);

@@ -14,7 +14,6 @@
 #include "TempoUtils.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <map>
@@ -40,10 +39,10 @@ struct DelayBuffer {
 static std::unordered_map<std::string, DelayBuffer> g_delay_buffers;
 
 static inline void CircularBufferWrite(std::vector<float>& buf, int32_t& pos, const float* src, int32_t count) {
-    const int32_t bufSize = static_cast<int32_t>(buf.size());
+    const int32_t bufSize = std::ssize(buf);
     if (bufSize <= 0 || count <= 0) return;
     while (count > 0) {
-        int32_t chunk = (std::min)(count, bufSize - pos);
+        int32_t chunk = std::min(count, bufSize - pos);
         std::memcpy(buf.data() + pos, src, static_cast<size_t>(chunk) * sizeof(float));
         pos += chunk;
         if (pos >= bufSize) pos = 0;
@@ -53,10 +52,10 @@ static inline void CircularBufferWrite(std::vector<float>& buf, int32_t& pos, co
 }
 
 static inline void CircularBufferRead(const std::vector<float>& buf, int32_t& pos, float* dst, int32_t count) {
-    const int32_t bufSize = static_cast<int32_t>(buf.size());
+    const int32_t bufSize = std::ssize(buf);
     if (bufSize <= 0 || count <= 0) return;
     while (count > 0) {
-        int32_t chunk = (std::min)(count, bufSize - pos);
+        int32_t chunk = std::min(count, bufSize - pos);
         std::memcpy(dst, buf.data() + pos, static_cast<size_t>(chunk) * sizeof(float));
         pos += chunk;
         if (pos >= bufSize) pos = 0;
@@ -603,7 +602,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                                 sub_plugin_id = candidates[0].id;
                             } else if (candidates.size() > 1) {
                                 std::string saved_id = PluginManager::GetInstance().GetSubPluginId(instance_id);
-                                bool saved_is_valid = !saved_id.empty() && std::any_of(candidates.begin(), candidates.end(), [&](const auto& c) { return c.id == saved_id; });
+                                bool saved_is_valid = !saved_id.empty() && std::ranges::any_of(candidates, [&](const auto& c) { return c.id == saved_id; });
                                 if (saved_is_valid && !path_changed && !force_reload) {
                                     sub_plugin_id = saved_id;
                                 } else {
@@ -665,7 +664,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
 
     thread_local std::vector<float> inL, inR, outL, outR;
     if (inL.size() < total_samples) {
@@ -695,7 +694,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         return true;
     }
 
-    int64_t current_pos = static_cast<int64_t>(audio->object->sample_index + 0.5);
+    int64_t current_pos = std::llround(audio->object->sample_index);
     double bpm = 120.0;
     int32_t sync_bpm = select_bpm_sync.value;
     bool processed_by_host = false;
@@ -779,7 +778,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
 
         auto get_track_value_at = [&](LPCWSTR item, double local_sec, double fallback) -> double {
             if (!audio->edit || !self_obj || frames_per_sec <= 0.0) return fallback;
-            double clamped = (std::max)(0.0, (std::min)(local_sec, time_total));
+            double clamped = std::max(0.0, std::min(local_sec, time_total));
             double global_frame = static_cast<double>(audio->object->frame_s) + clamped * frames_per_sec;
             double value = fallback;
             if (!audio->edit->get_object_track_value(self_obj, filter_track_name, item, global_frame, &value))
@@ -800,9 +799,9 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 end_time_sec += static_cast<double>(host->GetLatencySamples()) / audio->scene->sample_rate;
             }
             double frame_len = 1.0 / frames_per_sec;
-            double max_time_sec = (std::max)(0.0, (std::min)(end_time_sec + frame_len, time_total));
+            double max_time_sec = std::max(0.0, std::min(end_time_sec + frame_len, time_total));
             int32_t segment_count = static_cast<int32_t>(std::ceil(max_time_sec * frames_per_sec)) + 1;
-            segment_count = (std::max)(1, segment_count);
+            segment_count = std::max(1, segment_count);
             manual_segments.reserve(segment_count);
 
             double cum_tick = 0.0;
@@ -812,7 +811,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
             manual_segments.push_back({ 0.0, 0.0, prev_bpm * ms.parser.GetTPQN() / 60.0 });
 
             for (int32_t i = 1; i < segment_count; ++i) {
-                double t = (std::min)(i * frame_len, max_time_sec);
+                double t = std::min(i * frame_len, max_time_sec);
                 cum_tick += (t - prev_time) * manual_segments.back().ticks_per_sec;
                 double bpm_at_t = get_track_value_at(L"BPM", t, track_bpm.value);
                 if (bpm_at_t < 0.1) bpm_at_t = 0.1;
@@ -959,7 +958,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         thread_local std::vector<IAudioPluginHost::MidiEvent> midi_events_for_block;
 
         while (processed < total_samples) {
-            int32_t block_size = (std::min)(MAX_BLOCK_SIZE, total_samples - processed);
+            int32_t block_size = std::min(MAX_BLOCK_SIZE, total_samples - processed);
             int64_t current_block_pos = current_pos + processed;
             if (host) {
                 int64_t lat = host->GetLatencySamples();
@@ -984,8 +983,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                 if (end_tick < start_tick) std::swap(start_tick, end_tick);
 
                 const auto& all_events = ms.parser.GetEvents();
-                auto it = std::lower_bound(all_events.begin(), all_events.end(), start_tick,
-                                           [](const RawMidiEvent& e, int64_t tick) { return e.absoluteTick < tick; });
+                auto it = std::lower_bound(all_events.begin(), all_events.end(), start_tick, [](const RawMidiEvent& e, int64_t tick) { return e.absoluteTick < tick; });
 
                 for (; it != all_events.end(); ++it) {
                     if (it->absoluteTick >= end_tick) break;
@@ -995,7 +993,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
                     double event_time_sec = midi_tick_to_time(static_cast<double>(it->absoluteTick));
                     double raw_delta = (event_time_sec - time_start) * audio->scene->sample_rate;
                     if (raw_delta > block_size) raw_delta = block_size;
-                    delta_samples = static_cast<int32_t>(std::floor(raw_delta + 0.5));
+                    delta_samples = static_cast<int32_t>(std::lround(raw_delta));
 
                     if (delta_samples < 0) delta_samples = 0;
                     if (delta_samples >= block_size) delta_samples = block_size - 1;
@@ -1048,7 +1046,7 @@ bool func_proc_audio_host_common(FILTER_PROC_AUDIO* audio, bool is_object) {
         }
 
         int32_t writeP = db->writePos;
-        int32_t bufSize = static_cast<int32_t>(db->bufferL.size());
+        int32_t bufSize = std::ssize(db->bufferL);
 
         CircularBufferWrite(db->bufferL, writeP, inL.data(), total_samples);
         if (channels >= 2) {

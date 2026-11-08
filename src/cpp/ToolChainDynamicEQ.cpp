@@ -3,9 +3,8 @@
 #include "Eap2Common.h"
 #include "FilterItemHelper.h"
 
-#define _USE_MATH_DEFINES
-#include <cmath>
 #include <map>
+#include <numbers>
 
 constexpr auto TOOL_NAME = L"Chain Dynamic EQ";
 
@@ -84,9 +83,9 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     }
 
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
-    double att_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, att_ms) * 0.001 * Fs));
-    double rel_coef = 1.0 - std::exp(-1.0 / ((std::max)(0.1, rel_ms) * 0.001 * Fs));
-    double omega = 2.0 * M_PI * freq / Fs;
+    double att_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, att_ms) * 0.001 * Fs));
+    double rel_coef = 1.0 - std::exp(-1.0 / (std::max(0.1, rel_ms) * 0.001 * Fs));
+    double omega = 2.0 * std::numbers::pi * freq / Fs;
     double sn = std::sin(omega);
     double cs = std::cos(omega);
     double alpha = sn / (2.0 * q);
@@ -113,10 +112,10 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
                 state->missed_count[i] = 0;
             }
         }
-        sidechain_input = *std::max_element(levels.begin(), levels.end());
+        sidechain_input = *std::ranges::max_element(levels);
     }
 
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -133,7 +132,7 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
     float c_a1 = state->c_a1, c_a2 = state->c_a2;
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
@@ -149,7 +148,7 @@ bool func_proc_audio_chain_dyn_eq(FILTER_PROC_AUDIO* audio) {
 
                 if (env_db > thresh_db) {
                     double over_db = env_db - thresh_db;
-                    double ratio = (std::min)(1.0, over_db / 20.0);
+                    double ratio = std::min(1.0, over_db / 20.0);
                     current_gain_db = max_reduction_db * ratio;
                 }
 

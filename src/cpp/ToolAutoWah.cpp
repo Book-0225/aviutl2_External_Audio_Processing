@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <numbers>
 
 constexpr auto TOOL_NAME = L"Auto Wah";
 
@@ -41,7 +42,11 @@ struct AutoWahState {
     float envelope = 0.0f;
     bool initialized = false;
     int64_t last_sample_end = -1;
-    float c_b0 = 0.0f, c_b1 = 0.0f, c_b2 = 0.0f, c_a1 = 0.0f, c_a2 = 0.0f;
+    float c_b0 = 0.0f;
+    float c_b1 = 0.0f;
+    float c_b2 = 0.0f;
+    float c_a1 = 0.0f;
+    float c_a2 = 0.0f;
 };
 
 static std::mutex g_wah_mutex;
@@ -78,7 +83,7 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
         state->initialized = true;
     }
 
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     thread_local std::vector<float> bufL, bufR;
     if (bufL.size() < static_cast<size_t>(total_samples)) {
         bufL.resize(total_samples);
@@ -89,13 +94,16 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     else Avx2Utils::CopyBufferAVX2(bufR.data(), bufL.data(), total_samples);
 
     float current_env = state->envelope;
-    float c_b0 = state->c_b0, c_b1 = state->c_b1, c_b2 = state->c_b2;
-    float c_a1 = state->c_a1, c_a2 = state->c_a2;
+    float c_b0 = state->c_b0;
+    float c_b1 = state->c_b1;
+    float c_b2 = state->c_b2;
+    float c_a1 = state->c_a1;
+    float c_a2 = state->c_a2;
 
     if (c_b0 == 0.0f) {
         float target_freq = base_f + (current_env * range_f);
         if (target_freq > static_cast<float>(sr) * 0.45f) target_freq = static_cast<float>(sr) * 0.45f;
-        float omega = 2.0f * static_cast<float>(M_PI) * target_freq / static_cast<float>(sr);
+        float omega = 2.0f * static_cast<float>(std::numbers::pi) * target_freq / static_cast<float>(sr);
         float sn = std::sin(omega);
         float cs = std::cos(omega);
         float alpha = sn / (2.0f * q);
@@ -112,7 +120,7 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
     alignas(32) float temp_wet_R[BLOCK_SIZE];
 
     for (int32_t i = 0; i < total_samples; i += BLOCK_SIZE) {
-        int32_t block_count = (std::min)(BLOCK_SIZE, total_samples - i);
+        int32_t block_count = std::min(BLOCK_SIZE, total_samples - i);
         float* pL = bufL.data() + i;
         float* pR = bufR.data() + i;
 
@@ -131,7 +139,7 @@ bool func_proc_audio_autowah(FILTER_PROC_AUDIO* audio) {
                 float target_freq = base_f + (current_env * range_f);
                 if (target_freq > static_cast<float>(sr) * 0.45f) target_freq = static_cast<float>(sr) * 0.45f;
 
-                float omega = 2.0f * static_cast<float>(M_PI) * target_freq / static_cast<float>(sr);
+                float omega = 2.0f * static_cast<float>(std::numbers::pi) * target_freq / static_cast<float>(sr);
                 float sn = std::sin(omega);
                 float cs = std::cos(omega);
                 float alpha = sn / (2.0f * q);

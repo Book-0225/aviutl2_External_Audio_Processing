@@ -142,19 +142,19 @@ void BlendPixel(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, PIX
         buf[idx].r = static_cast<uint8_t>(c.r * alpha + bg.r * invAlpha);
         buf[idx].g = static_cast<uint8_t>(c.g * alpha + bg.g * invAlpha);
         buf[idx].b = static_cast<uint8_t>(c.b * alpha + bg.b * invAlpha);
-        buf[idx].a = static_cast<uint8_t>((std::min)(255, bg.a + c.a));
+        buf[idx].a = static_cast<uint8_t>(std::min(255, bg.a + c.a));
     }
 }
 
 void DrawBox(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, int32_t rw, int32_t rh, PIXEL_RGBA fillColor, PIXEL_RGBA borderColor, int32_t borderThick, int32_t radius, bool gradient) {
     if (rw <= 0 || rh <= 0) return;
-    int32_t sx = (std::max)(0, x);
-    int32_t sy = (std::max)(0, y);
-    int32_t ex = (std::min)(w, x + rw);
-    int32_t ey = (std::min)(h, y + rh);
+    int32_t sx = std::max(0, x);
+    int32_t sy = std::max(0, y);
+    int32_t ex = std::min(w, x + rw);
+    int32_t ey = std::min(h, y + rh);
     if (sx >= ex || sy >= ey) return;
 
-    int32_t r = (std::min)(radius, (std::min)(rw / 2, rh / 2));
+    int32_t r = std::min(radius, std::min(rw / 2, rh / 2));
     int32_t r2 = r * r;
 
     for (int32_t iy = sy; iy < ey; ++iy) {
@@ -184,9 +184,9 @@ void DrawBox(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t x, int32_t y, int32_
                 if (gradient) {
                     float ratio = static_cast<float>(lx) / rw + static_cast<float>(ly) / rh;
                     float factor = 1.2f - (ratio * 0.4f);
-                    fc.r = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.r * factor)));
-                    fc.g = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.g * factor)));
-                    fc.b = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(fc.b * factor)));
+                    fc.r = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(fc.r * factor)));
+                    fc.g = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(fc.g * factor)));
+                    fc.b = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(fc.b * factor)));
                 }
                 BlendPixel(buf, w, h, ix, iy, fc);
             }
@@ -198,10 +198,10 @@ void DrawRing(PIXEL_RGBA* buf, int32_t w, int32_t h, int32_t cx, int32_t cy, flo
     int32_t rOut = static_cast<int32_t>(ceil(radius));
     int32_t rIn = static_cast<int32_t>(radius - thickness);
     if (rIn < 0) rIn = 0;
-    int32_t sx = (std::max)(0, cx - rOut);
-    int32_t sy = (std::max)(0, cy - rOut);
-    int32_t ex = (std::min)(w, cx + rOut);
-    int32_t ey = (std::min)(h, cy + rOut);
+    int32_t sx = std::max(0, cx - rOut);
+    int32_t sy = std::max(0, cy - rOut);
+    int32_t ex = std::min(w, cx + rOut);
+    int32_t ey = std::min(h, cy + rOut);
     int32_t rOut2 = rOut * rOut;
     int32_t rIn2 = rIn * rIn;
     for (int32_t iy = sy; iy < ey; ++iy) {
@@ -255,9 +255,7 @@ double MidiTickToTime(const std::vector<MidiTempoSegment>& segs, double tick) {
         const auto& s = segs.front();
         return s.start_time_sec + (tick - s.start_tick) * s.sec_per_tick;
     }
-    auto it = std::upper_bound(
-        segs.begin(), segs.end(), tick,
-        [](double tk, const MidiTempoSegment& s) { return tk < s.start_tick; });
+    auto it = std::upper_bound(segs.begin(), segs.end(), tick, [](double tk, const MidiTempoSegment& s) { return tk < s.start_tick; });
     const MidiTempoSegment& seg = *(it - 1);
     return seg.start_time_sec + (tick - seg.start_tick) * seg.sec_per_tick;
 }
@@ -615,7 +613,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
         double timeTotal = video->object->time_total;
 
         auto GetTrackValueAt = [&](LPCWSTR item, double localSec, double fallback) -> double {
-            double clamped = (std::max)(0.0, (std::min)(localSec, timeTotal));
+            double clamped = std::max(0.0, std::min(localSec, timeTotal));
             double globalFrame = static_cast<double>(video->object->frame_s) + clamped * framesPerSec;
             double value = fallback;
             if (!video->edit->get_object_track_value(selfObj, GEN_TOOL_NAME(TOOL_NAME), item, globalFrame, &value))
@@ -627,14 +625,12 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
             if (select_bpm_sync_visualizer.value == 1) {
                 if (midiTempoSegs.empty()) return (120.0 * tpqn) / 60.0;
                 double midiTick = static_cast<double>(data.parser.GetTickAtTime(localSec));
-                auto it = std::upper_bound(midiTempoSegs.begin(), midiTempoSegs.end(), midiTick,
-                                           [](double tk, const MidiTempoSegment& s) { return tk < s.start_tick; });
+                auto it = std::upper_bound(midiTempoSegs.begin(), midiTempoSegs.end(), midiTick, [](double tk, const MidiTempoSegment& s) { return tk < s.start_tick; });
                 const auto& seg = (it == midiTempoSegs.begin()) ? midiTempoSegs.front() : *(it - 1);
                 return (seg.sec_per_tick > 0) ? (1.0 / seg.sec_per_tick) : ((120.0 * tpqn) / 60.0);
             } else if (select_bpm_sync_visualizer.value == 2) {
                 if (segments.empty()) return (120.0 * tpqn) / 60.0;
-                auto it = std::upper_bound(segments.begin(), segments.end(), localSec,
-                                           [](double time, const AviUtl_Tempo_Segment& s) { return time < s.start_time; });
+                auto it = std::upper_bound(segments.begin(), segments.end(), localSec, [](double time, const AviUtl_Tempo_Segment& s) { return time < s.start_time; });
                 const auto& seg = (it == segments.begin()) ? segments.front() : *(it - 1);
                 return seg.ticks_per_sec;
             } else {
@@ -650,7 +646,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
         double frameLen = (framesPerSec > 0) ? (1.0 / framesPerSec) : (1.0 / 30.0);
         double accumTick = 0.0;
         for (double t = 0.0; t < hi; t += frameLen) {
-            double dt = (std::min)(frameLen, hi - t);
+            double dt = std::min(frameLen, hi - t);
             double mid = sign * (t + dt * 0.5);
             double rate = InstantTempoTickRate(mid);
             double spd = GetTrackValueAt(L"速度", mid, track_speed_mul.value);
@@ -781,7 +777,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
     };
     std::vector<PIXEL_RGBA> activeKeyColors(128, { 0, 0, 0, 0 });
     std::vector<bool> keyIsActive(128, false);
-    double maxLookBackSec = (std::max)(rippleLife, particleLife);
+    double maxLookBackSec = std::max(rippleLife, particleLife);
     int64_t lookBackTicks = static_cast<int64_t>(maxLookBackSec * ticksPerSec);
     int64_t searchStartTick = currentTick - lookBackTicks;
     if (searchStartTick < 0) searchStartTick = 0;
@@ -909,7 +905,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                 out.r = static_cast<uint8_t>(col.r * alphaNorm + src.r * invA);
                 out.g = static_cast<uint8_t>(col.g * alphaNorm + src.g * invA);
                 out.b = static_cast<uint8_t>(col.b * alphaNorm + src.b * invA);
-                out.a = static_cast<uint8_t>((std::min)(255, static_cast<int32_t>(src.a + col.a * a)));
+                out.a = static_cast<uint8_t>(std::min(255, static_cast<int32_t>(src.a + col.a * a)));
                 imgBuf[idx] = out;
             }
         }
@@ -921,7 +917,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
         double pixelsPerBeat = zoomT * tpqn;
         if (pixelsPerBeat > 0.5) {
             int64_t tickOffset = static_cast<int64_t>(maxDim / zoomT) + static_cast<int64_t>(scrollPos / zoomT) + tpqn * 8;
-            int64_t minTick = (std::max)(0ll, currentTick - tickOffset);
+            int64_t minTick = std::max(0ll, currentTick - tickOffset);
             int64_t maxTick = currentTick + tickOffset;
             int64_t startLoopTick = (minTick / tpqn) * tpqn;
             for (int64_t t = startLoopTick; t < maxTick; t += tpqn) {
@@ -941,7 +937,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                             measureLen = static_cast<int64_t>(sig.numerator) * tpqn * 4 / sig.denominator;
                             double phaseTime = bpm_info->start + bpm_info->offset;
                             double phaseCumTick = aviutl_cumulative_tick(segments, phaseTime);
-                            phaseTick = static_cast<int64_t>(std::llround(phaseCumTick - avu_cum_zero));
+                            phaseTick = std::llround(phaseCumTick - avu_cum_zero);
                         } else {
                             measureLen = tpqn * 4;
                         }
@@ -1163,8 +1159,8 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
             if (note.velocity < minVel) continue;
             double noteDurationSec = static_cast<double>(note.endTick - note.startTick) / ticksPerSec;
             double timeSinceStart = static_cast<double>(currentTick - static_cast<int64_t>(note.startTick)) / ticksPerSec;
-            double minEmitTime = (std::max)(0.0, timeSinceStart - particleLife);
-            double maxEmitTime = (std::min)(noteDurationSec, timeSinceStart);
+            double minEmitTime = std::max(0.0, timeSinceStart - particleLife);
+            double maxEmitTime = std::min(noteDurationSec, timeSinceStart);
             if (minEmitTime >= maxEmitTime) continue;
             int32_t k_min = static_cast<int32_t>(ceil(minEmitTime / emissionInterval));
             int32_t k_max = static_cast<int32_t>(floor(maxEmitTime / emissionInterval));
@@ -1185,7 +1181,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                 else cy = sPos;
             }
             PIXEL_RGBA noteColor = GetNoteColor(note);
-            int32_t countPerStep = (std::max)(1, static_cast<int32_t>(particleAmt * 0.2));
+            int32_t countPerStep = std::max(1, static_cast<int32_t>(particleAmt * 0.2));
             int32_t total_k = k_max - k_min + 1;
             int32_t total_particles = total_k * countPerStep;
             Avx2Utils::ParticleBatchParams params;
@@ -1203,7 +1199,7 @@ bool func_proc_video_midi_visualizer(FILTER_PROC_VIDEO* video) {
                 params.start_idx = idx;
                 float px[8], py[8], ages[8];
                 int32_t mask = Avx2Utils::ComputeParticleBatchAVX2(params, px, py, ages);
-                int32_t block = (std::min)(8, total_particles - idx);
+                int32_t block = std::min(8, total_particles - idx);
                 Avx2Utils::BlendPointsAVX2(imgBuf.data(), w, h, px, py, ages, block, noteColor, static_cast<float>(particleLife));
             }
         }

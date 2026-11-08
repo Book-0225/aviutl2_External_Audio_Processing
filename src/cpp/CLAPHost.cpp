@@ -372,9 +372,8 @@ std::string ClapHost::Impl::GetState() const {
                                c->data.insert(c->data.end(), reinterpret_cast<const BYTE*>(buf), reinterpret_cast<const BYTE*>(buf) + size);
                                return static_cast<int64_t>(size);
                            } };
-    if (extState->save(plugin, &stream)) {
-        return StringUtils::EncodeCompressedStatePayload("CLAP:", "CLAPZ:", ctx.data.data(), ctx.data.size(), settings.general.compress_plugin_state);
-    }
+    if (extState->save(plugin, &stream))
+        return StringUtils::EncodeCompressedStatePayload("CLAP:", "CLAPZ:", ctx.data.data(), std::size(ctx.data), settings.general.compress_plugin_state);
     return "";
 }
 
@@ -389,7 +388,7 @@ bool ClapHost::Impl::SetState(const std::string& state_b64) const {
     Ctx ctx{ &data };
     clap_istream stream = { &ctx, [](const clap_istream* s, void* buf, uint64_t size) -> int64_t {
                                Ctx* c = reinterpret_cast<Ctx*>(s->ctx);
-                               size_t to_read = (std::min)(size, c->d->size() - c->pos);
+                               size_t to_read = std::min(size, c->d->size() - c->pos);
                                if (to_read == 0) return 0;
                                memcpy(buf, c->d->data() + c->pos, to_read);
                                c->pos += to_read;

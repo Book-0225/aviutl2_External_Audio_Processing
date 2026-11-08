@@ -36,7 +36,11 @@ class MyHostApplication : public IHostApplication {
         *obj = nullptr;
         return kNoInterface;
     }
-    uint32_t PLUGIN_API addRef() override { return ++refCount; }
+
+    uint32_t PLUGIN_API addRef() override {
+        return ++refCount;
+    }
+
     uint32_t PLUGIN_API release() override {
         if (--refCount == 0) {
             delete this;

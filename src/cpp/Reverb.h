@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <numbers>
 class OnePoleLPF {
   public:
     float store = 0.0f;
@@ -11,7 +12,7 @@ class OnePoleLPF {
             b1 = 0.0f;
             return;
         }
-        float costh = 2.0f - cosf(2.0f * 3.14159f * cutoff / sample_rate);
+        float costh = 2.0f - cosf(2.0f * static_cast<float>(std::numbers::pi) * cutoff / sample_rate);
         b1 = costh - sqrtf(costh * costh - 1.0f);
         a0 = 1.0f - b1;
     }

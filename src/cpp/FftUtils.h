@@ -2,6 +2,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <numbers>
 
 namespace FftUtils {
 
@@ -13,7 +14,7 @@ inline void FftInplace(std::complex<float>* data, int32_t n, bool inverse) {
         if (i < j) std::swap(data[i], data[j]);
     }
     for (int32_t len = 2; len <= n; len <<= 1) {
-        const float ang = static_cast<float>((inverse ? M_PI * 2 : M_PI * -2) / len);
+        const float ang = static_cast<float>((inverse ? std::numbers::pi * 2 : std::numbers::pi * -2) / len);
         const std::complex<float> wlen(std::cos(ang), std::sin(ang));
         for (int32_t i = 0; i < n; i += len) {
             std::complex<float> w(1.0f, 0.0f);

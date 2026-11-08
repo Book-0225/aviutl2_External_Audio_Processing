@@ -73,7 +73,7 @@ class SimpleDelayLine {
     }
 
     void clear() {
-        std::fill(buffer.begin(), buffer.end(), 0.0f);
+        std::ranges::fill(buffer, 0.0f);
         w_pos = 0;
     }
 
@@ -182,10 +182,10 @@ static void NormalizeTogether(std::initializer_list<std::vector<float>*> arrays)
     float peak = 0.0f;
     for (auto* v : arrays)
         for (float s : *v)
-            if (std::isfinite(s)) peak = (std::max)(peak, std::fabs(s));
+            if (std::isfinite(s)) peak = std::max(peak, std::fabs(s));
     if (peak <= 1e-6f) return;
     constexpr float kTargetPeak = 0.06f;
-    float g = (std::min)(kTargetPeak / peak, kMaxNormalizeGain);
+    float g = std::min(kTargetPeak / peak, kMaxNormalizeGain);
     for (auto* v : arrays)
         for (auto& s : *v) s *= g;
 }
@@ -292,7 +292,7 @@ static void LoadIRAsync(int64_t effect_id, const std::wstring& path_l, const std
 bool func_proc_audio_convolution_reverb(FILTER_PROC_AUDIO* audio) {
     int32_t total_samples = audio->object->sample_num;
     if (total_samples <= 0) return true;
-    int32_t channels = (std::min)(2, audio->object->channel_num);
+    int32_t channels = std::min(2, audio->object->channel_num);
     double Fs = (audio->scene->sample_rate > 0) ? audio->scene->sample_rate : 44100.0;
     std::wstring ir_path_l = (conv_ir_file.value && *conv_ir_file.value) ? std::filesystem::path(conv_ir_file.value).wstring() : L"";
     std::wstring ir_path_r = (conv_ir_file_r.value && *conv_ir_file_r.value) ? std::filesystem::path(conv_ir_file_r.value).wstring() : L"";
