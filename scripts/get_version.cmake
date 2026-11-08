@@ -1,25 +1,19 @@
-if(NOT DEFINED EAP2_TOML_PATH)
-    set(EAP2_TOML_PATH "${CMAKE_CURRENT_LIST_DIR}/../aviutl2.toml")
+if(NOT DEFINED EAP2_PKL_PATH)
+    set(EAP2_PKL_PATH "${CMAKE_CURRENT_LIST_DIR}/../aviutl2.pkl")
 endif()
 
-if(NOT EXISTS "${EAP2_TOML_PATH}")
-    message(FATAL_ERROR "aviutl2.toml が見つかりません: ${EAP2_TOML_PATH}")
+if(NOT EXISTS "${EAP2_PKL_PATH}")
+    message(FATAL_ERROR "aviutl2.pkl が見つかりません: ${EAP2_PKL_PATH}")
 endif()
 
-file(STRINGS "${EAP2_TOML_PATH}" _eap2_ver_lines REGEX "^[ \t]*version[ \t]*=")
-if(NOT _eap2_ver_lines)
-    message(FATAL_ERROR "aviutl2.toml 内に version = \"x.y.z\" が見つかりませんでした。")
-endif()
-
-list(GET _eap2_ver_lines 0 _eap2_ver_line)
-if(_eap2_ver_line MATCHES "\"([^\"]+)\"")
+file(READ "${EAP2_PKL_PATH}" _eap2_pkl_content)
+if(_eap2_pkl_content MATCHES "project[ \t\r\n]*\\{[^}]*[ \t\r\n]version[ \t]*=[ \t]*\"([^\"]+)\"")
     set(EAP2_VERSION "${CMAKE_MATCH_1}")
 else()
-    message(FATAL_ERROR "version 行の形式が不正です: ${_eap2_ver_line}")
+    message(FATAL_ERROR "aviutl2.pkl の project ブロック内に version = \"x.y.z\" が見つかりませんでした。")
 endif()
 
-unset(_eap2_ver_lines)
-unset(_eap2_ver_line)
+unset(_eap2_pkl_content)
 
 if(CMAKE_SCRIPT_MODE_FILE)
     file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${EAP2_VERSION}")

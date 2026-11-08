@@ -43,7 +43,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/scripts/get_version.cmake")
 message(STATUS "EAP2 version: ${EAP2_VERSION}")
 
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/aviutl2.toml")
+    "${CMAKE_CURRENT_SOURCE_DIR}/aviutl2.pkl")
 
 set(_eap2_header "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/Eap2Version.h")
 if(EXISTS "${_eap2_header}")
