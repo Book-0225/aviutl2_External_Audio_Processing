@@ -20,6 +20,7 @@
 #include <regex>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #define GENERATE_STR_REPLACE(SRC_STR, REGEX_PATTERN, REPLACEMENT) []() {                          \
@@ -121,11 +122,20 @@ inline bool DbgMessage(const std::wstring& lpText, std::optional<LOG_TYPE> log_t
 }
 
 inline LPCWSTR TrText(LPCWSTR text) {
-    if (!text || !g_config_handle || !g_config_handle->translate) {
+    if (!text || !g_config_handle || !g_config_handle->translate)
         return text;
-    }
     LPCWSTR translated = g_config_handle->translate(g_config_handle, text);
     return translated ? translated : text;
+}
+
+inline LPCWSTR TrTextPersist(LPCWSTR text) {
+    if (!text)
+        return nullptr;
+    static std::mutex mtx;
+    static std::unordered_set<std::wstring> pool;
+    LPCWSTR translated = TrText(text);
+    std::lock_guard<std::mutex> lock(mtx);
+    return pool.emplace(translated ? translated : text).first->c_str();
 }
 
 inline Version parseVersion(std::wstring_view v) {
