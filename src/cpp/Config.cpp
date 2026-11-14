@@ -19,12 +19,12 @@ struct ConfigLoadReport {
 
     void Add(const std::wstring& categoryName, const std::wstring& key, const std::wstring& rawValue) {
         has_error = true;
-        messages.push_back(L"[" + categoryName + L"] " + key + L" = " + rawValue);
+        messages.push_back(std::format(L"[{}] {} = {}", categoryName, key, rawValue));
     }
 };
 
 std::wstring FormatVersionLabel(const Version& v) {
-    std::wstring s = L"v" + std::to_wstring(v.major) + L"." + std::to_wstring(v.minor) + L"." + std::to_wstring(v.patch);
+    std::wstring s = std::format(L"v{:d}.{:d}.{:d}", v.major, v.minor, v.patch);
     if (v.letter != 0)
         s += static_cast<wchar_t>(v.letter);
     return s;
@@ -38,9 +38,9 @@ void ShowBreakingChangeNotices() {
     if (pending.empty())
         return;
     std::ranges::sort(pending, [](auto* a, auto* b) { return a->version < b->version; });
-    std::wstring message = std::wstring(TrText(L"EAP2は以下のバージョンで破壊的変更が行われました:")) + L"\n\n";
+    std::wstring message = std::format(L"{}\n\n", TrText(L"EAP2は以下のバージョンで破壊的変更が行われました:"));
     for (auto* change : pending)
-        message += L"[" + FormatVersionLabel(change->version) + L"]\n" + change->message + L"\n\n";
+        message += std::format(L"[{}]\n{}\n\n", FormatVersionLabel(change->version), change->message);
     DbgMessage(message, LOG_WARN);
     Version current = parseVersion(plugin_version);
     Version newest_breaking = pending.back()->version;
@@ -61,7 +61,7 @@ void ShowConfigLoadWarning(const ConfigLoadReport& report) {
     DbgPrint(message, LOG_WARN);
     constexpr size_t max_lines = 10;
     for (size_t i = 0; i < std::size(report.messages) && i < max_lines; ++i)
-        message += report.messages[i] + L"\n";
+        message += std::format(L"{}\n", report.messages[i]);
     if (std::size(report.messages) > max_lines)
         message += L"...";
     MessageBoxW(nullptr, message.c_str(), L"EAP2 Config Warning", MB_OK | MB_ICONWARNING);
@@ -70,10 +70,10 @@ void ShowConfigLoadWarning(const ConfigLoadReport& report) {
 void LoadEntryWithFallback(const std::wstring& categoryName, const ConfigEntry& item, const std::wstring& rawValue, ConfigLoadReport& report) {
     if (item.load(rawValue))
         return;
-    DbgPrint(L"[Config] Invalid value detected. category=" + categoryName + L" key=" + item.key + L" value=" + rawValue + L" fallback=" + item.defaultValue, LOG_WARN);
+    DbgPrint(std::format(L"[Config] Invalid value detected. category={} key={} value={} fallback={}", categoryName, item.key, rawValue, item.defaultValue), LOG_WARN);
     report.Add(categoryName, item.key, rawValue);
     if (!item.load(item.defaultValue))
-        DbgPrint(L"[Config] Failed to apply default value. category=" + categoryName + L" key=" + item.key + L" default=" + item.defaultValue, LOG_WARN);
+        DbgPrint(std::format(L"[Config] Failed to apply default value. category={} key={} default={}", categoryName, item.key, item.defaultValue), LOG_WARN);
 }
 
 std::set<std::wstring> GetExistingKeys(const std::wstring& categoryName, const std::filesystem::path& path) {
@@ -104,7 +104,7 @@ void EnsureCategoryDefaults(const std::wstring& categoryName, const std::vector<
     for (const auto& item : entries) {
         if (existing_keys.find(item.key) != existing_keys.end()) continue;
         WritePrivateProfileStringW(categoryName.c_str(), item.key.c_str(), item.defaultValue.c_str(), path.c_str());
-        DbgPrint(L"[Config] Added missing key. category=" + categoryName + L" key=" + item.key + L" default=" + item.defaultValue, LOG_INFO);
+        DbgPrint(std::format(L"[Config] Added missing key. category={} key={} default={}", categoryName, item.key, item.defaultValue), LOG_INFO);
     }
 }
 
@@ -141,7 +141,7 @@ void LoadConfig() {
         CreateConfig(path);
 
     if (!MigrateConfig(path)) {
-        DbgMessage(std::wstring(TrText(L"設定ファイル移行エラー")) + L"\n" + TrText(L"デフォルト設定で読み込まれました。"), LOG_ERROR);
+        DbgMessage(std::format(L"{}\n{}", TrText(L"設定ファイル移行エラー"), TrText(L"デフォルト設定で読み込まれました。")), LOG_ERROR);
         settings = AppSettings{};
         new_settings = settings;
         return;

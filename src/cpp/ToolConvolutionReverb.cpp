@@ -250,7 +250,7 @@ static void LoadIRAsync(int64_t effect_id, const std::wstring& path_l, const std
                     spec_r = spec_l;
                 }
             } else {
-                DbgPrint(std::wstring(TOOL_NAME) + StringUtils::Utf8ToWide(multi.error), LOG_TYPE::LOG_WARN);
+                DbgPrint(std::format(L"{}{}", TOOL_NAME, StringUtils::Utf8ToWide(multi.error)), LOG_TYPE::LOG_WARN);
             }
         }
     }

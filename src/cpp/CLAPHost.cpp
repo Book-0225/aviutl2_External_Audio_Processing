@@ -416,7 +416,7 @@ bool ClapHost::Impl::GetParameterInfo(int32_t index, IAudioPluginHost::Parameter
 
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
-        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_VERBOSE);
+        DbgPrint(std::format(L"[CLAP] failed to get parameter info for index {:d}", index), LOG_VERBOSE);
         return false;
     }
     strncpy_s(info.name, clapInfo.name, sizeof(info.name) - 1);
@@ -437,7 +437,7 @@ uint32_t ClapHost::Impl::GetParameterID(int32_t index) const {
 
     clap_param_info_t clapInfo = {};
     if (!extParams->get_info(plugin, static_cast<uint32_t>(index), &clapInfo)) {
-        DbgPrint(L"[CLAP] failed to get parameter info for index " + std::to_wstring(index), LOG_VERBOSE);
+        DbgPrint(std::format(L"[CLAP] failed to get parameter info for index {:d}", index), LOG_VERBOSE);
         return 0;
     }
 
@@ -469,7 +469,7 @@ void ClapHost::Impl::SetParameter(uint32_t paramId, float value) const {
         return;
     }
 
-    DbgPrint(L"[CLAP] SetParameter id=" + std::to_wstring(paramId) + L", value=" + std::to_wstring(value) + L" (not fully implemented)", LOG_VERBOSE);
+    DbgPrint(std::format(L"[CLAP] SetParameter id={:d}, value={} (not fully implemented)", paramId, value), LOG_VERBOSE);
 }
 
 ClapHost::Impl::~Impl() {

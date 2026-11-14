@@ -170,9 +170,8 @@ inline std::string EncodeCompressedStatePayload(std::string_view rawPrefix, std:
     if (!data || len == 0) return "";
 
     std::vector<BYTE> compressed;
-    if (enableCompression && CompressBlob(data, len, compressed) && compressed.size() < len) {
+    if (enableCompression && CompressBlob(data, len, compressed) && compressed.size() < len)
         return std::string(compressedPrefix) + Base64Encode(compressed.data(), static_cast<DWORD>(compressed.size()));
-    }
 
     return std::string(rawPrefix) + Base64Encode(data, static_cast<DWORD>(len));
 }

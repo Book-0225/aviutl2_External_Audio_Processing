@@ -180,19 +180,23 @@ inline void SwapChannelsAVX2(float* bufL, float* bufR, size_t count) {
     size_t i = 0;
     size_t aligned_count = count - (count % 32);
     for (; i < aligned_count; i += 32) {
-        __m256 l0 = _mm256_loadu_ps(bufL + i), r0 = _mm256_loadu_ps(bufR + i);
+        __m256 l0 = _mm256_loadu_ps(bufL + i);
+        __m256 r0 = _mm256_loadu_ps(bufR + i);
         _mm256_storeu_ps(bufL + i, r0);
         _mm256_storeu_ps(bufR + i, l0);
 
-        __m256 l1 = _mm256_loadu_ps(bufL + i + 8), r1 = _mm256_loadu_ps(bufR + i + 8);
+        __m256 l1 = _mm256_loadu_ps(bufL + i + 8);
+        __m256 r1 = _mm256_loadu_ps(bufR + i + 8);
         _mm256_storeu_ps(bufL + i + 8, r1);
         _mm256_storeu_ps(bufR + i + 8, l1);
 
-        __m256 l2 = _mm256_loadu_ps(bufL + i + 16), r2 = _mm256_loadu_ps(bufR + i + 16);
+        __m256 l2 = _mm256_loadu_ps(bufL + i + 16);
+        __m256 r2 = _mm256_loadu_ps(bufR + i + 16);
         _mm256_storeu_ps(bufL + i + 16, r2);
         _mm256_storeu_ps(bufR + i + 16, l2);
 
-        __m256 l3 = _mm256_loadu_ps(bufL + i + 24), r3 = _mm256_loadu_ps(bufR + i + 24);
+        __m256 l3 = _mm256_loadu_ps(bufL + i + 24);
+        __m256 r3 = _mm256_loadu_ps(bufR + i + 24);
         _mm256_storeu_ps(bufL + i + 24, r3);
         _mm256_storeu_ps(bufR + i + 24, l3);
     }
@@ -224,8 +228,10 @@ inline void InvertBufferAVX2(float* buf, size_t count) {
 inline void MatrixMixStereoAVX2(float* outL, float* outR, const float* inL, const float* inR, size_t count, float cLL, float cRL, float cLR, float cRR) {
     size_t i = 0;
     size_t aligned_count = count - (count % 32);
-    __m256 v_cLL = _mm256_set1_ps(cLL), v_cRL = _mm256_set1_ps(cRL);
-    __m256 v_cLR = _mm256_set1_ps(cLR), v_cRR = _mm256_set1_ps(cRR);
+    __m256 v_cLL = _mm256_set1_ps(cLL);
+    __m256 v_cRL = _mm256_set1_ps(cRL);
+    __m256 v_cLR = _mm256_set1_ps(cLR);
+    __m256 v_cRR = _mm256_set1_ps(cRR);
 
     for (; i < aligned_count; i += 32) {
         auto mix_chunk = [&](int32_t offset) {
@@ -475,10 +481,14 @@ inline void MaxBufferAVX2(float* out, const float* src1, const float* src2, size
     size_t aligned_count = count - (count % 32);
 
     for (; i < aligned_count; i += 32) {
-        __m256 v0_a = _mm256_loadu_ps(src1 + i), v0_b = _mm256_loadu_ps(src2 + i);
-        __m256 v1_a = _mm256_loadu_ps(src1 + i + 8), v1_b = _mm256_loadu_ps(src2 + i + 8);
-        __m256 v2_a = _mm256_loadu_ps(src1 + i + 16), v2_b = _mm256_loadu_ps(src2 + i + 16);
-        __m256 v3_a = _mm256_loadu_ps(src1 + i + 24), v3_b = _mm256_loadu_ps(src2 + i + 24);
+        __m256 v0_a = _mm256_loadu_ps(src1 + i);
+        __m256 v0_b = _mm256_loadu_ps(src2 + i);
+        __m256 v1_a = _mm256_loadu_ps(src1 + i + 8);
+        __m256 v1_b = _mm256_loadu_ps(src2 + i + 8);
+        __m256 v2_a = _mm256_loadu_ps(src1 + i + 16);
+        __m256 v2_b = _mm256_loadu_ps(src2 + i + 16);
+        __m256 v3_a = _mm256_loadu_ps(src1 + i + 24);
+        __m256 v3_b = _mm256_loadu_ps(src2 + i + 24);
         _mm256_storeu_ps(out + i, _mm256_max_ps(v0_a, v0_b));
         _mm256_storeu_ps(out + i + 8, _mm256_max_ps(v1_a, v1_b));
         _mm256_storeu_ps(out + i + 16, _mm256_max_ps(v2_a, v2_b));

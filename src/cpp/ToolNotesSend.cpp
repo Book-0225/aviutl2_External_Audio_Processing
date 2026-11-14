@@ -170,11 +170,11 @@ std::wstring GetNoteName(int32_t note) {
     int32_t octave = (note / 12) - 1;
     int32_t noteIdx = note % 12;
     if (noteIdx < 0) noteIdx += 12;
-    return std::wstring(noteNames[noteIdx]) + std::to_wstring(octave);
+    return std::format(L"{}{:d}", noteNames[noteIdx], octave);
 }
 
 std::wstring GetNotesSendParamsString(int32_t note, int32_t id) {
-    return L" [" + GetNoteName(note) + L"] [ID:" + std::to_wstring(id) + L"]";
+    return std::format(L" [{}] [ID:{:d}]", GetNoteName(note), id);
 }
 
 struct RenameParam {
@@ -194,8 +194,8 @@ static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
         while (!obj) {
             int32_t effect_count = edit->count_object_effect(obj_temp, GEN_TOOL_NAME(TOOL_NAME_MEDIA));
             for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(GEN_TOOL_NAME(TOOL_NAME_MEDIA));
-                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                std::wstring indexed_filter_name = GEN_TOOL_NAME(TOOL_NAME_MEDIA);
+                if (i > 0) indexed_filter_name += std::format(L":{:d}", i);
                 LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj_temp, indexed_filter_name.c_str(), notes_send_data.name);
                 if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
                     std::string raw_data = StringUtils::HexToString(hex_encoded_id_str);
@@ -252,8 +252,8 @@ bool func_proc_audio_notes_send(FILTER_PROC_AUDIO* audio) {
                 RenameParam rp;
                 rp.id = instance_id;
                 rp.defaultName = GEN_TOOL_NAME(TOOL_NAME_MEDIA);
-                rp.newName = std::wstring(rp.defaultName) + GetNotesSendParamsString(note_num, display_id);
-                rp.oldNameCandidate = std::wstring(rp.defaultName) + GetNotesSendParamsString(old_note, old_id);
+                rp.newName = rp.defaultName + GetNotesSendParamsString(note_num, display_id);
+                rp.oldNameCandidate = rp.defaultName + GetNotesSendParamsString(old_note, old_id);
                 if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
             }

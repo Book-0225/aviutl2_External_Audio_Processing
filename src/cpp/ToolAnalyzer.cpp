@@ -31,7 +31,7 @@ int32_t normalize_batch_size(const int32_t value) {
         result = (upper == clamped) ? clamped : ((clamped - lower <= upper - clamped) ? lower : upper);
     }
     if (result != value)
-        DbgPrint(L"[Analyzer] BatchSize " + std::to_wstring(value) + L" -> " + std::to_wstring(result), LOG_VERBOSE);
+        DbgPrint(std::format(L"[Analyzer] BatchSize {:d} -> {:d}", value, result), LOG_VERBOSE);
     return result;
 }
 
@@ -1042,12 +1042,10 @@ AnalysisRequest request_from_pick(ObjPickResult& pick, bool apply_effect) {
 
 void refresh_volume_fix_proposal() {
     const auto res = current_result();
-    if (res->valid && res->is_object && res->integrated > -99.0) {
-        g_vol_fix_panel.set_proposal(make_volume_fix_proposal(res->f_start, res->obj_name, res->integrated, res->true_peak,
-                                                              res->snap.target_lufs, res->snap.target_peak));
-    } else {
+    if (res->valid && res->is_object && res->integrated > -99.0)
+        g_vol_fix_panel.set_proposal(make_volume_fix_proposal(res->f_start, res->obj_name, res->integrated, res->true_peak, res->snap.target_lufs, res->snap.target_peak));
+    else
         g_vol_fix_panel.set_proposal(VolumeFixProposal{});
-    }
 }
 
 bool confirm_warning(const wchar_t* text) {
@@ -1062,8 +1060,7 @@ void apply_volume_fix_and_remeasure() {
     if (prop.exceeds_ceiling()) {
         const double predicted = prop.predicted_peak();
         const double ceiling = prop.peak_ceiling;
-        const std::wstring msg = std::vformat(TrText(L"適用するとTrue Peakが約{:.1f} dBTPになり、上限({:.1f} dBTP)を超える見込みです。\nこのまま適用しますか？"),
-                                              std::make_wformat_args(predicted, ceiling));
+        const std::wstring msg = std::vformat(TrText(L"適用するとTrue Peakが約{:.1f} dBTPになり、上限({:.1f} dBTP)を超える見込みです。\nこのまま適用しますか？"), std::make_wformat_args(predicted, ceiling));
         if (!confirm_warning(msg.c_str())) return;
     }
     if (std::abs(prop.user_gain_db) <= 0.01 && !confirm_warning(TrText(L"適用結果にほぼ変化が無い見込みです。\nこのまま適用しますか？")))
@@ -1234,7 +1231,7 @@ void draw_checkbox(HDC dc, int32_t x, int32_t y, bool checked) {
 }
 
 std::wstring fmtL(double v) {
-    return v <= -99.0 ? std::wstring(L"---") : std::format(L"{:.1f}", v);
+    return v <= -99.0 ? L"---" : std::format(L"{:.1f}", v);
 }
 
 std::wstring fmtDiff(double d) {
@@ -1471,7 +1468,7 @@ void draw_progress(HDC dc, int32_t W, int32_t y) {
     fill_rect(dc, pb, C_PANEL);
     fill_rect(dc, { 8, y, 8 + static_cast<int32_t>((W - 16) * prog / 100.0), y + 22 }, C_PROGRESS);
     SelectObject(dc, g_fS);
-    dtw(dc, (std::wstring(TrText(L"計測中")) + std::format(L"{:d}%", prog)).c_str(), pb, C_TEXT, TXT_CENTER);
+    dtw(dc, std::format(L"{}{:d}%", TrText(L"計測中"), prog).c_str(), pb, C_TEXT, TXT_CENTER);
 }
 
 struct SummaryRow {
@@ -1524,11 +1521,11 @@ int32_t draw_summary_panel(HDC dc, int32_t W, int32_t y, const AnalyzeResult& re
 
     std::wstring range_text;
     if (res.is_object) {
-        std::wstring nm = res.obj_name.empty() ? std::wstring(TrText(L"(名称未設定)")) : res.obj_name;
-        if (nm.size() > 60) nm = nm.substr(0, 60) + L"...";
+        std::wstring nm = res.obj_name.empty() ? TrText(L"(名称未設定)") : res.obj_name;
+        if (nm.size() > 60) nm = std::format(L"{}...", nm.substr(0, 60));
         range_text = std::format(L"[{}]  F{:d} 〜 F{:d}", nm, res.f_start + 1, res.f_end + 1);
     } else {
-        range_text = std::format(L"{}  F{:d} 〜 F{:d}", std::wstring(TrText(L"解析範囲")), res.f_start + 1, res.f_end + 1);
+        range_text = std::format(L"{}  F{:d} 〜 F{:d}", TrText(L"解析範囲"), res.f_start + 1, res.f_end + 1);
     }
     dtw(dc, range_text.c_str(), { 14, y + 128, W - 14, y + 140 }, C_TEXT_SUB, TXT_RIGHT);
 
@@ -1618,7 +1615,7 @@ void draw_issue_list(HDC dc, int32_t W, int32_t H, int32_t y, const AnalyzeResul
 
         const bool is_clip = iss.type == Issue::Type::CLIP;
         const COLORREF base_col = is_clip ? C_FAIL : C_TEXT_SUB;
-        const std::wstring name = is_clip ? std::wstring(TrText(L"クリッピング")) : std::wstring(TrText(L"無音区間"));
+        const std::wstring name = is_clip ? TrText(L"クリッピング") : TrText(L"無音区間");
         const std::wstring line = std::format(L"{} {}  F{:d}〜F{:d}", is_clip ? L"●" : L"○", name, iss.f_start + 1, iss.f_end + 1);
         dtw(dc, line.c_str(), { 32, iy, list_r, iy + ITEM_H }, seen ? darken(base_col, 2) : base_col);
     }
@@ -2143,9 +2140,9 @@ void Register_Analyzer(HOST_APP_TABLE* host) {
     host->register_event_listener(EVENT_TYPE::CHANGE_EDIT_FRAME, nullptr, frame_change_cb);
     host->register_filter_plugin(&filter_plugin_table_volume);
 
-    static const std::wstring menu_range = std::wstring(APP_NAME) + L"\\" + TrText(L"選択範囲を計測");
-    static const std::wstring menu_all = std::wstring(APP_NAME) + L"\\" + TrText(L"シーン全体を計測");
-    static const std::wstring menu_obj = std::wstring(APP_NAME) + L"\\" + TrText(L"選択オブジェクトを計測");
+    static const std::wstring menu_range = std::format(L"{}\\{}", APP_NAME, TrText(L"選択範囲を計測"));
+    static const std::wstring menu_all = std::format(L"{}\\{}", APP_NAME, TrText(L"シーン全体を計測"));
+    static const std::wstring menu_obj = std::format(L"{}\\{}", APP_NAME, TrText(L"選択オブジェクトを計測"));
 
     const auto id_param = [](int32_t id) { return reinterpret_cast<void*>(static_cast<intptr_t>(id)); };
     host->register_edit_menu_param(menu_range.c_str(), id_param(ID_BTN_RANGE), menu_measure_cb);

@@ -51,7 +51,7 @@ LRESULT CALLBACK PickerWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
             if (state->candidates) {
                 for (const auto& c : *state->candidates) {
                     std::wstring line = StringUtils::Utf8ToWide(c.name);
-                    if (!c.category.empty()) line += L"  [" + StringUtils::Utf8ToWide(c.category) + L"]";
+                    if (!c.category.empty()) line += std::format(L"  [{}]", StringUtils::Utf8ToWide(c.category));
                     SendMessage(state->listBox, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(line.c_str()));
                 }
                 if (!state->candidates->empty()) SendMessage(state->listBox, LB_SETCURSEL, 0, 0);

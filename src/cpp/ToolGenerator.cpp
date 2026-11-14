@@ -86,7 +86,7 @@ std::wstring GetGenParamsString(int32_t type) {
             typeName = L"Pink Noise";
             break;
     }
-    return L" (" + typeName + L")";
+    return std::format(L" ({})", typeName);
 }
 
 struct RenameParam {
@@ -106,8 +106,8 @@ static void func_proc_check_and_rename(void* param, EDIT_SECTION* edit) {
         while (!obj) {
             int32_t effect_count = edit->count_object_effect(obj_temp, GEN_TOOL_NAME(TOOL_NAME));
             for (int32_t i = 0; i < effect_count; ++i) {
-                std::wstring indexed_filter_name = std::wstring(GEN_TOOL_NAME(TOOL_NAME));
-                if (i > 0) indexed_filter_name += L":" + std::to_wstring(i);
+                std::wstring indexed_filter_name = GEN_TOOL_NAME(TOOL_NAME);
+                if (i > 0) indexed_filter_name += std::format(L":{:d}", i);
                 LPCSTR hex_encoded_id_str = edit->get_object_item_value(obj_temp, indexed_filter_name.c_str(), gen_data.name);
                 if (hex_encoded_id_str && hex_encoded_id_str[0] != '\0') {
                     std::string raw_data = StringUtils::HexToString(hex_encoded_id_str);
@@ -168,8 +168,8 @@ bool func_proc_audio_generator(FILTER_PROC_AUDIO* audio) {
                 RenameParam rp;
                 rp.id = instance_id;
                 rp.defaultName = TOOL_NAME;
-                rp.newName = std::wstring(rp.defaultName) + GetGenParamsString(type);
-                rp.oldNameCandidate = std::wstring(rp.defaultName) + GetGenParamsString(old_type);
+                rp.newName = rp.defaultName + GetGenParamsString(type);
+                rp.oldNameCandidate = rp.defaultName + GetGenParamsString(old_type);
                 if (g_edit_handle->get_edit_state() == g_edit_handle->EDIT_STATE_EDIT)
                     g_edit_handle->call_edit_section_param(&rp, func_proc_check_and_rename);
             }

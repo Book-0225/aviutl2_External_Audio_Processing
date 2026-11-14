@@ -93,13 +93,13 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
             if (!live_sub_id.empty())
                 m_sub_plugin_ids[instance_id] = live_sub_id;
         } catch (...) {
-            DbgPrint(std::wstring(TrText(L"インスタンスの状態の保存に失敗しました。")) + L": " + StringUtils::Utf8ToWide(instance_id), LOG_WARN);
+            DbgPrint(std::format(L"{}: {}", TrText(L"インスタンスの状態の保存に失敗しました。"), StringUtils::Utf8ToWide(instance_id)), LOG_WARN);
         }
     }
 
     std::string all_data_str;
     for (const auto& [id, state] : m_plugin_state_database) {
-        all_data_str += id + ":" + state;
+        all_data_str += std::format("{}:{}", id, state);
 
         std::string extra_segment;
         if (m_param_mappings.count(id)) {
@@ -110,7 +110,7 @@ std::string PluginManager::PrepareProjectState(const std::set<std::string>& acti
         }
         auto sub_id_it = m_sub_plugin_ids.find(id);
         if (sub_id_it != m_sub_plugin_ids.end() && !sub_id_it->second.empty())
-            extra_segment += "S=" + sub_id_it->second + ",";
+            extra_segment += std::format("S={},", sub_id_it->second);
         if (!extra_segment.empty())
             all_data_str += "|" + extra_segment;
         all_data_str += ';';
@@ -173,7 +173,7 @@ void PluginManager::LoadProjectState(const std::string& data) {
                     m_param_mappings[key] = mapping;
                 }
             } else {
-                DbgPrint(std::wstring(TrText(L"破損した状態データが検出され、破棄されました。")) + L" ID: " + StringUtils::Utf8ToWide(key), LOG_WARN);
+                DbgPrint(std::format(L"{} ID: {}", TrText(L"破損した状態データが検出され、破棄されました。"), StringUtils::Utf8ToWide(key)), LOG_WARN);
             }
         }
         start = end + 1;
@@ -268,14 +268,14 @@ bool PluginManager::ShouldReset(int64_t effect_id, int64_t current_sample_index,
     std::lock_guard<std::mutex> lock(m_last_audio_state_mutex);
     auto it = m_last_audio_states.find(effect_id);
     bool needs_reset = false;
-    DbgPrint(L"ShouldReset: " + std::to_wstring(effect_id) + L" " + std::to_wstring(current_sample_index) + L" " + std::to_wstring(current_sample_num), LOG_VERBOSE);
+    DbgPrint(std::format(L"ShouldReset: {:d} {:d} {:d}", effect_id, current_sample_index, current_sample_num), LOG_VERBOSE);
     if (it != m_last_audio_states.end()) {
         if (current_sample_index != it->second.sample_end)
             needs_reset = true;
     } else {
         needs_reset = true;
     }
-    DbgPrint(std::wstring(L"ShouldReset result: ") + std::wstring(needs_reset ? L"True" : L"False"), LOG_VERBOSE);
+    DbgPrint(std::format(L"ShouldReset result: {}", needs_reset ? L"True" : L"False"), LOG_VERBOSE);
     return needs_reset;
 }
 

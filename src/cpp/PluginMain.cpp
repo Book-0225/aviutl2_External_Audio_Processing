@@ -268,10 +268,7 @@ void func_proc_file_drop_plugin(EDIT_SECTION* edit, LPCWSTR file) {
         edit->delete_object(obj);
         std::string target_name_str = StringUtils::WideToUtf8(target_name);
         std::string target = "[Object.0]\r\neffect.name=" + target_name_str;
-        std::string replacement =
-            "[Object.0]\r\neffect.name=" + StringUtils::WideToUtf8(L"フィルタオブジェクト") + "\r\n"
-                                                                                              "[Object.1]\r\neffect.name=" +
-            target_name_str;
+        std::string replacement = std::format("[Object.0]\r\neffect.name={}\r\n[Object.1]\r\neffect.name={}", StringUtils::WideToUtf8(L"フィルタオブジェクト"), target_name_str);
         size_t pos = alias.find(target);
         if (pos != std::string::npos)
             alias.replace(pos, target.length(), replacement);
@@ -334,7 +331,7 @@ void func_proc_file_drop_midi(EDIT_SECTION* edit, LPCWSTR file) {
 EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version) {
     // RequiredVersion()実装前のバージョン用
     if (version < 2003300) {
-        std::wstring message = std::wstring(L"AviUtl2のバージョンが古すぎます。\n最低バージョン: ") + std::to_wstring(MINIMUM_VERSION);
+        std::wstring message = std::format(L"AviUtl2のバージョンが古すぎます。\n最低バージョン: {:d}", MINIMUM_VERSION);
         MessageBoxW(NULL, message.c_str(), L"EAP2 Error", MB_OK | MB_ICONERROR);
         return false;
     }

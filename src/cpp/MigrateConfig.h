@@ -21,7 +21,7 @@ inline bool MigrateConfig(const std::filesystem::path& path) {
         return true;
 
     if (version < 0 || version > _wtoi(CONFIG_VERSION)) {
-        DbgMessage(std::wstring(TrText(L"設定ファイルのバージョン異常")) + L": " + std::to_wstring(version) + L"\n" + L"デフォルト設定で読み込まれました。", LOG_ERROR);
+        DbgMessage(std::format(L"{}: {:d}\nデフォルト設定で読み込まれました。", TrText(L"設定ファイルのバージョン異常"), version), LOG_ERROR);
         return false;
     }
 

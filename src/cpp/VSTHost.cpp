@@ -443,7 +443,7 @@ struct VstHost::Impl {
 
         if (!ApplyProcessingSetup(newRate, currentBlockSize, true)) {
             VSTLog(LOG_WARN);
-            DbgPrint(L"Failed to apply VST3 sample-rate change: " + std::to_wstring(newRate), LOG_VERBOSE);
+            DbgPrint(std::format(L"Failed to apply VST3 sample-rate change: {:.1f}", newRate), LOG_VERBOSE);
             isReady = false;
             return;
         }
@@ -538,7 +538,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     currentSubPluginId = safeFoundId;
     provider = new PlugProvider(factory, target, true);
     if (!provider) {
-        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: PlugProvider creation failed."), LOG_VERBOSE);
+        DbgPrint(L"[DEBUG] LoadPlugin Error: PlugProvider creation failed.", LOG_VERBOSE);
         module.reset();
         return false;
     }
@@ -546,7 +546,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     component = provider->getComponent();
     controller = provider->getController();
     if (!component) {
-        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: getComponent() returned null."), LOG_VERBOSE);
+        DbgPrint(L"[DEBUG] LoadPlugin Error: getComponent() returned null.", LOG_VERBOSE);
         ReleasePlugin();
         return false;
     }
@@ -555,7 +555,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
         controller->setComponentHandler(componentHandler);
     }
     if (component->queryInterface(IAudioProcessor::iid, reinterpret_cast<void**>(&processor)) != kResultOk) {
-        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: Failed to query IAudioProcessor interface."), LOG_VERBOSE);
+        DbgPrint(L"[DEBUG] LoadPlugin Error: Failed to query IAudioProcessor interface.", LOG_VERBOSE);
         ReleasePlugin();
         return false;
     }
@@ -590,7 +590,7 @@ bool VstHost::Impl::LoadPlugin(const std::filesystem::path& path, double sampleR
     }
 
     if (!ApplyProcessingSetup(sampleRate, blockSize, false)) {
-        DbgPrint(std::wstring(L"[DEBUG] LoadPlugin Error: ApplyProcessingSetup failed."), LOG_VERBOSE);
+        DbgPrint(L"[DEBUG] LoadPlugin Error: ApplyProcessingSetup failed.", LOG_VERBOSE);
         ReleasePlugin();
         return false;
     }
@@ -980,7 +980,7 @@ void VstHost::Impl::ShowGui() {
 
     // Check if plugin supports resizing (for logging purposes)
     bool canResize = (plugView->canResize() == kResultTrue);
-    DbgPrint(std::wstring(L"[VST3 GUI] Plugin canResize: ") + std::wstring(canResize ? L"yes" : L"no"), LOG_VERBOSE);
+    DbgPrint(std::format(L"[VST3 GUI] Plugin canResize: {}", canResize ? L"yes" : L"no"), LOG_VERBOSE);
 
     // Always allow window resizing regardless of plugin support
     DWORD windowStyle = settings.vst.forceResize ? WS_OVERLAPPEDWINDOW : WS_OVERLAPPED | WS_CAPTION;
@@ -1022,7 +1022,7 @@ void VstHost::Impl::ShowGui() {
                 if (currentSize.getWidth() != newSize.getWidth() || currentSize.getHeight() != newSize.getHeight()) {
                     // Try to resize even if canResize() returns false
                     // Some plugins don't implement canResize() correctly
-                    if (self->plugView->onSize(&newSize) == kResultOk) DbgPrint(L"[VST3 GUI] Resized to " + std::to_wstring(newSize.getWidth()) + L"x" + std::to_wstring(newSize.getHeight()), LOG_VERBOSE);
+                    if (self->plugView->onSize(&newSize) == kResultOk) DbgPrint(std::format(L"[VST3 GUI] Resized to {:d}x{:d}", newSize.getWidth(), newSize.getHeight()), LOG_VERBOSE);
                     else DbgPrint(L"[VST3 GUI] Resize request rejected by plugin", LOG_VERBOSE);
                 }
             }
@@ -1082,7 +1082,7 @@ void VstHost::Impl::ShowGui() {
                                 nullptr, nullptr, hInstance, this);
     if (!guiWindow) {
         VSTLog(LOG_WARN);
-        DbgPrint(L"[VST3 GUI] Failed to create window (Error: " + std::to_wstring(GetLastError()) + L")", LOG_VERBOSE);
+        DbgPrint(std::format(L"[VST3 GUI] Failed to create window (Error: {:d})", GetLastError()), LOG_VERBOSE);
         plugView.reset();
         return;
     }
@@ -1096,7 +1096,7 @@ void VstHost::Impl::ShowGui() {
         return;
     }
 
-    DbgPrint(L"[VST3 GUI] Plugin GUI window created successfully (canResize: " + std::wstring(canResize ? L"yes" : L"no") + L")", LOG_VERBOSE);
+    DbgPrint(std::format(L"[VST3 GUI] Plugin GUI window created successfully (canResize: {})", canResize ? L"yes" : L"no"), LOG_VERBOSE);
     ShowWindow(guiWindow, SW_SHOW);
 }
 

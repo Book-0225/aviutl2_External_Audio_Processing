@@ -47,9 +47,8 @@ LRESULT CALLBACK PickerWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
             state->listBox = CreateWindowExW(WS_EX_CLIENTEDGE, L"LISTBOX", nullptr, WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_HASSTRINGS, 12, 36, width - 24, 200, hWnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kListBoxId)), cs->hInstance, nullptr);
 
             if (state->candidates) {
-                for (const auto& c : *state->candidates) {
+                for (const auto& c : *state->candidates)
                     SendMessage(state->listBox, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c.name.c_str()));
-                }
                 if (!state->candidates->empty()) SendMessage(state->listBox, LB_SETCURSEL, 0, 0);
             }
 
