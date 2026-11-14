@@ -57,7 +57,7 @@ std::filesystem::path GetConfigPath() {
 void ShowConfigLoadWarning(const ConfigLoadReport& report) {
     if (!report.has_error)
         return;
-    std::wstring message = std::wstring(TrText(L"設定ファイル内に無効な値が見つかったため、")) + L"\n" + TrText(L"該当する項目はデフォルト設定で読み込まれました。");
+    std::wstring message = TrText(L"設定ファイル内に無効な値が見つかったため、\n該当する項目はデフォルト設定で読み込まれました。");
     DbgPrint(message, LOG_WARN);
     constexpr size_t max_lines = 10;
     for (size_t i = 0; i < std::size(report.messages) && i < max_lines; ++i)
