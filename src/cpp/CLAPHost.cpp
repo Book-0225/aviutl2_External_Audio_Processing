@@ -18,7 +18,6 @@ void ClapLog(LOG_TYPE log_type) {
         case LOG_VERBOSE:
         case LOG_INFO:
             return;
-            break;
         case LOG_WARN:
             message += L"Warn";
             break;
@@ -27,7 +26,6 @@ void ClapLog(LOG_TYPE log_type) {
             break;
         default:
             return;
-            break;
     }
     DbgPrint(message, log_type);
 }
